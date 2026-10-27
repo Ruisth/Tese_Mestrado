@@ -1,0 +1,101 @@
+## host
+Linux Ruisth-Desktop 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+Linux version 6.6.87.2-microsoft-standard-WSL2 (root@439a258ad544) (gcc (GCC) 11.2.0, GNU ld (GNU Binutils) 2.37) #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025
+16
+               total        used        free      shared  buff/cache   available
+Mem:           31798         721       30770           3         619       31076
+Swap:           8192           0        8192
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdd       1007G  168G  788G  18% /
+C:\             1.7T  1.2T  532G  69% /mnt/c
+## ports (2222 8883 8000 8080 must be free)
+none listening
+## OS build artefacts (/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64)
+4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  Image-qemuarm64.bin
+d4569c0e845f3a7e36d292953de64dde76b6e81b7482206d0f0f385bcf805fc7  egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+20457c74f92adac33ef30029fdd6633c81839dffbaaf95da68ae96a19be6fa8f  egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+9f554f3bdd4bbb73c196afba4050bcded7a0ceaba41278cbb0622f6f1adf8940  egw-gateway-image-qemuarm64.rootfs-20260918120819.manifest
+## data disk
+-rw-r--r-- 1 ruisth ruisth 34359738368 Sep 19 21:23 /home/ruisth/yocto/egw-integrated/egw-data.img
+Last mounted on:          /var/lib/docker
+Filesystem features:      has_journal ext_attr resize_inode dir_index filetype extent 64bit flex_bg sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem state:         clean
+Last mount time:          Sat Sep 19 20:34:02 2026
+Maximum mount count:      -1
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+## rootfs ext4 state
+Last mounted on:          /
+Filesystem features:      has_journal ext_attr resize_inode dir_index orphan_file filetype extent 64bit flex_bg metadata_csum_seed sparse_super large_file huge_file dir_nlink extra_isize metadata_csum
+Filesystem state:         clean
+Last mount time:          Sat Sep 19 20:33:55 2026
+Maximum mount count:      -1
+Journal features:         journal_incompat_revoke journal_64bit journal_checksum_v3
+## QEMU
+5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+QEMU emulator version 8.2.7
+## OS build source (Yocto checkout, launcher and kas)
+8e886700f2b41676a6514d561d548763f52efed2
+0
+67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1  scripts/run-qemu-integrated.sh
+48eb8e9e493d9ac3ce48e82795ac2b200145212b15e0c60f84a6b7d6deeebb83  kas/egw-qemuarm64-integrated.yml
+63c09f156f806b1c5bc7dcd7a782f2deee9424e5323eb4be4913b962d95ef3bf  kas/egw-qemuarm64-integrated.lock.yml
+## execution clone
+b7e0c83c3277f7469c05336f91949e7d1b89489a
+0
+11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6  deployment/scripts/collect-resources.sh
+8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648  deployment/images.lock.env
+a519d57c2d4f73b0aeef3cd1624dc73289990cdc0af037ad091802a03aa87482  deployment/compose.yaml
+## host helpers
+f94cff6f637958ba0db6ee79408e16c2cdfdca92ebe9da395f02b53da2a11b6a  /home/ruisth/egw-tcg/itest-helpers.sh
+38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  /home/ruisth/egw-tcg/tunnel.sh
+556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  /home/ruisth/egw-tcg/ca.crt
+## controller image record
+3572f914ad4876253c7c66f032d29a126a1a29dd3516d89ad06c5513e766a3f4  /home/ruisth/egw-images/egw-controller-0.1.0-arm64.tar
+identity_format=1
+image_ref=egw-controller:0.1.0
+image_id=sha256:2e30d8fcf921828b7564305a06240e2de79679920c06c4f3a1bfa9f3ec1c7f21
+image_architecture=arm64
+image_os=linux
+builder_image_id=sha256:c3a238c6c62d6202b7fa428c6d4aaa8aae094d2b87d3330cd28e129c5f0c3ac5
+source_commit=0dfa53140996dfb1b95b9cb3a8d5721e85e4d4d9
+source_tree_state=clean
+source_tree_scope=src/ (the build context); files changed outside it: 0
+image_revision_label=0dfa53140996dfb1b95b9cb3a8d5721e85e4d4d9
+dockerfile_base_image=docker.io/library/python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
+dockerfile_sha256=6d7febf1a79da321a8de11eef8ad31d492f11feb0800562cd97f8e60007d45b5
+archive_file=egw-controller-0.1.0-arm64.tar
+archive_sha256=3572f914ad4876253c7c66f032d29a126a1a29dd3516d89ad06c5513e766a3f4
+archive_size_bytes=50799616
+python_version=Python 3.12.13
+python_dependencies=UNLOCKED (pip install . without hashes; to be resolved before the experimental freeze)
+pip_freeze_sha256=720168115f127034132b536be1110bca60ff50c5e4189c04011a19d7a0c7f642
+docker_client_version=29.8.0
+docker_server_version=29.8.0
+buildx_version=github.com/docker/buildx v0.37.0 ac30b249211430b85fb8f37b6e7154b5c47ba0b6
+build_host=MINGW64_NT-10.0-26200 3.6.3-7674c51e.x86_64 x86_64
+built_utc=2026-09-18T18:47:31Z
+pip_freeze=annotated-doc==0.0.5
+pip_freeze=annotated-types==0.8.0
+pip_freeze=anyio==4.15.1
+pip_freeze=attrs==26.1.0
+pip_freeze=certifi==2026.7.22
+pip_freeze=click==8.5.0
+pip_freeze=egw @ file:///app
+pip_freeze=fastapi==0.141.1
+pip_freeze=h11==0.16.0
+pip_freeze=httpcore==1.0.9
+pip_freeze=httpx==0.28.1
+pip_freeze=idna==3.20
+pip_freeze=jsonschema==4.26.0
+pip_freeze=jsonschema-specifications==2025.9.1
+pip_freeze=paho-mqtt==2.1.0
+pip_freeze=pip==25.0.1
+pip_freeze=pydantic==2.13.5
+pip_freeze=pydantic_core==2.46.5
+pip_freeze=referencing==0.37.0
+pip_freeze=rpds-py==2026.6.3
+pip_freeze=starlette==1.6.0
+pip_freeze=typing-inspection==0.4.4
+pip_freeze=typing_extensions==4.16.0
+pip_freeze=uvicorn==0.53.0

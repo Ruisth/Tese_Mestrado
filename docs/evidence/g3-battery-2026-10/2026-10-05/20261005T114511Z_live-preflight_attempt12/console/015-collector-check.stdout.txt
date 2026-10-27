@@ -1,0 +1,44 @@
+{
+  "run": "preflight-20261005T114511Z",
+  "deployed_sha256": "11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6",
+  "rows_per_service": {
+    "egw-mosquitto-1": 43,
+    "egw-ditto-things-1": 43,
+    "egw-ditto-policies-1": 43,
+    "egw-mongodb-1": 43,
+    "egw-ditto-gateway-1": 43,
+    "egw-controller-1": 43
+  },
+  "unexpected_names": [],
+  "distinct_instants": 43,
+  "distinct_instants_in_window": 43,
+  "window": [
+    "2026-10-05T11:48:57Z",
+    "2026-10-05T11:49:41Z"
+  ],
+  "window_seconds": 44,
+  "start_line": "2026-10-05T11:48:57Z start: collector_sha256=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6 host=egw-qemu-integrated source=auto interval=1s duration=45s pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "stop_line": "2026-10-05T11:49:41Z stop: samples=45 utc_gap_seconds=1 withheld_samples=1 withheld_elapsed_s=1.31 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=2 pacing=wall-clock",
+  "inventory": "2026-10-05T11:49:41Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0",
+  "declared_expected_services": "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1",
+  "declared_interval_s": 1.0,
+  "declared_duration_s": 45.0,
+  "declared_duration_shortfall_s": 1.0,
+  "rounds_the_declared_interval_implies": 45,
+  "samples": 45,
+  "closing_counters": {
+    "utc_gap_seconds": "1",
+    "withheld_samples": "1",
+    "withheld_elapsed_s": "1.31",
+    "withheld_runs_unmeasured": "0",
+    "withheld_open_at_stop": "0"
+  },
+  "closing_record_reconciliation": "run",
+  "resource_validation": "run",
+  "observations": [
+    "the collector reports utc_gap_seconds=1: 1 second(s) of UTC, beyond one interval, in which no sample was stamped. A wall clock stepped forward adds to it although no time passed unsampled (collect-resources.sh), so it is recorded, not judged here: the spacing of the real instants is judged by validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it",
+    "the collector reports withheld_samples=1 (1.31 s of elapsed time): 1 sample(s) withheld (each fell in a second that is not after the last stamped one -- a clock stepped back, or two samples in one second -- so no rows were written for it). The collector recalibrates its phase after one, so it is recorded, not judged here: the spacing of the real instants is judged by validate_resources_csv against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it, and what the withheld samples cost is a problem of its own when it is in neither count",
+    "the collector's window is 44 s, 1 s shorter than the duration=45s the 'start:' line declares: the stop hook ends the collector with SIGTERM after the measured run, before its declared duration, so this is recorded, not judged here (the coverage is judged by validate_resources_csv over the window it is given, which in the preflight check is the collector's own)"
+  ],
+  "problems": []
+}

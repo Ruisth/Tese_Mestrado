@@ -1,0 +1,5 @@
+## 2026-10-05T09:34:38Z bs3_untouched.sh before (HOME=/home/ruisth)
+entries of ~/egw-exec and ~/egw-tcg: 18690; sha256 of the listing: 4ca11377bec752d564de598cbe1ae5975bb712d283f5cef96152472b74a45b95
+clone HEAD: 8e492613d36490a560ae56beabd6d5c2c01a8696
+/tmp entries: g3-s3-bench snap-private-tmp systemd-private-584a7a1131cd4468a7526efe1dcbd386-systemd-logind.service-QYQ1QW systemd-private-584a7a1131cd4468a7526efe1dcbd386-systemd-resolved.service-mYp2RC systemd-private-584a7a1131cd4468a7526efe1dcbd386-systemd-timedated.service-WFEE07 systemd-private-584a7a1131cd4468a7526efe1dcbd386-systemd-timesyncd.service-CArMyh systemd-private-584a7a1131cd4468a7526efe1dcbd386-wsl-pro.service-eWpS91 
+marker: /tmp/g3-s3-bench/.started made at 2026-10-05T09:34:38Z

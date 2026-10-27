@@ -1,0 +1,5 @@
+runbook:  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+  heredoc sha256 1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc (396 lines, 30071 bytes)
+deployed: /home/ruisth/egw-tcg/itest-helpers.sh
+  file    sha256 1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc (396 lines, 30071 bytes)
+HELPERS OK: the deployed helper file is the runbook's section 6.1 heredoc, byte for byte

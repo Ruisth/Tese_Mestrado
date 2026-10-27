@@ -1,0 +1,46 @@
+--- /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/t6supp/base/g3_battery.README.md	2026-10-05 21:32:57.368249900 +0100
++++ /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/t6supp/g3_battery.README.md	2026-10-07 12:14:38.960544800 +0100
+@@ -156,7 +156,7 @@
+ | any time in the row | `row t6 was interrupted by a signal` | `term t6` (the ceiling) or a lost terminal: the attempt is finished `interrupted` and exported; it is not classified again | `status`; `close`; hand back |
+ | `classify` | `the export FAILED`; `row t6 is classified not started`; `row t6 is classified invalid instrumentation` | the attempt is kept in WSL for `local_export recover`; a halt is recorded | `close`; hand back |
+ | `term` | `a qemu-system-aarch64 process is in the row's process group`; `the keepalive client … is in the row's process group` | nothing was signalled | hand back |
+-| `close` | `a recorder or collector unit is active (exit 3): nothing was stopped` | read the unit's name in the `g3-close-units` console. Only `egw-events-controller_restart-r04` has a prescribed remedy: after `T6=incomplete` (`harness_cmd`'s cleanup failed), and after `term t6` (S4, bench F1: the TERM to the row's group also ends the step's console pipe, so `harness_cmd`'s own cleanup can die before it runs) | for that unit only: the runbook's own cleanup (`bash $EGW_CLONE/tools/session/events_capture.sh cleanup controller_restart-r04`, the remedy `harness_cmd`'s own STOP names), by hand through `hx` on the attempt that is open (after `term t6` that is the session's attempt: the row's is already exported), three tries at most: recorded; then `close` again. The harness's collector unit `egw-resources-controller_restart-r04` ends by itself at its `--duration 600` bound: wait for it read-only and run `close` again. Any other active unit (an `egw-resources-*` one, or another run id): no prescribed cleanup in S4; record it, stop nothing by hand, hand back to Rui |
++| `close` | `a recorder or collector unit is active (exit 3): nothing was stopped` | read the unit's name in the `g3-close-units` console. Only `egw-events-controller_restart-r04` has a prescribed remedy: after `T6=incomplete` (`harness_cmd`'s cleanup failed), and after `term t6` (S4, bench F1: the TERM to the row's group also ends the step's console pipe, so `harness_cmd`'s own cleanup can die before it runs) | for that unit only: `ops/g3_recorder_cleanup.sh` (supplement of 2026-10-07; below, "The recorder's emergency cleanup"), then `close` again only after its `OK:` line; its `HALT:` means do NOT close: hand back to Rui. The harness's collector unit `egw-resources-controller_restart-r04` ends by itself at its `--duration 600` bound: wait for it read-only and run `close` again. Any other active unit (an `egw-resources-*` one, or another run id): no prescribed cleanup in S4; record it, stop nothing by hand, hand back to Rui |
+ | `close` | `the guest did not answer (exit 97) although a qemu-system-aarch64 process is running: … nothing was stopped` | the guest cannot be closed safely | **preserve the state, signal nothing, claim no controlled close, ask Rui** |
+ | `close` | `stop failed (stack-stop-130 exit N): the close driver was NOT run and QEMU is NOT forced off` | the recorded stop did not end 0 | hand back; never a forced power-off |
+ | `close` | `no qemu-system-aarch64 process is left …` | the guest was lost before the close: the frozen close driver alone finishes and exports the session attempt (expect its exit 5) | hand back; nothing is re-launched |
+@@ -193,8 +193,32 @@
+ 
+ None is expected in S4, and any restoration is itself a halt (request, section 5 item 6): record, halt, hand back.
+ Only the runbook's own exist — the recorder's capture cleanup after `harness_cmd` answered 3 or after `term t6`
+-(bench F1), `tunnel_down && tunnel_up` — and each is run by hand through the frozen `hx` on the attempt that is open,
+-never to let the row go on.
++(bench F1), run by `ops/g3_recorder_cleanup.sh` (below), and `tunnel_down && tunnel_up`, run by hand through the
++frozen `hx` on the attempt that is open — never to let the row go on.
++
++### The recorder's emergency cleanup (supplement of 2026-10-07)
++
++**When:** after `term t6` (the ceiling) and after `T6=incomplete` (`harness_cmd` answered 3), **always, before
++`close`** — also when no unit is listed active: a recorder stopped with its capture still only in the guest's
++`/tmp/egw-events-controller_restart-r04` would pass the close's unit check and be lost at the power-off.
++
++**Launch (one invocation, foreground):** `MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc 'EGW_EXEC_REPO=$HOME/egw-exec/repo bash <P>/ops/g3_recorder_cleanup.sh'`
++
++**What it does:** the existing command, unchanged, `events_capture.sh cleanup controller_restart-r04 KEEP_DIR` of the
++clone, with `KEEP_DIR` = `<session attempt>/recovery/events-partial-controller_restart-r04`, inside the session's
++attempt, which the frozen close driver exports with the session's package. The command stops the unit if it is not
++shown stopped, then copies the recorder's four files (`events.partial.jsonl`, `lifecycle.txt`, `start-facts.txt`,
++`cli-stderr.txt`) as a partial capture, never as the run's `docker-events.log`, write-once; a staging folder that
++holds some files (`KEEP_DIR.copy.*`) is kept and exported too. Each try is a recorded step of the session's attempt
++(`recorder-cleanup-controller_restart-r04-tryN`) bounded by `timeout 120`; at most three tries. After a try that
++ended 0, two recorded confirmations: the unit's state on the guest (`inactive` or `failed`) and the four files listed
++with their sha256.
++
++**Its answers:** `OK: … 'close' may run` (exit 0): run `close`. `HALT: … do NOT run 'close' …` (exit 1): stop there;
++nothing was signalled or powered off; the guest's capture stays in its `/tmp` while the guest is up; hand back to
++Rui (no forced power-off, no signal to QEMU). `REFUSED:` (exit 2): nothing ran (no open session, no S4 state
++directory, or a subcommand of `g3_battery.sh` still holds its turn). A second invocation after an `OK` adds no try:
++it confirms again. The script never runs `close`, never powers anything off and never signals any process.
+ **No service is started, restarted or recreated on the guest by hand at any point of S4** (`compose up`, `start`,
+ `restart`, `docker start`). A controller left stopped by the test's own restart is a failure the record shows, not
+ something to repair before the close.

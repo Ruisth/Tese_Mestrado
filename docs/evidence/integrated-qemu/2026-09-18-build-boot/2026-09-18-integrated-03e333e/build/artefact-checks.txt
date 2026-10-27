@@ -1,0 +1,144 @@
+== 2.3 deploy directory ==
+total 585052
+lrwxrwxrwx 2 ruisth ruisth         73 Sep 18 12:53 Image -> Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.bin
+-rw-r--r-- 2 ruisth ruisth   24150528 Sep 18 12:53 Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.bin
+lrwxrwxrwx 2 ruisth ruisth         73 Sep 18 12:53 Image-qemuarm64.bin -> Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.bin
+-rw-r--r-- 2 ruisth ruisth 2621364224 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+-rw-r--r-- 2 ruisth ruisth      39092 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.manifest
+-rw-r--r-- 2 ruisth ruisth       1959 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+-rw-r--r-- 2 ruisth ruisth    1326017 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.spdx.tar.zst
+-rw-r--r-- 2 ruisth ruisth   94142712 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+-rw-r--r-- 2 ruisth ruisth     298255 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.testdata.json
+lrwxrwxrwx 2 ruisth ruisth         54 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.ext4 -> egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+lrwxrwxrwx 2 ruisth ruisth         58 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.manifest -> egw-gateway-image-qemuarm64.rootfs-20260918120819.manifest
+lrwxrwxrwx 2 ruisth ruisth         63 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.qemuboot.conf -> egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+lrwxrwxrwx 2 ruisth ruisth         62 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.spdx.tar.zst -> egw-gateway-image-qemuarm64.rootfs-20260918120819.spdx.tar.zst
+lrwxrwxrwx 2 ruisth ruisth         57 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.tar.bz2 -> egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+lrwxrwxrwx 2 ruisth ruisth         63 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.testdata.json -> egw-gateway-image-qemuarm64.rootfs-20260918120819.testdata.json
+-rw-r--r-- 2 ruisth ruisth   65902274 Sep 18 12:53 modules--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.tgz
+lrwxrwxrwx 2 ruisth ruisth         75 Sep 18 12:53 modules-qemuarm64.tgz -> modules--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.tgz
+== 2.4 manifest packages ==
+PASS  package docker-compose in manifest
+PASS  package curl in manifest
+PASS  package sudo in manifest
+PASS  package openssh-sftp-server in manifest
+PASS  package docker-moby in manifest
+PASS  package containerd-opencontainers in manifest
+PASS  package runc-opencontainers in manifest
+PASS  package egw-gateway-config in manifest
+PASS  package egw-base-config in manifest
+containerd-opencontainers cortexa57 v2.0.10
+curl cortexa57 8.7.1
+docker-compose cortexa57 v2.26.0
+docker-moby cortexa57 25.0.9+gita926bec8fc91332410133b24f3e9e3f5add13b480+a926bec8fc_3797618f9a
+egw-base-config cortexa57 1.0
+egw-gateway-config cortexa57 1.0
+openssh-sftp-server cortexa57 9.6p1
+runc-opencontainers cortexa57 1.1.14+git0+2c9f5602f0
+sudo cortexa57 1.9.17p2
+kernel-module packages: 296
+manifest packages total: 614
+PASS  kernel-image NOT in rootfs manifest
+PASS  rpcbind NOT in rootfs manifest
+== 2.4 testdata.json ==
+IMAGE_FEATURES = ssh-server-openssh
+DISTRO_FEATURES = acl alsa bluetooth debuginfod ext2 ipv4 ipv6 pcmcia usbgadget usbhost wifi xattr  zeroconf pci 3g nfc x11 vfat seccomp opengl ptest multiarch wayland vulkan virtualization systemd systemd usrmerge pulseaudio gobject-introspection-data ldconfig
+MACHINE_FEATURES =     vfat rtc qemu-usermode
+QB_CPU = -cpu cortex-a76
+QB_MEM = -m 8192
+QB_SMP = -smp 4
+QB_SLIRP_OPT = -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8883-:8883
+QB_OPT_APPEND = 
+IMAGE_LINK_NAME = egw-gateway-image-qemuarm64.rootfs
+PASS  IMAGE_FEATURES without debug-tweaks
+PASS  QB_CPU is cortex-a76
+PASS  QB_MEM is -m 8192
+PASS  hostfwd 127.0.0.1:2222->22
+PASS  hostfwd 127.0.0.1:8883->8883
+PASS  no forward bound to 0.0.0.0
+== 2.4 files inside the rootfs tarball ==
+root password-field=[*]
+egw password-field=[*]
+PASS  egw password field is '*'
+PASS  root password field is '*'
+{
+  "storage-driver": "overlay2",
+  "log-driver": "json-file",
+  "log-opts": {
+    "max-size": "50m",
+    "max-file": "3"
+  },
+  "live-restore": true
+}
+# stock fstab - you probably want to override this with a machine specific one
+
+/dev/root            /                    auto       defaults              1  1
+proc                 /proc                proc       defaults              0  0
+devpts               /dev/pts             devpts     mode=0620,ptmxmode=0666,gid=5      0  0
+tmpfs                /run                 tmpfs      mode=0755,nodev,nosuid,strictatime 0  0
+tmpfs                /var/volatile        tmpfs      defaults              0  0
+
+# uncomment this if your device has a SD/MMC/Transflash slot
+#/dev/mmcblk0p1       /media/card          auto       defaults,sync,noauto  0  0
+
+# EGW persistent Docker data disk (egw-gateway-image.bb): images, overlay2
+# layers, named volumes and json-file logs. Created on the host by
+# scripts/run-qemu-integrated.sh (mkfs.ext4 -L egw-data) and attached per run.
+LABEL=egw-data  /var/lib/docker  ext4  defaults,nofail,x-systemd.growfs,x-systemd.device-timeout=30s  0  0
+egw-qemu-integrated
+# EGW sshd hardening (installed as /etc/ssh/sshd_config.d/10-egw.conf by
+# egw-gateway-config). poky's sshd_config includes this directory on its
+# line 13, before any default; sshd keeps the FIRST value it sees for a
+# keyword, so these settings win even on egw-gateway-image-dev, where
+# debug-tweaks rewrites the later PermitRootLogin/PermitEmptyPasswords
+# lines of sshd_config to "yes".
+#
+# Plan v2.0 section 5 item 2 / PM item 3: SSH key access and controlled
+# service access; no passwordless root on the integrated profile. The
+# operator account 'egw' is created by egw-gateway-image.bb with an
+# unusable (not locked) password field and the key from
+# EGW_AUTHORIZED_KEYS_FILE.
+PermitRootLogin no
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PubkeyAuthentication yes
+AllowUsers egw
+X11Forwarding no
+# Keep the harness's long-lived 'ssh -N -L 8000:127.0.0.1:8000' and
+# 'ssh -L 8080:127.0.0.1:8080' tunnels alive across NAT/idle timeouts
+# (server-side keepalive every 60 s, drop after 3 misses).
+ClientAliveInterval 60
+ClientAliveCountMax 3
+PASS  fstab has the egw-data entry
+drwxr-x--- 0/0               0 2018-03-09 12:34 ./etc/sudoers.d/
+-r--r----- 0/0            1042 2018-03-09 12:34 ./etc/sudoers.d/egw
+drwx------ 1000/1000         0 2018-03-09 12:34 ./home/egw/.ssh/
+-rw------- 1000/1000        94 2018-03-09 12:34 ./home/egw/.ssh/authorized_keys
+drwxr-xr-x 0/0               0 2018-03-09 12:34 ./var/log/
+drwxr-xr-x 0/0               0 2018-03-09 12:34 ./var/log/journal/
+PASS  /etc/sudoers.d is 0750
+PASS  /etc/sudoers.d/egw is 0440
+PASS  authorized_keys present
+PASS  authorized_keys equals ~/.ssh/egw_campaign.pub
+== 2.5 build identity ==
+03e333e4ac5f726373d5b56350b46c0b30e3609b
+PASS  clone is clean
+2026-09-18 13:08:23 - INFO     - Initialising tasks...Sstate summary: Wanted 597 Local 588 Mirrors 0 Missed 9 Current 2030 (98% match, 99% complete)
+2026-09-18 13:09:25 - INFO     - NOTE: Tasks Summary: Attempted 5556 tasks of which 5538 didn't need to be rerun and all succeeded.
+096e9270114f18ab87abfbcd6719240f5d9dd77c03295a1a72ac12c6be8ce6e6  egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+d4569c0e845f3a7e36d292953de64dde76b6e81b7482206d0f0f385bcf805fc7  egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.bin
+QEMU emulator version 8.2.7
+PASS  QEMU reports a version
+== kernel Image: G1 versus integrated ==
+G1         4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037
+integrated 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037
+PASS  kernel Image byte-identical to G1
+== G1 deploy directory untouched ==
+PASS  G1 deploy listing identical to the pre-build record
+Image: OK
+egw-image-qemuarm64.rootfs.ext4: OK
+egw-image-qemuarm64.rootfs.manifest: OK
+PASS  G1 artefact checksums identical to the pre-build record
+== result: 0 failed check(s) ==

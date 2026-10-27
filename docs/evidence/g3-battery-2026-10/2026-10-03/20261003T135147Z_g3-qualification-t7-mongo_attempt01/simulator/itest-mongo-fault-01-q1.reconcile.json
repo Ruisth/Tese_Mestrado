@@ -1,0 +1,33 @@
+{
+  "run_id": "itest-mongo-fault-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 3360,
+  "sent_valid": 3360,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 2151,
+  "lost": 1209,
+  "late_confirmations": 1165,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 44,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 3316,
+  "latency_count": 2151,
+  "latency_ms_p50": 134017.127584,
+  "latency_ms_p95": 159302.247168,
+  "latency_ms_max": 164235.768416,
+  "marker_lag_s": 0.138,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 3360,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}

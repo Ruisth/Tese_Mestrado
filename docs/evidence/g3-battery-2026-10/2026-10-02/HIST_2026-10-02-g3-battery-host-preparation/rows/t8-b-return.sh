@@ -1,0 +1,2 @@
+ssh egw-tcg 'systemctl is-system-running; systemctl --failed --no-legend; sudo journalctl --list-boots | tail -n 3; sudo journalctl -b -1 -u docker.service --no-pager | tail -n 5; docker ps --format "{{.Names}} {{.Status}}"; ls /opt/egw/deployment/data/events; df -h / /var/lib/docker; findmnt -no SOURCE /var/lib/docker'
+tunnel_down && tunnel_up || stop "test 8: tunnel NOT reopened (tunnel_down/tunnel_up of 5.7; only this project's control socket is touched)"

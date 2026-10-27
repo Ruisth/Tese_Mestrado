@@ -1,0 +1,12 @@
+test_continuation_header_is_not_a_duplicate_data_row (test_generate_sections.WordImportMirrorTests.test_continuation_header_is_not_a_duplicate_data_row) ... ok
+test_image_path_is_relative_to_generated_sections (test_generate_sections.WordImportMirrorTests.test_image_path_is_relative_to_generated_sections) ... ok
+test_literal_reference_separator_is_preserved (test_generate_sections.WordImportMirrorTests.test_literal_reference_separator_is_preserved) ... ok
+test_numbered_word_citations_survive_markdown_generation (test_generate_sections.WordImportMirrorTests.test_numbered_word_citations_survive_markdown_generation) ... ok
+test_pdf_column_dimensions_do_not_reach_markdown_parser (test_generate_sections.WordImportMirrorTests.test_pdf_column_dimensions_do_not_reach_markdown_parser) ... ok
+test_structured_reference_metadata_still_works (test_generate_sections.WordImportMirrorTests.test_structured_reference_metadata_still_works) ... ok
+test_verbatim_note_keeps_nested_latex (test_generate_sections.WordImportMirrorTests.test_verbatim_note_keeps_nested_latex) ... ok
+
+----------------------------------------------------------------------
+Ran 7 tests in 0.007s
+
+OK

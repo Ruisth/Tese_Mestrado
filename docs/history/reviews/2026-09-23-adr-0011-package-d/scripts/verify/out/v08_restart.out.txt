@@ -1,0 +1,94 @@
+
+##############################################################################
+# R01: controller_restart-r01
+##############################################################################
+anchor check: restart.started_utc - mapped(restart.started_monotonic_ns) = 0.0005 s
+R01.0 rate 11.2 duration 600 requested_at_s 300.0 restart started 2026-09-18T21:55:22.583Z finished 2026-09-18T21:55:45.287Z rc 0 ; events fetch started 2026-09-18T22:01:30.951Z ; validity invalid ; commit 8e88670
+   restart command wall - window start = 300.001 s
+   warnings: ['controller metrics sampler had 29 failed poll(s); last error: Remote end closed connection without response', '--resources-from /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r01/logs/collector/resources-controller_restart-r01.csv REJECTED (SUT resources treat']
+R01.1 published 6720 valid 6720 with outcome 4538 without 2182 outcomes {'accepted': 4538} event lines 4538 unique ids in events 4538
+R01.2 no-outcome blocks (sent line ranges): [(2012, 3771, 1760), (6299, 6720, 422)]
+R01.3 baseline line 2 2026-09-18T21:50:22.582Z accepted 5981 rejected 67 duplicate 672
+   last old poll line 308 2026-09-18T21:55:27.661Z accepted 7909 queue_depth 1487 dropped 0 rejected 67 duplicate 672
+   first new poll line 309 2026-09-18T21:55:59.843Z accepted 0 qd 5 ; gap 32.182 s ; falls 1
+   max dropped 0 over 570 samples ; final line 571 2026-09-18T22:00:21.860Z qd 1046
+   rejected/duplicate change during the old process: 0 / 0
+R01.4 published by poll 3416 ; accepted delta 1928 [event acks by poll, cross-clock 1929] ; qd 1487 ; residual 1
+   identities with outcome ahead of block 2011 (all of sent 1..2011 have one: True) ; acks after poll 83 ; still queued >= 1404 ; +residual 1405
+   block members published by poll 1405 ; ahead + members = 3416 vs published by poll 3416
+   cross-clock acks by poll with anchor -0.5 s: 1931
+   cross-clock acks by poll with anchor -0.1 s: 1929
+   cross-clock acks by poll with anchor +0.1 s: 1928
+   cross-clock acks by poll with anchor +0.5 s: 1926
+R01.5 last old line 2011 smart_clothing seq 1794 ack 2026-09-18T21:55:38.374Z ; first block identity sent line 2012 smart_clothing seq 1795
+   first new line 2012 smart_clothing seq 3366 received 2026-09-18T21:55:59.306Z ; = sent line 3772? True
+   last old ack - restart command 15.791 s ; - last answered poll 10.713 s
+   lines after the gap 2527 ; all received after restart finished: True ; min received - restart finished 14.019 s
+   sent lines of those identities: 3772..6298 (all after block 1: True)
+   ack order equals file order: True ; received order equals file order: True
+R01.6 controller collector gap 2026-09-18T21:55:34Z -> 2026-09-18T21:55:43Z = 9.0 s ; mem 44994396 -> 11712594
+   cadence: instants 0.2313 /s ; controller rows 0.2296 /s ; max gap in file (any container) 6.0 s
+   marker: controller wall_utc - harness polled_utc = +0.115 s (guest wall offset through the marker)
+R01.7 [harness wall for the last ack; bracket guest row as is] G1 1405 G2 121 G3a 52 G3b 182 total 1760
+      bounds received-left: [1404, 1578] ; published-while-unsubscribed: [182, 356]
+R01.7 [last ack through the controller's wall_utc (as the ADR's instants suggest)] G1 1405 G2 122 G3a 51 G3b 182 total 1760
+      bounds received-left: [1404, 1578] ; published-while-unsubscribed: [182, 356]
+R01.7 [bracket row converted guest->harness wall] G1 1405 G2 121 G3a 51 G3b 183 total 1760
+      bounds received-left: [1404, 1577] ; published-while-unsubscribed: [183, 356]
+   acks between last answered poll and last old ack: 83 in 10.713 s = 7.748 msg/s
+R01.8 bracket -> first delivery 16.306 s ; poll gap 32.182 s ; restart cmd -> first delivery 36.723 s
+   x 11.2 = 182.6
+   x 11.2 = 360.4
+   x 11.2 = 411.3
+R01.9 files in run dir: ['controller_metrics.csv', 'events.jsonl', 'loadgen_environment.json', 'logs', 'manifest.json', 'sent_events.jsonl', 'sut_environment.json']
+R01.10 last sample within t+150: line 152 2026-09-18T21:52:51.643Z qd 818
+R01.10 last sample within t+300: line 302 2026-09-18T21:55:21.670Z qd 1445
+R01.11 identities with outcome and null puback: 503 ; null puback overall 741
+   old process served rate (counter, baseline -> last old poll): 6.3197 msg/s over 305.1 s ; 1867-type drain at that rate 235 s
+
+##############################################################################
+# R02: controller_restart-r02
+##############################################################################
+anchor check: restart.started_utc - mapped(restart.started_monotonic_ns) = -0.0004 s
+R02.0 rate 11.2 duration 600 requested_at_s 300.0 restart started 2026-09-19T00:18:15.344Z finished 2026-09-19T00:18:36.134Z rc 0 ; events fetch started 2026-09-19T00:24:18.026Z ; validity invalid ; commit 8e88670
+   restart command wall - window start = 300.000 s
+   warnings: ['controller metrics sampler had 26 failed poll(s); last error: Remote end closed connection without response', '--resources-from /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r02/logs/collector/resources-controller_restart-r02.csv REJECTED (SUT resources treat']
+R02.1 published 6720 valid 6720 with outcome 3819 without 2901 outcomes {'accepted': 3819} event lines 3819 unique ids in events 3819
+R02.2 no-outcome blocks (sent line ranges): [(1595, 3730, 2136), (5956, 6720, 765)]
+R02.3 baseline line 2 2026-09-19T00:13:15.343Z accepted 336 rejected 0 duplicate 0
+   last old poll line 307 2026-09-19T00:18:19.443Z accepted 1872 queue_depth 1867 dropped 0 rejected 0 duplicate 0
+   first new poll line 308 2026-09-19T00:18:48.558Z accepted 0 qd 0 ; gap 29.115 s ; falls 1
+   max dropped 0 over 573 samples ; final line 574 2026-09-19T00:23:14.595Z qd 1261
+   rejected/duplicate change during the old process: 0 / 0
+R02.4 published by poll 3404 ; accepted delta 1536 [event acks by poll, cross-clock 1536] ; qd 1867 ; residual 1
+   identities with outcome ahead of block 1594 (all of sent 1..1594 have one: True) ; acks after poll 58 ; still queued >= 1809 ; +residual 1810
+   block members published by poll 1810 ; ahead + members = 3404 vs published by poll 3404
+   cross-clock acks by poll with anchor -0.5 s: 1539
+   cross-clock acks by poll with anchor -0.1 s: 1536
+   cross-clock acks by poll with anchor +0.1 s: 1535
+   cross-clock acks by poll with anchor +0.5 s: 1533
+R02.5 last old line 1594 smart_clothing seq 1421 ack 2026-09-19T00:18:30.034Z ; first block identity sent line 1595 smart_clothing seq 1422
+   first new line 1595 smartwatch seq 333 received 2026-09-19T00:18:48.548Z ; = sent line 3731? True
+   last old ack - restart command 14.690 s ; - last answered poll 10.591 s
+   lines after the gap 2225 ; all received after restart finished: True ; min received - restart finished 12.415 s
+   sent lines of those identities: 3731..5955 (all after block 1: True)
+   ack order equals file order: True ; received order equals file order: True
+R02.6 controller collector gap 2026-09-19T00:18:29Z -> 2026-09-19T00:18:35Z = 6.0 s ; mem 58122240 -> 3592192
+   cadence: instants 0.8397 /s ; controller rows 0.8331 /s ; max gap in file (any container) 2.0 s
+   marker: controller wall_utc - harness polled_utc = -0.044 s (guest wall offset through the marker)
+R02.7 [harness wall for the last ack; bracket guest row as is] G1 1810 G2 119 G3a 56 G3b 151 total 2136
+      bounds received-left: [1809, 1985] ; published-while-unsubscribed: [151, 327]
+R02.7 [last ack through the controller's wall_utc (as the ADR's instants suggest)] G1 1810 G2 119 G3a 56 G3b 151 total 2136
+      bounds received-left: [1809, 1985] ; published-while-unsubscribed: [151, 327]
+R02.7 [bracket row converted guest->harness wall] G1 1810 G2 119 G3a 56 G3b 151 total 2136
+      bounds received-left: [1809, 1985] ; published-while-unsubscribed: [151, 327]
+   acks between last answered poll and last old ack: 58 in 10.591 s = 5.476 msg/s
+R02.8 bracket -> first delivery 13.549 s ; poll gap 29.115 s ; restart cmd -> first delivery 33.205 s
+   x 11.2 = 151.7
+   x 11.2 = 326.1
+   x 11.2 = 371.9
+R02.9 files in run dir: ['controller_metrics.csv', 'events.jsonl', 'loadgen_environment.json', 'logs', 'manifest.json', 'sent_events.jsonl', 'sut_environment.json']
+R02.10 last sample within t+150: line 152 2026-09-19T00:15:44.410Z qd 988
+R02.10 last sample within t+300: line 302 2026-09-19T00:18:14.448Z qd 1840
+R02.11 identities with outcome and null puback: 421 ; null puback overall 740
+   old process served rate (counter, baseline -> last old poll): 5.0510 msg/s over 304.1 s ; 1867-type drain at that rate 370 s

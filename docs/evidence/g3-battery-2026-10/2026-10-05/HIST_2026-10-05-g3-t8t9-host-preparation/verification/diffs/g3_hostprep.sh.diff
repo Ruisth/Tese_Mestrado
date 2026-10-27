@@ -1,0 +1,259 @@
+--- base/g3_hostprep.sh
++++ g3_hostprep.sh
+@@ -1,26 +1,39 @@
+ #!/bin/bash
+-# Host preparation of the G3 qualifying battery (packet revision 2 of
+-# 2026-10-01, section 7; authorised by Rui on 2026-10-02): the tools' clean
+-# clone moved to the merge of PR #53 (80e833f, tree dad725d) without
+-# discarding anything, the helper regenerated from that commit's runbook
+-# (predecessor kept) and checked, every identity of the packet's section 1
+-# that the host holds checked, the run ids and plan entries confirmed unused
+-# on the host and, offline and read-only, on the guest root file system.
++# Host preparation of session S3 of the G3 qualification (tests 8 and 9 only;
++# request and decision summary of 2026-10-04 in output_test/decisions/): the
++# tools' clean clone moved from the battery's 80e833f to the merge of PR #54
++# (8e49261, tree 2f05148) without discarding anything - local changes, or a
++# HEAD that is neither of the two, are a stop before anything is fetched - the
++# helper regenerated from that commit's runbook (predecessor kept) and checked,
++# every identity of the request's section 2 that the host holds compared (for
++# S3 also the kernel, qemuboot.conf, the QEMU binary and the Yocto checkout),
++# the five -q2 identifiers and the attempt numbers of rows t8 and t9 confirmed
++# unused on the host and, offline and read-only, on the guest root file system.
+ # No guest is started; the controller image, the guest deployment and the
+ # data disk are NOT touched.
+ # Usage (WSL, login shell): g3_hostprep.sh <record-dir>
+ set -u
+-TOOLS=80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+-TREE=dad725d0bebc25c91712af2aa2705d5eeb92044f
++export PYTHONDONTWRITEBYTECODE=1   # S3: the venv's python leaves no bytecode in the clone
++TOOLS=8e492613d36490a560ae56beabd6d5c2c01a8696
++TREE=2f0514837f267d8975f7071041aad14a5c18dcab
++BATTERY=80e833f44f647fe9cd8f5e99d3abf3c444de95aa     # S1/S2's commit: the only other HEAD the clone may be at
++REVIEWED=7c371e3f3382319b223d0a17dd8fd4d33aae8938    # the reviewed head of PR #54: the same tree as the merge
+ IMAGE=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+ HELPER_SHA=e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb
+ HELPER_LINES=545
++ROOTFS_SHA=22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd   # S2's close (session-S2.env, rootfs_after_close)
+ C=/home/ruisth/egw-exec/repo
+ H=/home/ruisth/egw-tcg/itest-helpers.sh
+ PY=/home/ruisth/egw-exec/venv/bin/python
+ ROOTFS=/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+-IDS="itest-smoke-01-q1 itest-smoke-02-q1 itest-smoke-03-q1 itest-3dev-01-q1 itest-invalid-01-q1 itest-dup-01-q1 itest-dup-02-q1 itest-dropout-01-q1 itest-mongo-fault-01-q1 itest-ditto-fault-01-q1 itest-reboot-q1 itest-post-reboot-01-q1 itest-tls-wrongca-q1 itest-auth-wrongpw-q1 itest-notls-q1"
+-PLAN_IDS="nominal-r02 controller_restart-r03"
++# S3: the paths guest_session_open.sh records its identities from (guest_common.sh: OLD, BUILD, DEP)
++Y=/home/ruisth/yocto/egw
++BUILD=$Y/src/yocto/build-integrated
++DEP=$BUILD/tmp/deploy/images/qemuarm64
++ATT=/home/ruisth/egw-exec/attempts
++OT="/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test"   # not OUT: common.sh, sourced below, sets OUT
++IDS="itest-reboot-q2 itest-post-reboot-01-q2 itest-tls-wrongca-q2 itest-auth-wrongpw-q2 itest-notls-q2"
++T8_ADMITTED=20261003T142310Z_g3-qualification-t8_attempt01   # S2's halted attempt of row t8, kept
+ PKG=${1:?usage: g3_hostprep.sh <record-dir>}
+ [ ! -e "$PKG/console.txt" ] || { echo "STOP: $PKG/console.txt exists - never overwritten"; exit 2; }
+ mkdir -p "$PKG" || exit 2
+@@ -31,34 +44,55 @@
+ want() { # want <label> <expected sha256> <file>
+     local got; got=$(sha256sum "$3" 2> /dev/null | cut -d' ' -f1)
+     echo "$1: $got  $3"
+-    [ "$got" = "$2" ] || fail "$1 is ${got:-unreadable}, the packet names $2"
++    [ "$got" = "$2" ] || fail "$1 is ${got:-unreadable}, S3 expects $2"
+ }
+ 
++echo "g3_hostprep.sh (S3) sha256 $(sha256sum "$0" | cut -d' ' -f1)"
+ step "no guest, no open session"
+ Q=$(ps -eo pid=,args= | awk '{n=split($2,a,"/"); if (a[n]=="qemu-system-aarch64") print}')
+ [ -z "$Q" ] || { echo "$Q"; fail "a qemu-system-aarch64 process is running"; }
+ [ ! -e /home/ruisth/egw-exec/current_session ] || fail "a session is open ($(cat /home/ruisth/egw-exec/current_session))"
+ echo "no qemu-system-aarch64, no current_session"
+ 
+-step "tools clone $C: state before"
+-echo "HEAD=$(git -C "$C" rev-parse HEAD) branch=$(git -C "$C" symbolic-ref -q --short HEAD || echo '(detached)')"
++step "tools clone $C: state before (decision summary, choice 1: local changes, or a HEAD that is neither $BATTERY nor $TOOLS, are a stop; nothing is discarded)"
++H0=$(git -C "$C" rev-parse HEAD) || fail "git rev-parse HEAD failed in $C"
++echo "HEAD=$H0 branch=$(git -C "$C" symbolic-ref -q --short HEAD || echo '(detached)')"
+ git -C "$C" for-each-ref --format='%(objectname) %(refname)' refs/heads | tee "$PKG/branches-before.txt"
+-ST=$(git -C "$C" status --porcelain) || fail "git status failed"
+-[ -z "$ST" ] || { echo "$ST"; fail "$C has uncommitted or untracked work: not moved"; }
++ST=$(GIT_OPTIONAL_LOCKS=0 git -C "$C" status --porcelain) || fail "git status failed"
++[ -z "$ST" ] || { echo "$ST"; fail "$C has local changes (uncommitted or untracked work): nothing was fetched, moved or discarded"; }
+ echo "status: clean"
+-
+-step "fetch $TOOLS from the Windows repository (its origin/dev, the merge of PR #53)"
+-git -C "$C" fetch --quiet origin refs/remotes/origin/dev || fail "fetch failed"
+-FH=$(git -C "$C" rev-parse FETCH_HEAD); echo "FETCH_HEAD=$FH"
+-[ "$FH" = "$TOOLS" ] || fail "the fetched origin/dev is $FH, not $TOOLS: the identity moved, stop"
++case $H0 in
++    "$BATTERY") echo "HEAD is the battery's commit: the clone is moved to $TOOLS below" ;;
++    "$TOOLS") echo "HEAD is already $TOOLS: the checkout below changes nothing" ;;
++    *) fail "the HEAD of $C is $H0, neither $BATTERY nor $TOOLS: nothing was fetched, moved or discarded" ;;
++esac
++
++step "fetch from the clone's origin (the Windows repository: its origin/dev, where PR #54 was merged) and check out $TOOLS detached"
++git -C "$C" fetch --quiet origin refs/remotes/origin/dev || fail "fetch failed (the clone is still at $H0)"
++FH=$(git -C "$C" rev-parse FETCH_HEAD) || fail "FETCH_HEAD could not be read (the clone is still at $H0)"
++echo "FETCH_HEAD=$FH"
++git -C "$C" cat-file -e "$TOOLS^{commit}" || fail "the commit $TOOLS is not in the clone after the fetch (the clone is still at $H0)"
++git -C "$C" merge-base --is-ancestor "$TOOLS" "$FH" || fail "$TOOLS is neither the fetched tip $FH nor an ancestor of it (the clone is still at $H0)"
++if [ "$FH" = "$TOOLS" ]; then echo "the fetched tip is $TOOLS itself"
++else echo "the fetched tip $FH is a descendant of $TOOLS (accepted: the tip need not be the commit); the clone goes to $TOOLS, not to the tip"; fi
+ git -C "$C" -c advice.detachedHead=false checkout --quiet --detach "$TOOLS" || fail "checkout refused"
+ HD=$(git -C "$C" rev-parse HEAD); T=$(git -C "$C" rev-parse 'HEAD^{tree}'); echo "HEAD=$HD tree=$T"
+ [ "$HD" = "$TOOLS" ] && [ "$T" = "$TREE" ] || fail "$C is not at $TOOLS / $TREE"
+-[ -z "$(git -C "$C" status --porcelain)" ] || fail "$C is not clean after the checkout"
++ST=$(GIT_OPTIONAL_LOCKS=0 git -C "$C" status --porcelain) || fail "git status failed after the checkout"
++[ -z "$ST" ] || { echo "$ST"; fail "$C is not clean after the checkout"; }
+ git -C "$C" for-each-ref --format='%(objectname) %(refname)' refs/heads > "$PKG/branches-after.txt"
+ cmp "$PKG/branches-before.txt" "$PKG/branches-after.txt" || fail "a branch changed"
+ echo "clean; every branch unchanged; parents: $(git -C "$C" rev-parse HEAD^1 HEAD^2 | tr '\n' ' ')"
+-echo "the cleared head a20be8f has the same tree: $(git -C "$C" rev-parse 'a20be8f957b23b75aa086a6740829dcb9741344b^{tree}')"
++RT=$(git -C "$C" rev-parse "$REVIEWED^{tree}") || fail "the reviewed head $REVIEWED is not in the clone"
++echo "the reviewed head $REVIEWED has the tree $RT"
++[ "$RT" = "$TREE" ] || fail "the reviewed head's tree is not $TREE"
++CH=$(git -C "$C" diff --name-only "$BATTERY" "$TOOLS") || fail "git diff $BATTERY $TOOLS failed"
++echo "files that differ between the battery's $BATTERY and $TOOLS: $(printf '%s\n' "$CH" | grep -c .)"
++printf '%s\n' "$CH" | sed 's/^/  /'
++BAD=$(printf '%s\n' "$CH" | grep -E '^(tools|src)/' | grep -v '^src/tests/')
++[ -z "$BAD" ] || { echo "$BAD"; fail "a file under tools/, or under src/ outside src/tests, differs from $BATTERY"; }
++echo "nothing under tools/, and nothing under src/ outside src/tests, differs from $BATTERY"
++git -C "$C" cat-file -e "$IMAGE^{commit}" || fail "the image commit $IMAGE is not in the clone"
+ for d in src/egw_controller src/egw_simulator src/schemas src/deployment src/Dockerfile src/requirements-runtime.lock src/requirements.lock src/pyproject.toml src/CONTRACTS.md; do
+     [ -z "$(git -C "$C" diff --stat "$IMAGE" "$TOOLS" -- "$d")" ] || fail "$d differs from the image commit $IMAGE"
+ done
+@@ -66,8 +100,11 @@
+ "$PY" -c 'import egw_experiments, egw_experiments.n1_report, egw_experiments.proved_down, egw_experiments.itest_reconcile as r; print(egw_experiments.__file__); print(sorted(r.COMMANDS))' \
+     || fail "the venv does not import the candidate's modules"
+ 
+-step "candidate identities held on the host (packet section 1)"
+-want runbook c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae "$C/docs/setup/qemu_integrated_gateway.md"
++step "identities held on the host (request section 2; the kernel, qemuboot.conf, the QEMU binary and the Yocto checkout are compared for S3)"
++want runbook 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db "$C/docs/setup/qemu_integrated_gateway.md"
++N=$(wc -l < "$C/docs/setup/qemu_integrated_gateway.md"); echo "runbook lines: $N"
++[ "$N" = 1623 ] || fail "the runbook has $N lines, not 1623"
++want extraction-rule-source fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1 "$C/src/tests/test_runbook_itest_helpers.py"
+ want local_export 544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b "$C/src/egw_experiments/local_export.py"
+ want fetch_started_at 9c6dc824c885ce6d2edacdfb5fe4a4db4a96b6e0b6454f93300ee1b007421827 "$C/tools/session/fetch_started_at.sh"
+ want images.lock.env 8a9a05df7c9ca2eeb310e8e7702f16f854fb91771fb089a9a2109d638ae4a648 "$C/src/deployment/images.lock.env"
+@@ -76,7 +113,6 @@
+ want CONTRACTS 247e3b02a1ffc8e30da3f9df701db5f851f018505ecb9f907b54562b9cf095c9 "$C/src/CONTRACTS.md"
+ want tunnel.sh 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 /home/ruisth/egw-tcg/tunnel.sh
+ want ca.crt 556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff /home/ruisth/egw-tcg/ca.crt
+-want campaign_plan 5d902a429b9fd4e25f2c4586341f94be2853104fe12a76b88852a1ed30203e23 /home/ruisth/egw-tcg/pilot/campaign_plan.json
+ want controller-record 79e7d2105be035911e9fe596f609a77775b578f0578cab1bde77f0d610aa2022 /home/ruisth/egw-images/egw-controller-0.1.0-arm64.identity.txt
+ want controller-archive 9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d /home/ruisth/egw-images/egw-controller-0.1.0-arm64.tar
+ grep -E '^(image_id|source_commit|archive_sha256)=' /home/ruisth/egw-images/egw-controller-0.1.0-arm64.identity.txt
+@@ -86,15 +122,26 @@
+ [ "$(git -C "$C" rev-parse "$TOOLS:src/deployment")" = e056d389f7dd640c142bf714bb8ceb389ec460c2 ] || fail "src/deployment tree is not e056d389..."
+ [ "$(git -C "$C" rev-parse "$TOOLS:src/schemas")" = 1d5284cf28bbabc5c7ea554d5a5366faec5fcf95 ] || fail "src/schemas tree is not 1d5284cf..."
+ EGW_EXEC_REPO=$C; . "$C/tools/session/common.sh"; DRIVERS=$REPO/tools/session   # common.sh derives DRIVERS from $0
++[ "$REPO" = "$C" ] && [ "$PY" = /home/ruisth/egw-exec/venv/bin/python ] \
++    || fail "common.sh set REPO=$REPO PY=$PY: an EGW_* variable of the environment redirects it"
+ ids=$(repo_identity) || fail "repo_identity failed"
+ echo "repo_identity: $ids"
+-echo "$ids" | grep -q '4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5' || fail "drivers_sha256 is not 4a6a572d..."
+-echo "harness environment input today (replaced after each preflight, PM condition 2; kept beside itself then):"
+-sha256sum /home/ruisth/egw-tcg/sut_environment.json
+-echo "yocto checkout (launcher): $(git -C /home/ruisth/yocto/egw rev-parse HEAD), porcelain lines: $(git -C /home/ruisth/yocto/egw status --porcelain | wc -l)"
+-want run-qemu-integrated 67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1 /home/ruisth/yocto/egw/src/yocto/scripts/run-qemu-integrated.sh
++echo "$ids" | grep -q "\"repo_commit\": \"$TOOLS\"" || fail "repo_identity does not name $TOOLS"
++echo "$ids" | grep -q '"drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5"' || fail "drivers_sha256 is not 4a6a572d..."
++echo "$ids" | grep -q '"export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b"' || fail "export_tool_sha256 is not 544c9b3d..."
++echo "recorded, not compared (S3 runs no harness row; the environment input is replaced by the copy made after the preflight at open, the previous file kept beside it):"
++sha256sum /home/ruisth/egw-tcg/pilot/campaign_plan.json /home/ruisth/egw-tcg/sut_environment.json
++YH=$(git -C "$Y" rev-parse HEAD) || fail "git rev-parse HEAD failed in $Y"
++YS=$(GIT_OPTIONAL_LOCKS=0 git -C "$Y" status --porcelain) || fail "git status failed in $Y"
++echo "yocto checkout (launcher): $YH, porcelain lines: $(printf '%s' "$YS" | grep -c .)"
++[ "$YH" = "$IMAGE" ] || fail "the Yocto checkout $Y is at $YH, S3 expects $IMAGE"
++[ -z "$YS" ] || { echo "$YS"; fail "the Yocto checkout $Y is not clean"; }
++want run-qemu-integrated 67da61d77a2548122afc34338493165290f6d1ac1dbc2ebccfd6d800dd0438e1 "$Y/src/yocto/scripts/run-qemu-integrated.sh"
++want kernel 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037 "$DEP/Image-qemuarm64.bin"
++want qemuboot.conf 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4 "$DEP/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf"
++want qemu-system-aarch64 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061 "$BUILD/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64"
+ echo "deploy_source_commit.txt: $(cat /home/ruisth/egw-tcg/deploy_source_commit.txt 2> /dev/null) (the deployment tree on the guest)"
+-want rootfs-ext4 c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 "$ROOTFS"
++want rootfs-ext4 "$ROOTFS_SHA" "$ROOTFS"
+ 
+ step "helper regenerated from the $TOOLS runbook (predecessor kept) and checked"
+ sha256sum "$H"
+@@ -105,47 +152,57 @@
+ bash -n "$H" || fail "the regenerated helper does not parse"
+ ls -l "$H"*
+ 
+-step "run ids and plan entries unused on the host"
++step "the five -q2 identifiers unused on the host (itest, itest-replay, pilot results; no name holding one under the attempts directory or output_test)"
++[ -d "$ATT" ] && [ -d "$OT/runs" ] || fail "$ATT or $OT/runs is not a directory"
+ for id in $IDS; do
+     for f in /home/ruisth/egw-tcg/itest/$id /home/ruisth/egw-tcg/itest/$id.* /home/ruisth/egw-tcg/itest-replay/$id /home/ruisth/egw-tcg/pilot/results/raw/$id; do
+         [ ! -e "$f" ] || fail "$f exists: $id is not fresh"
+     done
++    # By name; a sealed preparation package of S3 is not searched (its bench records may be named after an identifier).
++    HIT=$(find "$ATT" "$OT" -name 'HIST_*-g3-t8t9-host-preparation*' -prune -o -name "*$id*" -print) \
++        || fail "$ATT and $OT could not be searched for $id"
++    [ -z "$HIT" ] || { printf '%s\n' "$HIT"; fail "a name holding $id exists under $ATT or $OT: $id is not fresh"; }
+     echo "fresh on the host: $id"
+ done
+-ls -d /home/ruisth/egw-exec/attempts/*g3-qualification* /mnt/c/Users/ruimf/Documents/Projeto\ Mestrado/output_test/runs/*/*g3-qualification* 2> /dev/null \
+-    && fail "an earlier g3-qualification attempt exists"
+-"$PY" - "$PLAN_IDS" << 'EOF' || fail "a plan entry is not planned and unused"
+-import json, os, sys
+-plan = json.load(open("/home/ruisth/egw-tcg/pilot/campaign_plan.json"))
+-runs = {r["run_id"]: r for r in plan["runs"]}
+-bad = 0
+-for rid in sys.argv[1].split():
+-    r = runs.get(rid)
+-    raw = os.path.exists("/home/ruisth/egw-tcg/pilot/results/raw/" + rid)
+-    sut = os.path.exists("/home/ruisth/egw-tcg/itest/" + rid + ".sut")
+-    print(rid, "seed", r and r.get("seed"), "status", r and r.get("status"), "raw_dir", raw, "sut_dir", sut,
+-          "condition", r and r.get("condition_id"), "duration_s", r and r.get("duration_s"), "warmup_s", r and r.get("warmup_s"))
+-    if not r or r.get("status") != "planned" or raw or sut:
+-        bad = 1
+-print("master_seed", plan.get("master_seed"))
+-sys.exit(bad)
+-EOF
+-echo "pilot/results/processed today (T1's and T6's analyze rewrite it; snapshotted in each row):"
+-ls -l /home/ruisth/egw-tcg/pilot/results/processed 2> /dev/null | head -20
+ 
+-step "run ids unused on the guest root file system (offline, read-only: debugfs -c; no QEMU, no session)"
++step "earlier attempts of rows t8 and t9 (the export tool numbers a new attempt after the highest of its slug under the attempts directory, output_test/runs and output_test/incomplete)"
++ROOTS=("$ATT" "$OT/runs")
++if [ -d "$OT/incomplete" ]; then ROOTS+=("$OT/incomplete"); else echo "no $OT/incomplete (the export tool skips a root that is not a directory)"; fi
++find "${ROOTS[@]}" -name '*_g3-qualification-*_attempt*' > "$PKG/g3-qualification-attempts.unsorted.txt" \
++    || fail "the earlier attempts could not be listed"
++sort "$PKG/g3-qualification-attempts.unsorted.txt" > "$PKG/g3-qualification-attempts.txt" && rm -f "$PKG/g3-qualification-attempts.unsorted.txt"
++cat "$PKG/g3-qualification-attempts.txt"
++echo "the battery's attempts ($(grep -c . "$PKG/g3-qualification-attempts.txt") entries above) are admitted as they are"
++BAD=0; N8=0
++while IFS= read -r f; do
++    b=${f##*/}
++    case $b in
++        "$T8_ADMITTED") N8=$((N8 + 1)) ;;
++        *_g3-qualification-t8_attempt*) echo "NOT ADMITTED (row t8): $f"; BAD=1 ;;
++        *_g3-qualification-t9_attempt*) echo "NOT ADMITTED (row t9): $f"; BAD=1 ;;
++    esac
++done < "$PKG/g3-qualification-attempts.txt"
++[ "$BAD" -eq 0 ] || fail "an attempt of row t8 other than $T8_ADMITTED, or an attempt of row t9, exists"
++[ "$N8" -ge 1 ] || fail "$T8_ADMITTED was not found: the new attempt of row t8 would not be numbered attempt02"
++echo "row t8: $T8_ADMITTED found $N8 time(s), no other attempt of the slug (no attempt02): the new attempt is expected as attempt02"
++echo "row t9: no attempt of the slug: the new attempt is expected as attempt01"
++echo "state directory of S3 today (information; 'open S3' creates it): $(ls -d /home/ruisth/egw-exec/g3-t8t9-s3 2> /dev/null || echo absent)"
++
++step "the -q2 identifiers unused on the guest root file system (offline, read-only: debugfs -c; no QEMU, no session)"
+ command -v debugfs > /dev/null || fail "debugfs is not available"
+ debugfs -c -R "ls -l /opt/egw/deployment/data/events" "$ROOTFS" > "$PKG/guest-events-listing.txt" 2> "$PKG/guest-events-listing.stderr.txt" \
+     || fail "the guest events directory could not be listed"
+ echo "guest event directories listed: $(grep -c . "$PKG/guest-events-listing.txt") lines"
+ awk '{print $NF}' "$PKG/guest-events-listing.txt" | sort -u > "$PKG/guest-events-names.txt"
+ cat "$PKG/guest-events-names.txt" | tr '\n' ' '; echo
+-for id in $IDS $PLAN_IDS; do
++grep -qxF -- . "$PKG/guest-events-names.txt" && grep -qxF -- .. "$PKG/guest-events-names.txt" \
++    || fail "the listing holds no '.' and '..' entries: the guest events directory was not read ($(head -c 300 "$PKG/guest-events-listing.stderr.txt" | tr '\n' ' '))"
++for id in $IDS; do
+     grep -qxF -- "$id" "$PKG/guest-events-names.txt" && fail "the guest holds data/events/$id: $id is not fresh on the guest"
+-    case "$id" in itest-reboot-q1) grep -q -- "^itest-reboot-q1" "$PKG/guest-events-names.txt" && fail "the guest holds an itest-reboot-q1* directory";; esac
++    case "$id" in itest-reboot-q2) grep -q -- "^itest-reboot-q2" "$PKG/guest-events-names.txt" && fail "the guest holds an itest-reboot-q2* directory";; esac
+     echo "fresh on the guest: $id"
+ done
+-want rootfs-ext4-after-listing c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 "$ROOTFS"
++want rootfs-ext4-after-listing "$ROOTFS_SHA" "$ROOTFS"
+ 
+ echo
+ echo "outcome=prepared (at $(now))"

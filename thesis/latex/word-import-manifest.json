@@ -1,0 +1,17 @@
+{
+  "source_filename": "Dissertation_Rui Duarte_Digital Twin Edge Gateway.docx",
+  "source_sha256": "c589422a42318cf1635ad895cbe23cd24e2157ed569554a8ab3cd5dcaea25945",
+  "source_bytes": 462710,
+  "template_sha256": {
+    "main.tex": "5b5be4dfcd646c994a37a5e6638b01baa76752d0c14245b8da907830a59a86aa",
+    "references.bib": "d2297054bade2cfe99a12a57168ffde688576da2afd7ef0eb5ab6cc907b2b602",
+    "imagens\\iscte.png": "a0402d65fa2ab3d4d697c97193498412344f3d36fe85e760196a886ff2a02f39",
+    "imagens\\ista.png": "dc72b648ad43d71cac3a2504497edbf93ed4f165915629fb8d2b2daca88a7e25"
+  },
+  "source_chapters": 2,
+  "source_tables": 3,
+  "source_figures": 1,
+  "references": 33,
+  "conversion_date": "2026-09-17",
+  "bibliography_policy": "Verbatim Word reference strings; no metadata correction or verification asserted."
+}

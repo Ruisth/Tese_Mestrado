@@ -1,0 +1,64 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-10-03T14:23:10.628469Z",
+  "emulated": true,
+  "ended_utc": "2026-10-03T14:37:50.009244Z",
+  "expected_artefacts": [],
+  "headline": "G3 qualification t8: inconclusive / not demonstrated. INCONCLUSIVE / NOT DEMONSTRATED (packet section 5, T8 row: QEMU never exited), with a HALT (packet section 4, halt 5). Step a ran as written: w...",
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "close (controlled close, hand back to Rui); T9 not run",
+  "pid": 9892,
+  "purpose": "official",
+  "reason": "INCONCLUSIVE / NOT DEMONSTRATED (packet section 5, T8 row: QEMU never exited), with a HALT (packet section 4, halt 5). Step a ran as written: wait_ready, drained, the pre-reboot twin snapshot (label pre-reboot, seed 42, three devices) and the boot id d22195a1... recorded, then 'sudo systemctl reboot' over ssh. The guest rebooted: its journal shows the previous boot ending cleanly at 14:25:44Z (systemd shutting down) and the new boot 76471e31... starting at 14:26:15Z; the six containers were started again by 14:26:46Z on the same container objects, unaided, and were healthy; /var/lib/docker is on /dev/vdb; the 35 event directories, the ten -q1 ones among them, are intact; no kernel OOM line in the previous boot (read-only evidence step t8-post-reboot-evidence on the session attempt, and the row's guest-state-after). But the QEMU process did NOT exit: the launcher of this session runs QEMU without -no-reboot (its command line carries no such option), so the guest rebooted inside the same process and ports 2222/8883 stayed busy. The runbook's line 1487 ('QEMU exits (-no-reboot). Re-launch exactly as in 3.3') assumed otherwise, and the steps script, built on that assumption, waited 600 s for the exit and then halted without signalling QEMU, as the packet orders. Steps b, c and d (the boot-id comparison that prints REBOOT SHOWN, the post-reboot twin snapshot and its comparison, the post-reboot smoke itest-post-reboot-01-q1) were therefore NOT run: the reboot was observed, but test 8's Expected list was not evaluated, so T8 is not demonstrated, and never a pass. T9 is not run after this halt. Gate after the row: pass (state recorded, not compared across the reboot; six services healthy; no unit active; the tunnel reopened by the preamble). For the Project Manager: the T8 procedure rests on a QEMU exit that this launcher does not produce; the in-place reboot that did happen is the behaviour test 8 wants to observe (stack back unaided, data disk persistent), and a corrected procedure (steps b to d run on the rebooted guest, with the boot ids compared) would be a decision, not a correction made here.",
+  "run_id": "20261003T142310Z_g3-qualification-t8_attempt01",
+  "scenario": "G3 qualification t8",
+  "seed": null,
+  "started_utc": "2026-10-03T14:23:11.018329Z",
+  "status": "failed",
+  "system_outcome": "inconclusive",
+  "validity_note": "",
+  "workload": {
+    "battery": "G3 qualifying battery (decision packet of 2026-10-01, revision 2; authorised 2026-10-02)",
+    "egw_clone": "/home/ruisth/egw-exec/repo",
+    "harness_run_id": null,
+    "helper_sha256": "e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb",
+    "host_uptime_at_row_start_s": 3740,
+    "host_uptime_baseline_s": 25,
+    "ids_note": "itest-reboot-q1 is the prefix of the reboot snapshots and of the boot id file, not a run id",
+    "itest_run_ids": [
+      "itest-post-reboot-01-q1"
+    ],
+    "row": "t8",
+    "row_ceiling_min": 135,
+    "rows_manifest_sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+    "runbook": {
+      "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+      "lines": 1614,
+      "path": "docs/setup/qemu_integrated_gateway.md",
+      "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae"
+    },
+    "session": "20261003T132249Z_guest-session_attempt09",
+    "session_elapsed_at_row_start_s": 3715,
+    "session_label": "S2",
+    "step_files": {
+      "t8-a-reboot.sh": "bb2d76e5ea3630b72fc39810f528766f549d0fc3f97667102874a3c77242a5c3",
+      "t8-b-return.sh": "f8259e353019bd02e604344292a07208c8b1116098af47b31f90b1a932a097c7",
+      "t8-c-snapshot.sh": "9a60f8d6f75b99a573c91f5353a8b8963c641000974389ffd7867ce2477e73a2",
+      "t8-d-smoke.sh": "f541f1caf33787327fe2d437da9c4994e540ce1346aa2987aca89a19e5514d53"
+    },
+    "step_source_lines": {
+      "t8-a-reboot.sh": "1486-1488",
+      "t8-b-return.sh": "1489-1490",
+      "t8-c-snapshot.sh": "1491",
+      "t8-d-smoke.sh": "1492"
+    },
+    "steps_script_sha256": "fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1"
+  }
+}

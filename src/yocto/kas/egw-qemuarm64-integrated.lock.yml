@@ -1,0 +1,36 @@
+# kas lock file for egw-qemuarm64-integrated.yml.
+#
+# kas (>= 4.0) loads <name>.lock.yml automatically right before the main
+# file, so these commits override any floating refs. Keep this file in sync
+# with the 'commit' keys in egw-qemuarm64-integrated.yml; regenerate from an
+# actual checkout with:
+#     kas dump --lock --inplace kas/egw-qemuarm64-integrated.yml
+#
+# The pins are deliberately IDENTICAL to egw-qemuarm64.lock.yml so that the
+# G1 image and the integrated test-gateway image are built from the same
+# layer revisions (same kernel 6.6.142, same QEMU 8.2.7, same systemd
+# 255.21 recipe, same moby 25.0.9). Pin provenance (verified 2026-08-07, details in
+# egw-qemuarm64.yml header):
+#   poky                : tag yocto-5.0.19 (GitHub API mirror, dereferenced
+#                         annotated tag; canonical git.yoctoproject.org/poky)
+#   meta-openembedded   : scarthgap head, commit date 2026-07-30 (GitHub API
+#                         + OpenEmbedded Layer Index API, agreeing)
+#   meta-virtualization : scarthgap head, commit date 2026-08-07 (OpenEmbedded
+#                         Layer Index API only — canonical cgit blocked
+#                         automated fetches; confirm once on WSL2 with
+#                         'git ls-remote https://git.yoctoproject.org/meta-virtualization scarthgap')
+# The three commits are the ones checked out in the WSL2 G1 tree
+# (/home/ruisth/yocto/egw/src/yocto, re-read 2026-09-17).
+# meta-egw is local (part of this repository) and is not pinned here.
+
+header:
+  version: 14
+
+overrides:
+  repos:
+    poky:
+      commit: bb98354685781296e3b3737e7762412100f359c2
+    meta-openembedded:
+      commit: ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+    meta-virtualization:
+      commit: 0d9fb7fef86c5cbc177045c7b86bc71948f8657d

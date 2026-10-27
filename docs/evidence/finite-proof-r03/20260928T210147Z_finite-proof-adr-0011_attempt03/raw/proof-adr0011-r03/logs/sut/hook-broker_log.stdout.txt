@@ -1,0 +1,1 @@
+proof_fetch_sut_log: broker: 1470 line(s), 181333 bytes, sha256 b89a6189807456d484778281d026db7efa76cd5deba25dfb838eac4340dec115, written to /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03/logs/sut/broker.log

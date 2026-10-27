@@ -1,0 +1,1 @@
+wrote /home/ruisth/egw-tcg/proof/plan-proof-adr0011-r03.json: run_id=proof-adr0011-r03 condition_id=controller_restart scenario=nominal duration_s=300 warmup_s=0 cooldown_s=0 rate_msg_s=11.2 seed=265481284 master_seed=20260925 sha256=4de4c9b2fe7430f1f737bb338be9408674d80d86c14ccdd0604dae5a20cd515c

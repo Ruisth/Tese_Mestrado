@@ -1,0 +1,5 @@
+source_commit=8e886700f2b41676a6514d561d548763f52efed2
+branch=deploy/itests2
+clone_clean=yes
+host=Linux 6.6.87.2-microsoft-standard-WSL2 x86_64
+opened=2026-09-20T23:17:59Z

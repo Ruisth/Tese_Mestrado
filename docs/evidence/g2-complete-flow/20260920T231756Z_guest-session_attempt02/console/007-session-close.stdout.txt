@@ -1,0 +1,4 @@
+[2026-09-20T23:39:14Z] s1: collecting the final guest state
+[2026-09-20T23:39:22Z] s1: QEMU ended: exit=0 finished=2026-09-20T23:39:21Z
+[2026-09-20T23:39:24Z] s1: G1 artefacts: egw-image-qemuarm64.rootfs.manifest: OK
+[2026-09-20T23:39:24Z] s1: session closed: exit=0 closed=2026-09-20T23:39:24Z

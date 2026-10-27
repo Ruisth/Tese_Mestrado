@@ -1,0 +1,75 @@
+## 2026-10-05T18:43:54Z g3_extract_rows.py (sha256 e3aa669d38c6320db1bfa853fd25834ac4d848e6fb04c6e9f341fbfd39c23050) --replace; Python 3.12.3, bash 5.2.21(1)-release; HOME=/tmp/g3-s4-rows-record.B5FNm4/home
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## runbook blob <S>/g3/t6prep/runbook.1fd9792.md (sha256 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f); rule source <S>/t6m/src/tests/test_runbook_itest_helpers.py (sha256 b63ef7d88ae22e623bf381ef0dc3e6fbfbf050d966d5b0e09cc961ee169d83be); its copy <S>/g3/t6prep/test_runbook_itest_helpers.1fd9792.py (sha256 b63ef7d88ae22e623bf381ef0dc3e6fbfbf050d966d5b0e09cc961ee169d83be)
+## test 6's family value, computed apart from the script: sed -n '1421,1428p' | sed 's/^host$ //' | sha256sum -> ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377 (the script pins its first 16 hex digits)
+runbook docs/setup/qemu_integrated_gateway.md at 1fd9792: sha256 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f, 1624 lines
+rule checked against the frozen _host_commands: True
+t6.sh                    t6         S4 step 1  lines 1421-1428                    before ec8ac010d79b after ec8ac010d79b  subs: -
+written: 3 files in <S>/g3/t6prep/rows (manifest sha256 7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47)
+extract exit=0
+
+## the same inputs again with --check (nothing written): what would be written against what is there
+check: 3 files compared, 0 differ or are missing, 0 other files in <S>/g3/t6prep/rows
+check-mode exit=0
+
+## the same with the rule source's copy in P
+check: 3 files compared, 0 differ or are missing, 0 other files in <S>/g3/t6prep/rows
+check-mode (the copy of the rule source) exit=0
+
+## the runbook on stdin, without --rule-source, with --check
+DIFFERS or missing: rows.manifest.json
+check: 3 files compared, 1 differ or are missing, 0 other files in <S>/g3/t6prep/rows
+check-mode (no rule source) exit=1 (1 expected: the manifest then says the rule was not checked, so it differs)
+
+## a wrong blob is refused (the blob with one byte appended, on stdin)
+STOP: the runbook is 0b971e3b240690b0d0e8f94fb9bfd6d28a545a08d7fb5b53138d9a3c4ee74227, not the frozen blob 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f
+wrong-blob exit=1 (1 expected)
+
+## a wrong rule source is refused (the test module with one byte appended)
+STOP: the rule source is 7a2befba1a9941dc4b1da6e056187b1befe3eef6b08b4daca1245b55c44284ae, not src/tests/test_runbook_itest_helpers.py at 1fd9792
+wrong-rule exit=1 (1 expected)
+  nothing was written by the two refusals: /tmp/g3-s4-rows-record.B5FNm4/never does not exist
+
+## forbidden output directories are refused before anything is written (made-up paths inside the temporary directory: the guard is by path component and under $HOME)
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/egw-exec/repo/rows is inside a 'egw-exec' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/egw-tcg/itest/rows is inside a 'egw-tcg' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/egw-images/x is inside a 'egw-images' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/yocto/x is inside a 'yocto' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/output_test/x is inside a 'output_test' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/ChatGPT/x is inside a 'ChatGPT' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/cand/rows is inside a 'cand' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/pb/rows is inside a 'pb' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/t6m/rows is inside a 't6m' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/t6int/rows is inside a 't6int' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/g3/s3prep/rows is inside a 's3prep' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/g3/s3bprep/rows is inside a 's3bprep' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/guard/g3/battery/prep/rows is inside a 'battery' directory: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/home/egw-exec/rows is inside /tmp/g3-s4-rows-record.B5FNm4/home/egw-exec: nothing is written there
+forbidden-out exit=1 (1 expected); not created
+
+## directories that hold the row files of another commit (copies of the sealed rows of the battery, 80e833f, and of S3, 8e49261) are never overwritten, --replace or not
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/old-battery/rows is not written: it holds the row files of another commit (80e833f44f647fe9cd8f5e99d3abf3c444de95aa)
+other-commit (battery, --replace) exit=1 (1 expected)
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/old-battery/rows is not written: it holds the row files of another commit (80e833f44f647fe9cd8f5e99d3abf3c444de95aa)
+other-commit (battery, no --replace) exit=1 (1 expected)
+  the copy's 39 files before and after: 1f36bac6e8e94054f1e9bd3db6013b5de4dcafb07fdb9e7918a7894f369450a6 / 1f36bac6e8e94054f1e9bd3db6013b5de4dcafb07fdb9e7918a7894f369450a6 (unchanged)
+  --check against it writes nothing and reports the differences: check: 3 files compared, 2 differ or are missing, 36 other files in /tmp/g3-s4-rows-record.B5FNm4/old-battery/rows
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/old-s3/rows is not written: it holds the row files of another commit (8e492613d36490a560ae56beabd6d5c2c01a8696)
+other-commit (s3, --replace) exit=1 (1 expected)
+STOP: the output directory /tmp/g3-s4-rows-record.B5FNm4/old-s3/rows is not written: it holds the row files of another commit (8e492613d36490a560ae56beabd6d5c2c01a8696)
+other-commit (s3, no --replace) exit=1 (1 expected)
+  the copy's 22 files before and after: 251f0d6f34ac206fab8cd3d48c9b2e886d32fe406ac0956f9c52cc89a791a28a / 251f0d6f34ac206fab8cd3d48c9b2e886d32fe406ac0956f9c52cc89a791a28a (unchanged)
+  --check against it writes nothing and reports the differences: check: 3 files compared, 3 differ or are missing, 21 other files in /tmp/g3-s4-rows-record.B5FNm4/old-s3/rows

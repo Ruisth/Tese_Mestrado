@@ -1,0 +1,79 @@
+--- base/ops/seal_ops.sh
++++ ops/seal_ops.sh
+@@ -1,32 +1,39 @@
+ #!/bin/bash
+-# Seal the operator records of session S3 (G3, tests 8 and 9) (WSL): a copy of
++# Seal the operator records of session S4 (G3, test 6 only) (WSL): a copy of
+ # the steps script's state directory as it stands, the operator's launcher,
+ # waiter and classification notes. Sweeps for the values of the secret
+ # variables of ~/egw-tcg/.env (names only are printed, and no value is put on a
+ # command line) and for private-key headers. Never overwrites a package; a
+ # missing input is a stop before anything is created.
+-# Usage: seal_ops.sh S3 <ops dir> <package dir> <sealed host-preparation package dir>
+-#   <package dir>: .../<UTC date>/HIST_<UTC date>-g3-t8t9-s3-operator-records
++# Usage: seal_ops.sh S4 <ops dir> <package dir> <sealed host-preparation package dir>
++#   <package dir>: .../<UTC date>/HIST_<UTC date>-g3-t6-s4-operator-records (when the
++#   name exists, the refusal names the next free -attemptNN one)
+ # Exit: 0 sealed; 1 a STOP after the copy began (the directory is left unsealed,
+ # without SHA256SUMS: seal_ops_finish.sh, or Rui's decision); 2 refused, nothing created.
+ set -u
+ LABEL=${1:?} OPS=${2:?} PKG=${3:?} PREP=${4:?}
+-STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3-attempt02}   # S3, second opening: a fresh state directory
++STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t6-s4}   # S4 (brief, HOST): the steps script's S4 state directory
+ ENVF=$HOME/egw-tcg/.env
+ refuse() { echo "STOP: $* - nothing was created"; exit 2; }
+-[ "$LABEL" = S3 ] || refuse "the label must be S3 (the records of S1 and S2 are sealed), not $LABEL"
+-[ ! -e "$PKG" ] || { echo "STOP: $PKG exists - never overwritten"; exit 2; }
++# S4 (brief, HOST): never overwrite; the refusal names the first free -attemptNN name.
++next_free() {   # next_free <package dir>: <name>-attemptNN, NN from 02, the first that does not exist
++    local base=${1%-attempt[0-9][0-9]} n=2
++    while [ -e "$(printf '%s-attempt%02d' "$base" "$n")" ]; do n=$((n + 1)); done
++    printf '%s-attempt%02d' "$base" "$n"
++}
++[ "$LABEL" = S4 ] || refuse "the label must be S4 (the records of S1, S2 and S3 are sealed), not $LABEL"
++[ ! -e "$PKG" ] || { echo "STOP: $PKG exists - never overwritten (the next free name is $(basename "$(next_free "$PKG")"))"; exit 2; }
+ B=$(basename "$PKG"); D=$(basename "$(dirname "$PKG")")
+ case $B in
+-    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t8t9-s3-operator-records) ;;
+-    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t8t9-s3-operator-records-attempt[0-9][0-9]) ;;   # after a half-made package, which is kept
+-    *) refuse "the package must be named HIST_<UTC date>-g3-t8t9-s3-operator-records[-attemptNN], not $B" ;;
++    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t6-s4-operator-records) ;;
++    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t6-s4-operator-records-attempt[0-9][0-9]) ;;   # after a half-made package, which is kept
++    *) refuse "the package must be named HIST_<UTC date>-g3-t6-s4-operator-records[-attemptNN], not $B" ;;
+ esac
+-case $B in "HIST_$D-g3-t8t9-s3-operator-records"*) ;; *) refuse "$B is not under a directory named after its own date (it is under $D)" ;; esac
++case $B in "HIST_$D-g3-t6-s4-operator-records"*) ;; *) refuse "$B is not under a directory named after its own date (it is under $D)" ;; esac
+ [ -d "$STATE" ] && [ -n "$(ls -A "$STATE")" ] || refuse "the state directory $STATE is missing or empty"
+ for f in g3_go.sh g3_wait.sh seal_ops.sh; do [ -f "$OPS/$f" ] || refuse "$OPS/$f is missing"; done
+ cmp -s "$0" "$OPS/seal_ops.sh" || refuse "the sealing script being run is not $OPS/seal_ops.sh"
+-case $(basename "$PREP") in HIST_*-g3-t8t9-host-preparation*) ;; *) refuse "$PREP is not a host-preparation package of S3" ;; esac
++case $(basename "$PREP") in HIST_*-g3-t6-host-preparation*) ;; *) refuse "$PREP is not a host-preparation package of S4" ;; esac
+ [ -f "$PREP/SHA256SUMS" ] && [ -f "$PREP/g3_battery.sh" ] || refuse "$PREP is not a sealed host-preparation package (no SHA256SUMS or no g3_battery.sh)"
+ [ -r "$ENVF" ] || refuse "$ENVF could not be read: the secret sweep cannot be made"
+ NSEC=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ENVF" | cut -d= -f1 | grep -cE 'PASS|SECRET|TOKEN|KEY|CREDENTIAL')
+@@ -67,7 +74,7 @@
+     else echo "sha256 $a, DIFFERENT from the preparation package's (${b:-unreadable})"; fi
+ }
+ {
+-echo "# G3, session S3 (tests 8 and 9): operator records (sealed $(date -u +%FT%TZ))"
++echo "# G3, session S4 (test 6 only): operator records (sealed $(date -u +%FT%TZ))"
+ echo
+ echo "state/: the steps script's state directory as it stood when this package was sealed (session and row state"
+ echo "files, one console per invocation, the frozen drivers' consoles, the environment copy record, the script and"
+@@ -76,12 +83,12 @@
+ if [ -d "$PKG/operator/classification-notes" ]; then echo "(one reason and one next-action file per classified row)."
+ else echo "(none here: there was no notes directory when this package was sealed)."; fi
+ echo "The session, preflight, gate and row packages are under output_test/runs/, each under its own UTC date;"
+-echo "state/session-S3.env and state/row-*.env name them. Nothing here is a G3 result."
++echo "state/session-S4.env and state/row-*.env name them. Nothing here is a G3 result."
+ echo
+-echo "The steps script, the row files and their verification are in $(basename "$PREP")"
++echo "The steps script, the row file and their verification are in $(basename "$PREP")"
+ echo "(its SHA256SUMS: sha256 $(sha256sum "$PREP/SHA256SUMS" | cut -d' ' -f1))."
+-echo "- steps script as opened (state/S3-g3_battery.sh): $(same "$PKG/state/S3-g3_battery.sh" "$PREP/g3_battery.sh")"
+-echo "- manifest as opened (state/S3-rows.manifest.json): $(same "$PKG/state/S3-rows.manifest.json" "$PREP/rows/rows.manifest.json")"
++echo "- steps script as opened (state/S4-g3_battery.sh): $(same "$PKG/state/S4-g3_battery.sh" "$PREP/g3_battery.sh")"
++echo "- manifest as opened (state/S4-rows.manifest.json): $(same "$PKG/state/S4-rows.manifest.json" "$PREP/rows/rows.manifest.json")"
+ } > "$PKG/README.md"
+ ( cd "$PKG" && find . -type f ! -name SHA256SUMS -print0 | sort -z | xargs -0 sha256sum > SHA256SUMS )
+ echo "sealed $(wc -l < "$PKG/SHA256SUMS") files; seal $(sha256sum "$PKG/SHA256SUMS" | cut -c1-12)"

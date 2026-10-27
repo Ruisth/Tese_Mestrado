@@ -1,0 +1,10 @@
+## 2026-10-02T13:32:21Z fx_rows_final.py
+files in /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/rows: 20 step files, 18 diffs, the manifest; others: none
+no carriage return, UTF-8, one final newline: checked in 39 files
+old literals without '-q1': 0; the four unchanged names carry no '-q1'
+manifest: sha256_after of 20 step files and the diff_sha256 entries (18) compared with the files
+manifest: 12 rows, every step in 'files' with its row, session and order
+manifest: generator_sha256 = sha256 of g3_extract_rows.py (6940366cca642d8f824092278e82e500112d8a3f9df36ed6d32cbc6595ead304)
+manifest sha256: cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c
+ROWS FINAL CHECK: OK (0 failures)
+exit=0

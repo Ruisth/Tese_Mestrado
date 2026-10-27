@@ -1,0 +1,156 @@
+## 2026-10-05T18:43:57Z g3_rows_dryrun.sh (sha256 1f32c56c32895b5d2cfd466b5e18db8cc3465a295df61085527294f75983c994) with g3_check_rows.sh (sha256 ae7038d3e046afa921ca7084240388bd8e87fe4c34797b9c750bffedc4d48494), the blob <S>/g3/t6prep/runbook.1fd9792.md and the battery's t6.sh <S>/g3/battery/prep/rows/t6.sh
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## t6.sh in the step form, ten cases (shown: the lines of the stubs, of stop and of the block's own 'test 6:' prints; set -v's echo of the eight lines is counted, not shown)
+
+### 1. r04 already used, its raw directory exists: line 1 refuses (F6=used), nothing starts, no delta, no acceptance
+STOP: test 6: controller_restart-r04 was already used (~/egw-tcg/pilot/results/raw/controller_restart-r04 or /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.sut exists) - an entry already used is never reused and the harness was NOT starte
+STOP: test 6: controller_restart-r04 refused as already used (F6='used'), no seed, not ready, not drained or no configuration identity - the harness run was NOT started
+STOP: test 6: delta NOT run (T6='stop') or it exited non-zero (4 = MISMATCH)
+STOP: test 6: the per-identity exactly-once check was not run (T6='stop'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 4 STOP: line(s); harness_cmd called 0 time(s), after 0 call(s) of wait_ready, drained and config_identity; delta 0, acceptance 0, analyze 1
+
+### 2. r04 already used, its .sut directory exists: the same refusal
+STOP: test 6: controller_restart-r04 was already used (~/egw-tcg/pilot/results/raw/controller_restart-r04 or /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.sut exists) - an entry already used is never reused and the harness was NOT starte
+STOP: test 6: controller_restart-r04 refused as already used (F6='used'), no seed, not ready, not drained or no configuration identity - the harness run was NOT started
+STOP: test 6: delta NOT run (T6='stop') or it exited non-zero (4 = MISMATCH)
+STOP: test 6: the per-identity exactly-once check was not run (T6='stop'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 4 STOP: line(s); harness_cmd called 0 time(s), after 0 call(s) of wait_ready, drained and config_identity; delta 0, acceptance 0, analyze 1
+
+### 3. the pilot plan without r04: no seed, nothing starts
+Traceback (most recent call last):
+STOP: test 6: controller_restart-r04 refused as already used (F6='fresh'), no seed, not ready, not drained or no configuration identity - the harness run was NOT started
+STOP: test 6: delta NOT run (T6='stop') or it exited non-zero (4 = MISMATCH)
+STOP: test 6: the per-identity exactly-once check was not run (T6='stop'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 3 STOP: line(s); harness_cmd called 0 time(s), after 0 call(s) of wait_ready, drained and config_identity; delta 0, acceptance 0, analyze 1
+
+### 4. harness_cmd answers 2 (the harness not started): no manifest is read, T6 not ok
+CALLED: wait_ready 
+CALLED: drained 
+CALLED: config_identity /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.config_identity.json
+CALLED: harness_cmd argc=17: [controller_restart-r04] [--restart-cmd] [ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'] [--restart-at-s] [300] [--config-identity-from] [/tmp/g3-s4-dry-rows.8Z
+CALLED: harness_cmd environment: EVENTS_EXPECTED=die,start DRAIN_QUIET_S= DRAIN_STEP_S= DRAIN_LIMIT_S=
+test 6: resources_proved_down: not read - harness_cmd answered 2, the harness was not started (a manifest in /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04, if any, is another execution's)
+STOP: test 6: the harness run was not sealed, or it exited 2 (the [harness] INVALID lines above name the reasons, a drain that ended in error among them; 2: the harness was not started - a recorder cleanup that failed on the way is named in the STOP of events_
+STOP: test 6: delta NOT run (T6='stop') or it exited non-zero (4 = MISMATCH)
+STOP: test 6: the per-identity exactly-once check was not run (T6='stop'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 3 STOP: line(s); harness_cmd called 1 time(s), after 3 call(s) of wait_ready, drained and config_identity; delta 0, acceptance 0, analyze 1
+
+### 5. harness_cmd answers 3 (the recorder's cleanup failed): T6=incomplete
+CALLED: wait_ready 
+CALLED: drained 
+CALLED: config_identity /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.config_identity.json
+CALLED: harness_cmd argc=17: [controller_restart-r04] [--restart-cmd] [ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'] [--restart-at-s] [300] [--config-identity-from] [/tmp/g3-s4-dry-rows.8Z
+CALLED: harness_cmd environment: EVENTS_EXPECTED=die,start DRAIN_QUIET_S= DRAIN_STEP_S= DRAIN_LIMIT_S=
+test 6: resources_proved_down: not recorded
+test 6: resources_transition_rows: not recorded
+STOP: test 6: the procedure is INCOMPLETE - the Docker events recorder's cleanup failed after the harness (harness_cmd's STOP above names the harness's own status and the repeat); /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04
+STOP: test 6: delta NOT run (T6='incomplete') or it exited non-zero (4 = MISMATCH)
+STOP: test 6: the per-identity exactly-once check was not run (T6='incomplete'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 3 STOP: line(s); harness_cmd called 1 time(s), after 3 call(s) of wait_ready, drained and config_identity; delta 0, acceptance 0, analyze 1
+
+### 6. harness_cmd answers 1 (an invalid run): T6 not ok
+CALLED: wait_ready 
+CALLED: drained 
+CALLED: config_identity /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.config_identity.json
+CALLED: harness_cmd argc=17: [controller_restart-r04] [--restart-cmd] [ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'] [--restart-at-s] [300] [--config-identity-from] [/tmp/g3-s4-dry-rows.8Z
+CALLED: harness_cmd environment: EVENTS_EXPECTED=die,start DRAIN_QUIET_S= DRAIN_STEP_S= DRAIN_LIMIT_S=
+test 6: resources_proved_down: not recorded
+test 6: resources_transition_rows: not recorded
+STOP: test 6: the harness run was not sealed, or it exited 1 (the [harness] INVALID lines above name the reasons, a drain that ended in error among them; 2: the harness was not started - a recorder cleanup that failed on the way is named in the STOP of events_
+STOP: test 6: delta NOT run (T6='stop') or it exited non-zero (4 = MISMATCH)
+STOP: test 6: the per-identity exactly-once check was not run (T6='stop'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 3 STOP: line(s); harness_cmd called 1 time(s), after 3 call(s) of wait_ready, drained and config_identity; delta 0, acceptance 0, analyze 1
+
+### 7. harness 0, sealed, the drain gave up: T6=gaveup, no delta, no acceptance
+CALLED: wait_ready 
+CALLED: drained 
+CALLED: config_identity /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.config_identity.json
+CALLED: harness_cmd argc=17: [controller_restart-r04] [--restart-cmd] [ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'] [--restart-at-s] [300] [--config-identity-from] [/tmp/g3-s4-dry-rows.8Z
+CALLED: harness_cmd environment: EVENTS_EXPECTED=die,start DRAIN_QUIET_S= DRAIN_STEP_S= DRAIN_LIMIT_S=
+test 6: resources_proved_down: applies=True why_not=None D=D S=S E=E capped=False edge_before_s=1.0 edge_after_s=1.0 rejected_rows=0 resources_ingested=True
+test 6: resources_transition_rows: rule=1a-option-a-2026-10-05 admitted=True why_not=None resources_ingested=True count=2 instants=['I1', 'I2']
+STOP: test 6: the drain gave up (manifest drain.outcome 'gave-up'): a failed recovery, retained in the sealed run as a valid observation - no delta on this run
+STOP: test 6: delta NOT run (T6='gaveup') or it exited non-zero (4 = MISMATCH)
+STOP: test 6: the per-identity exactly-once check was not run (T6='gaveup'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 3 STOP: line(s); harness_cmd called 1 time(s), after 3 call(s) of wait_ready, drained and config_identity; delta 0, acceptance 0, analyze 1
+
+### 8. harness 0, sealed, the drain quiet; delta 0; acceptance --exactly-once 0: T6=ok and no STOP
+CALLED: wait_ready 
+CALLED: drained 
+CALLED: config_identity /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.config_identity.json
+CALLED: harness_cmd argc=17: [controller_restart-r04] [--restart-cmd] [ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'] [--restart-at-s] [300] [--config-identity-from] [/tmp/g3-s4-dry-rows.8Z
+CALLED: harness_cmd environment: EVENTS_EXPECTED=die,start DRAIN_QUIET_S= DRAIN_STEP_S= DRAIN_LIMIT_S=
+test 6: resources_proved_down: applies=True why_not=None D=D S=S E=E capped=False edge_before_s=1.0 edge_after_s=1.0 rejected_rows=0 resources_ingested=True
+test 6: resources_transition_rows: rule=1a-option-a-2026-10-05 admitted=True why_not=None resources_ingested=True count=2 instants=['I1', 'I2']
+test 6: harness exit 0 and the recorder's cleanup done, run directory sealed, the drain quiet (manifest drain.outcome)
+STUB python argc=12: [-m] [egw_experiments.itest_reconcile] [delta] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04] [--prefix] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04] [--events] [/tmp/g3-s4-dry-
+STUB python argc=7: [-m] [egw_experiments.itest_reconcile] [acceptance] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04/logs/simulator/controller_restart-r04] [--events] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/r
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 0 STOP: line(s); harness_cmd called 1 time(s), after 3 call(s) of wait_ready, drained and config_identity; delta 1, acceptance 1, analyze 1
+
+### 9. the same, acceptance --exactly-once answers 4 (a valid message absent, duplicate-only or accepted twice): one STOP, line 7's
+CALLED: wait_ready 
+CALLED: drained 
+CALLED: config_identity /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.config_identity.json
+CALLED: harness_cmd argc=17: [controller_restart-r04] [--restart-cmd] [ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'] [--restart-at-s] [300] [--config-identity-from] [/tmp/g3-s4-dry-rows.8Z
+CALLED: harness_cmd environment: EVENTS_EXPECTED=die,start DRAIN_QUIET_S= DRAIN_STEP_S= DRAIN_LIMIT_S=
+test 6: resources_proved_down: applies=True why_not=None D=D S=S E=E capped=False edge_before_s=1.0 edge_after_s=1.0 rejected_rows=0 resources_ingested=True
+test 6: resources_transition_rows: rule=1a-option-a-2026-10-05 admitted=True why_not=None resources_ingested=True count=2 instants=['I1', 'I2']
+test 6: harness exit 0 and the recorder's cleanup done, run directory sealed, the drain quiet (manifest drain.outcome)
+STUB python argc=12: [-m] [egw_experiments.itest_reconcile] [delta] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04] [--prefix] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04] [--events] [/tmp/g3-s4-dry-
+STUB python argc=7: [-m] [egw_experiments.itest_reconcile] [acceptance] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04/logs/simulator/controller_restart-r04] [--events] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/r
+STOP: test 6: the per-identity exactly-once check was not run (T6='ok'), could not read its inputs (exit 1: test 6 NOT evaluated) or found a valid message never accepted or accepted more than once in the post-drain copy (exit 4: test 6 FAILS)
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 1 STOP: line(s); harness_cmd called 1 time(s), after 3 call(s) of wait_ready, drained and config_identity; delta 1, acceptance 1, analyze 1
+
+### 10. the same, delta answers 4 (MISMATCH): one STOP, line 6's; line 7 still runs (it reads T6 only)
+CALLED: wait_ready 
+CALLED: drained 
+CALLED: config_identity /tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04.config_identity.json
+CALLED: harness_cmd argc=17: [controller_restart-r04] [--restart-cmd] [ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'] [--restart-at-s] [300] [--config-identity-from] [/tmp/g3-s4-dry-rows.8Z
+CALLED: harness_cmd environment: EVENTS_EXPECTED=die,start DRAIN_QUIET_S= DRAIN_STEP_S= DRAIN_LIMIT_S=
+test 6: resources_proved_down: applies=True why_not=None D=D S=S E=E capped=False edge_before_s=1.0 edge_after_s=1.0 rejected_rows=0 resources_ingested=True
+test 6: resources_transition_rows: rule=1a-option-a-2026-10-05 admitted=True why_not=None resources_ingested=True count=2 instants=['I1', 'I2']
+test 6: harness exit 0 and the recorder's cleanup done, run directory sealed, the drain quiet (manifest drain.outcome)
+STUB python argc=12: [-m] [egw_experiments.itest_reconcile] [delta] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04] [--prefix] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/itest/controller_restart-r04] [--events] [/tmp/g3-s4-dry-
+STOP: test 6: delta NOT run (T6='ok') or it exited non-zero (4 = MISMATCH)
+STUB python argc=7: [-m] [egw_experiments.itest_reconcile] [acceptance] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/raw/controller_restart-r04/logs/simulator/controller_restart-r04] [--events] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results/r
+STUB python argc=7: [-m] [egw_experiments] [analyze] [--base-dir] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/results] [--plan] [/tmp/g3-s4-dry-rows.8Zjx6y/home/egw-tcg/pilot/campaign_plan.json]
+[step t6.sh ended with status 0]
+as expected: the 8 lines echoed by set -v; 1 STOP: line(s); harness_cmd called 1 time(s), after 3 call(s) of wait_ready, drained and config_identity; delta 1, acceptance 1, analyze 1
+
+## self-test of the checker in blob mode: each altered copy must be refused
+detected: the run id of session S2 (r03) in place of r04 (t6.sh line 1) -> 6 FAIL line(s), first: FAIL  t6.sh: differs from the blob's lines
+detected: an earlier session's suffix added to the run id (t6.sh line 1: controller_restart-r04-q2) -> 7 FAIL line(s), first: FAIL  t6.sh: differs from the blob's lines
+detected: the exactly-once line removed (t6.sh line 7) -> 6 FAIL line(s), first: FAIL  t6.sh: differs from the blob's lines
+detected: the transition rule removed from the harness line (t6.sh line 5) -> 5 FAIL line(s), first: FAIL  t6.sh: differs from the blob's lines
+detected: a changed character outside any literal (t6.sh line 5: --restart-at-s 300 -> 301) -> 4 FAIL line(s), first: FAIL  t6.sh: differs from the blob's lines
+detected: a carriage return (t6.sh line 3) -> 5 FAIL line(s), first: FAIL  t6.sh holds a carriage return
+detected: the manifest naming session S3 for row t6 (rows.manifest.json) -> 2 FAIL line(s), first: FAIL  the manifest's rows are not t6 of session S4
+detected: a non-empty t6.sh.diff -> 3 FAIL line(s), first: FAIL  t6.sh: diff of a file without substitution
+detected: a step file of session S3's names left in the directory (t8-a-reboot.sh) -> 1 FAIL line(s), first: FAIL  directory listing
+detected: the battery's t6.sh (80e833f, seven lines, sha256 ebc9700c8968b633...) in place of S4's -> 9 FAIL line(s), first: FAIL  t6.sh: differs from the blob's lines
+the unaltered copy passes
+detected: a blob file that does not exist (the unaltered copy) -> 1 FAIL line(s), first: FAIL  the blob file is not a readable regular file
+detected: a blob file with one line appended (the unaltered copy) -> 2 FAIL line(s), first: FAIL  runbook blob sha256
+git calls made by the checker in blob mode: 0 (no clone is read)
+
+DRY RUN AS EXPECTED (0 unexpected outcomes)
+dryrun exit=0
+left under /tmp by the dry run: 0 directory(ies) (0 expected)

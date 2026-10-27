@@ -1,0 +1,34 @@
+## 2026-10-04T23:23:45Z read after the benches, from each bench as its scenario left it (mod/state/ssh.log: every ssh call of the bench, the wrapper and the test module stub alike; mod/state/calls.log: the stub host commands)
+## columns: scenario | ssh calls logged | reboot commands | calls matching the test module pattern for a command that starts, restarts or brings up something | compose stop calls (the close) | pkill or killall calls | the consoles own check of the same count
+s1     |   62 | 1 | 0 | 2 | 0 | in the console (1)
+s10a   |   53 | 1 | 0 | 2 | 0 | not in the console
+s10b   |   55 | 1 | 0 | 2 | 0 | not in the console
+s10c   |   57 | 1 | 0 | 2 | 0 | not in the console
+s10d   |   59 | 1 | 0 | 2 | 0 | not in the console
+s11    |   21 | 1 | 0 | 2 | 0 | in the console (1)
+s11b   |   20 | 1 | 0 | 2 | 0 | in the console (1)
+s12    |   34 | 1 | 0 | 2 | 0 | in the console (1)
+s1b    |   50 | 1 | 0 | 2 | 0 | in the console (1)
+s2i    |   46 | 1 | 0 | 2 | 0 | not in the console
+s2ii   |   46 | 1 | 0 | 2 | 0 | not in the console
+s2iii  |  111 | 1 | 0 | 0 | 0 | in the console (1)
+s2iv   |   27 | 1 | 0 | 2 | 0 | in the console (1)
+s2v    |   39 | 1 | 0 | 2 | 0 | in the console (1)
+s2vi   |   39 | 1 | 0 | 2 | 0 | in the console (1)
+s2vii  |   26 | 1 | 0 | 2 | 0 | in the console (1)
+s3     |   17 | 0 | 0 | 2 | 0 | in the console (1)
+s4a    |   26 | 1 | 0 | 2 | 0 | in the console (1)
+s4b    |   24 | 1 | 0 | 1 | 0 | in the console (1)
+s5a    |   20 | 0 | 0 | 2 | 0 | in the console (1)
+s5b    |  117 | 1 | 0 | 0 | 0 | in the console (1)
+s5c    |  121 | 1 | 0 | 2 | 0 | in the console (1)
+s5d    |   42 | 1 | 0 | 2 | 0 | in the console (1)
+s5e    |   44 | 1 | 0 | 2 | 0 | in the console (1)
+s6     |   35 | 1 | 0 | 2 | 0 | in the console (1)
+s7i    |   62 | 1 | 0 | 2 | 0 | not in the console
+s7ii   |   45 | 1 | 0 | 2 | 0 | in the console (1)
+s7iii  |   45 | 1 | 0 | 2 | 0 | in the console (1)
+s8a    |    0 | 0 | 0 | 0 | 0 | not in the console
+s8b    |   11 | 0 | 0 | 2 | 0 | not in the console
+s8c    |   10 | 0 | 0 | 2 | 0 | not in the console
+s9     |   11 | 0 | 0 | 2 | 0 | not in the console

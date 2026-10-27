@@ -1,0 +1,33 @@
+{
+  "run_id": "itest-post-reboot-01-q2",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 336,
+  "sent_valid": 336,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 336,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 336,
+  "latency_count": 336,
+  "latency_ms_p50": 37432.217359999995,
+  "latency_ms_p95": 57639.808416,
+  "latency_ms_max": 58804.271472,
+  "marker_lag_s": 0.166,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 336,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}

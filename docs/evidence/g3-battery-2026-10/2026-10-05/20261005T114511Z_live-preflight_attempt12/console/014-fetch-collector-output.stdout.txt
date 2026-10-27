@@ -1,0 +1,5 @@
+fetch: resources-preflight-20261005T114511Z.csv present sha256=2a74e815d4a5e1a75323f1ffb0d4bd08237b0c643f0d683c37eec2a1d4ecf732 verified
+fetch: resources-preflight-20261005T114511Z.csv.diagnostics.log present sha256=fccad7a1d1122ca6f49da8e964c37785750f40742812a907ecfae93be08069f2 verified
+fetch: resources-preflight-20261005T114511Z.csv.lifecycle.csv present sha256=a13f8324dab6f43d699b56348fee2b5e4a69fb29699c0694c5d48c84da3927ff verified
+fetch: resources-preflight-20261005T114511Z.csv.self-test absent (optional)
+fetch: result exit=0 (every mandatory file present and verified)

@@ -1,0 +1,4 @@
+run_id,planned,validity,integrity,excluded,drain_outcome,drain_source,captured_utc,twins_before_verified,twins_after_verified,post_drain_verified,qualification,reason,n1_applied_unconfirmed,duplicate_only_unexplained
+controller_restart-r01,true,invalid,unsealed,false,absent,,,false,false,false,not_evidenced,validity 'invalid'; integrity 'unsealed': the run is not evidence,0,0
+controller_restart-r02,true,invalid,unsealed,false,absent,,,false,false,false,not_evidenced,validity 'invalid'; integrity 'unsealed': the run is not evidence,0,0
+controller_restart-r03,true,invalid,unsealed,false,quiet,hook,,true,true,true,not_evidenced,validity 'invalid'; integrity 'unsealed': the run is not evidence,0,0

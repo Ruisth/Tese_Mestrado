@@ -1,0 +1,1 @@
+run_id,container,samples,cpu_pct_mean,cpu_pct_max,mem_bytes_mean,mem_bytes_max,cpu_sustained_gt90_s,coverage_pct,max_gap_s,head_gap_s,tail_gap_s,coverage_sufficient

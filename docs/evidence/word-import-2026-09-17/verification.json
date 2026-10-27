@@ -1,0 +1,126 @@
+{
+  "date": "2026-09-17T01:54:12.485795+01:00",
+  "base_commit": "cf6bc62f730aad58a0fa4301d0740cf00ca6eec6",
+  "python": "3.12.14",
+  "os": "Windows-11-10.0.26200-SP0",
+  "architecture": "AMD64",
+  "checks": [
+    {
+      "check": "source-fidelity",
+      "command": [
+        "C:\\Users\\ruimf\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+        "thesis/tools/verify_word_import.py",
+        "--source",
+        "C:\\Users\\ruimf\\OneDrive - ISCTE-IUL\\Dissertation_Rui Duarte_Digital Twin Edge Gateway.docx",
+        "--template",
+        "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\Template_LaTeX"
+      ],
+      "working_directory": ".",
+      "exit_code": 0
+    },
+    {
+      "check": "projection-tests",
+      "command": [
+        "C:\\Users\\ruimf\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "thesis/tools",
+        "-p",
+        "test_*.py",
+        "-v"
+      ],
+      "working_directory": ".",
+      "exit_code": 0
+    },
+    {
+      "check": "regenerate-mirrors",
+      "command": [
+        "C:\\Users\\ruimf\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+        "thesis/tools/generate_sections.py"
+      ],
+      "working_directory": ".",
+      "exit_code": 0
+    },
+    {
+      "check": "build-main",
+      "command": [
+        "latexmk",
+        "-pdf",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "main.tex"
+      ],
+      "working_directory": "thesis\\latex",
+      "exit_code": 0
+    },
+    {
+      "check": "build-chapter2",
+      "command": [
+        "latexmk",
+        "-pdf",
+        "-interaction=nonstopmode",
+        "-halt-on-error",
+        "ch2_supervisor_draft.tex"
+      ],
+      "working_directory": "thesis\\latex",
+      "exit_code": 0
+    },
+    {
+      "check": "existing-evidence",
+      "command": [
+        "C:\\Users\\ruimf\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+        "tools/ci/verify_evidence.py"
+      ],
+      "working_directory": ".",
+      "exit_code": 0
+    },
+    {
+      "check": "markdown-links",
+      "command": [
+        "C:\\Users\\ruimf\\.cache\\codex-runtimes\\codex-primary-runtime\\dependencies\\python\\python.exe",
+        "tools/ci/check_markdown_links.py"
+      ],
+      "working_directory": ".",
+      "exit_code": 0
+    },
+    {
+      "check": "whitespace",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "working_directory": ".",
+      "exit_code": 0
+    }
+  ],
+  "markdown_regeneration_identical": true,
+  "mirror_sha256": {
+    "01_cover.md": "cc72d6c1b8113a6a90ee765e020ac54a675f591ba4c5e4575eef63bbb6698e4b",
+    "02_acknowledgements.md": "02ba08d32e24872caca18220aa48f12824cb69a68692176b885ce9a9c5b38f8a",
+    "03_abstract.md": "3516bf96a85b4e631d5c3504c08ca290880d7a7fe99538e7390ac988ca7f0375",
+    "04_intro.md": "91e0cba52a28664873b400075167a666bfbd77bd80d1d4c7c6cb1e496095e912",
+    "05_background.md": "6e3bf1285fd60a2d36fd1a8f9665b90301998caf6c6dbac24682d768aac55152",
+    "06_architecture.md": "0cc6ccf4958f4c3b17ab67891966aaee7ab96d405274a608f5e64a9b55abeea8",
+    "07_implementation.md": "8061768a765ceb628c17001840187791d520ff773873cabf6c1d360d0c430ccf",
+    "08_experiments.md": "a6b8bd8dc544ceafaa9699a0180dc9afedd053f048024421e89cd9f7ed53e1aa",
+    "09_results.md": "619b12c6cfcc3631f099eda0581386125e883bc34c3b439b2a6787e5e3156e55",
+    "10_conclusion.md": "b1349d3991474acbe618c1b5306af73c4a9140019ae46f4f0bfe41efcf8b962e",
+    "11_references.md": "75c9e379fbd0865e1c50577c94f173a9436cb3b4b5812e3c6479740f33081056"
+  },
+  "pdf_pages": {
+    "main.pdf": 43,
+    "ch2_supervisor_draft.pdf": 10
+  },
+  "pdf_sha256": {
+    "main.pdf": "e6d66ad68bd4da1f59b8c9d2f797e7f054b332913a16555a4560e20833389987",
+    "ch2_supervisor_draft.pdf": "23f62d33db21bd8c959fa55c8c55b2d7e223b9df3e4dc087cc0ab7838ec972ec"
+  },
+  "underfull_vbox_warnings": {
+    "main.log": 3,
+    "ch2_supervisor_draft.log": 2
+  },
+  "verification_scope": "Document/source fidelity only; no new experimental or live gateway claim."
+}

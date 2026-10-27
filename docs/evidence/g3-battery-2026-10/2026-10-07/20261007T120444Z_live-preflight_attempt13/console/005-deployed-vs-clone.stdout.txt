@@ -1,0 +1,2 @@
+DIFFERS        README.md  guest=3fafbae52fbe clone=5a6cbb4b1166  (allowed)
+deployed files equal to the clean clone: 19; different: 0; only on the guest: 0; only in the clone: 0; allowed differences: 1; unreadable lines: 0

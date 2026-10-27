@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-07T12:11:21.307571Z",
+      "kind": "raw",
+      "path": "/home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04",
+      "role": "harness run directory of the plan entry controller_restart-r04 (sealed by the harness when valid)",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-10-07T12:11:21.347552Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/controller_restart-r04.config_identity.json",
+      "role": "the configuration identity read before the harness, the twin hook's write-once siblings and controller_restart-r04.sut/",
+      "siblings_glob": "controller_restart-r04.*"
+    }
+  ]
+}

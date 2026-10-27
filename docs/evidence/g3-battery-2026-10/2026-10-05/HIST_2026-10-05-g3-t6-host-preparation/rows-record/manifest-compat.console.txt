@@ -1,0 +1,23 @@
+## 2026-10-05T18:44:06Z manifest-compat.py (sha256 82451baf0972498f642fdac7b32b7164c40048d92f2640bd400ff84f15f35acd); Python 3.12.3
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## the steps script copies are READ (their MANIFEST_PY text is run on the row files), never executed; g3_battery.sh is another stream's file and may still change: its sha256 at this reading is printed
+manifest <S>/g3/t6prep/rows/rows.manifest.json: sha256 7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47
+
+## <S>/g3/t6prep/base/g3_battery.sh (sha256 42de225aedfd25fa0f4975276bf2880e146c2ad66a4624f811487ba61ea0f034)
+MANIFEST_PY: 74 lines, sha256 771a27f2217f4adc1cd518c4eb18a02e37225b6a0bf63fcd829594b00a50600a
+as expected  verify S4 t6 (1 names): exit 0 (0 expected); 1 line(s), last: row file t6.sh: sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377 = sha256_after of the manifest (row t6, step 1, 12167 bytes)
+as expected  verify S3 t6 (1 names): exit 1 (1 expected); 1 line(s), last: STOP: row t6: the manifest names session 'S4' and steps ['t6.sh'], the steps script 'S3' and ['t6.sh']
+as expected  verify S2 t6 (1 names): exit 1 (1 expected); 1 line(s), last: STOP: row t6: the manifest names session 'S4' and steps ['t6.sh'], the steps script 'S2' and ['t6.sh']
+as expected  verify S4 t8 (6 names): exit 1 (1 expected); 1 line(s), last: STOP: row t8: the manifest names session None and steps None, the steps script 'S4' and ['t8-a-reboot.sh', 't8-b-wait-boot-id.sh', 't8-c-unaided.sh', 't8-d-tunnel.sh', 't8-e-state.sh', 't8-f-smoke.sh']
+as expected  entries t6: exit 0; row t6 session S4; substitution suffix None; t6.sh lines 1421-1428, sha256_after ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377, diff t6.sh.diff (0 bytes)
+
+## <S>/g3/t6prep/g3_battery.sh (sha256 bb086f6a6e211bf39365539af0e69ae07fe0e2c4c97c6804399175d3d1e9f8ea)
+MANIFEST_PY: 75 lines, sha256 27e603d985a8b6da1b36c4f9645137632fca4f997a38d0f8eb1ea87c945ebad1
+as expected  verify S4 t6 (1 names): exit 0 (0 expected); 1 line(s), last: row file t6.sh: sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377 = sha256_after of the manifest (row t6, step 1, 12167 bytes)
+as expected  verify S3 t6 (1 names): exit 1 (1 expected); 1 line(s), last: STOP: row t6: the manifest names session 'S4' and steps ['t6.sh'], the steps script 'S3' and ['t6.sh']
+as expected  verify S2 t6 (1 names): exit 1 (1 expected); 1 line(s), last: STOP: row t6: the manifest names session 'S4' and steps ['t6.sh'], the steps script 'S2' and ['t6.sh']
+as expected  verify S4 t8 (6 names): exit 1 (1 expected); 1 line(s), last: STOP: row t8: the manifest names session None and steps None, the steps script 'S4' and ['t8-a-reboot.sh', 't8-b-wait-boot-id.sh', 't8-c-unaided.sh', 't8-d-tunnel.sh', 't8-e-state.sh', 't8-f-smoke.sh']
+as expected  entries t6: exit 0; row t6 session S4; substitution suffix None; t6.sh lines 1421-1428, sha256_after ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377, diff t6.sh.diff (0 bytes)
+
+COMPATIBLE (every case as expected)
+compat exit=0

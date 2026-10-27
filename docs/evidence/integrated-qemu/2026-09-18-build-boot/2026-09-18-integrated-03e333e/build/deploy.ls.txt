@@ -1,0 +1,20 @@
+total 585052
+lrwxrwxrwx 2 ruisth ruisth         73 Sep 18 12:53 Image -> Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.bin
+-rw-r--r-- 2 ruisth ruisth   24150528 Sep 18 12:53 Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.bin
+lrwxrwxrwx 2 ruisth ruisth         73 Sep 18 12:53 Image-qemuarm64.bin -> Image--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.bin
+-rw-r--r-- 2 ruisth ruisth 2621364224 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+-rw-r--r-- 2 ruisth ruisth      39092 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.manifest
+-rw-r--r-- 2 ruisth ruisth       1959 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+-rw-r--r-- 2 ruisth ruisth    1326017 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.spdx.tar.zst
+-rw-r--r-- 2 ruisth ruisth   94142712 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+-rw-r--r-- 2 ruisth ruisth     298255 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.testdata.json
+lrwxrwxrwx 2 ruisth ruisth         54 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.ext4 -> egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+lrwxrwxrwx 2 ruisth ruisth         58 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.manifest -> egw-gateway-image-qemuarm64.rootfs-20260918120819.manifest
+lrwxrwxrwx 2 ruisth ruisth         63 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.qemuboot.conf -> egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+lrwxrwxrwx 2 ruisth ruisth         62 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.spdx.tar.zst -> egw-gateway-image-qemuarm64.rootfs-20260918120819.spdx.tar.zst
+lrwxrwxrwx 2 ruisth ruisth         57 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.tar.bz2 -> egw-gateway-image-qemuarm64.rootfs-20260918120819.tar.bz2
+lrwxrwxrwx 2 ruisth ruisth         63 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.testdata.json -> egw-gateway-image-qemuarm64.rootfs-20260918120819.testdata.json
+-rw-r--r-- 2 ruisth ruisth   65902274 Sep 18 12:53 modules--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.tgz
+lrwxrwxrwx 2 ruisth ruisth         75 Sep 18 12:53 modules-qemuarm64.tgz -> modules--6.6.142+git0+4a6f16d14b_1f7f3a52da-r0-qemuarm64-20260918114848.tgz
+-rw-r--r-- 2 ruisth ruisth 2621364224 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+lrwxrwxrwx 2 ruisth ruisth         54 Sep 18 13:09 egw-gateway-image-qemuarm64.rootfs.ext4 -> egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4

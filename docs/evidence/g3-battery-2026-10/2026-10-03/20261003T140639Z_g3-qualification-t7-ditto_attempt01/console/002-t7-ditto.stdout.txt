@@ -1,0 +1,199 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+DC="cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env"
+svc_state() { local s; s=$(ssh egw-tcg "c=\$($DC ps -aq $SVC) && [ -n \"\$c\" ] && docker inspect --format '{{.State.Status}}' \$c" 2>/dev/null | tail -n 1); echo "${s:-unknown}"; }
+fault_recover() { local rc s0 s; s0=$(svc_state); ssh egw-tcg "$DC start $SVC"; rc=$?; s=$(svc_state); echo "start exit=$rc state_after_start=$s state_before_start=$s0 $(date -u +%FT%TZ)"; if [ "$rc" = 0 ] && [ "$s" = running ] && [ "$s0" = exited ]; then echo "RECOVERY SHOWN: $SVC is 'running' after start (it was 'exited' before the start)"; elif [ "$rc" = 0 ] && [ "$s" = running ]; then echo "NO RECOVERY TO SHOW: $SVC is 'running' after start, but it was '$s0' before the start - a return from 'exited' was not observed"; return 1; else echo "STOP: the recovery of $SVC is NOT shown (start exit=$rc, state '$s') - start it by hand before anything else: ssh egw-tcg \"$DC start $SVC\""; return 1; fi; }
+fault() {
+        local rc s0 s1 bad=0
+        trap 'echo "STOP: the fault job was interrupted - the recovery is attempted now"; fault_recover; exit 1' INT TERM HUP
+        sleep 90 & wait $!
+        if pgrep -f "egw_simulator run .*--run-id $R( |\$)" >/dev/null; then
+          s0=$(svc_state); ssh egw-tcg "$DC stop $SVC"; rc=$?; s1=$(svc_state)
+          echo "stop exit=$rc state_before=$s0 state_after_stop=$s1 $(date -u +%FT%TZ)"
+          if [ "$rc" = 0 ] && [ "$s0" = running ] && [ "$s1" = exited ]; then echo "INTERRUPTION SHOWN: $SVC went from 'running' to 'exited'"; else echo "STOP: the interruption of $SVC is NOT shown (stop exit=$rc, state '$s0' -> '$s1') - this run is not a fault test"; bad=1; fi
+          sleep 45 & wait $!
+        else
+          echo "STOP: no simulator process for $R at +90 s - the fault was NOT injected"; bad=1
+        fi
+        fault_recover || bad=1
+        return $bad
+      }
+readyp() { while :; do printf '%s %s\n' "$(date -u +%FT%TZ)" "$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 $CTRL/ready)"; sleep 2; done; }
+R=itest-ditto-fault-01-q1; SVC=ditto-things
+T7=stop; if pre $R 42 && T0_7=$(events_start $R); then fault > $P/$R.fault.txt 2>&1 < /dev/null & FAULTP=$!; readyp > $P/$R.ready.txt < /dev/null & READYP=$!; sim_post $R --seed 42 --scenario nominal --duration 300; SP=$?; wait $FAULTP; FW=$?; kill $READYP; RK=$?; cat $P/$R.fault.txt; sut_log controller $R "$T0_7"; LC=$?; sut_log broker $R "$T0_7"; LB=$?; events_stop $R "$T0_7" die,stop,start egw-$SVC-1; EV=$?; if [ "$SP" = 0 ] && [ "$FW" = 0 ] && grep -q '^INTERRUPTION SHOWN' $P/$R.fault.txt && grep -q '^RECOVERY SHOWN' $P/$R.fault.txt && ! grep -q '^STOP' $P/$R.fault.txt && [ "$RK" = 0 ] && [ -f $P/$R.ready.txt ] && [ -s $P/$R.ready.txt ]; then if [ "$EV" = 0 ] && [ "$LC" = 0 ] && [ "$LB" = 0 ]; then T7=0; else T7="incomplete:events_stop=$EV,controller_log=$LC,broker_log=$LB"; stop "test 7: the interruption and the recovery are shown (the SHOWN lines above; $R.fault.txt and $R.ready.txt kept), but this sub-check's instrumentation is INCOMPLETE (events_stop exit=$EV: 1 = the capture not shown complete, 3 = the capture complete and the recorder's cleanup failed; controller log read exit=$LC, broker log read exit=$LB) - not accepted and not evaluated"; fi; else T7="failed:sim_post=$SP,fault_job=$FW,readyp_kill=$RK,events_stop=$EV,controller_log=$LC,broker_log=$LB"; stop "test 7: NOT accepted (sim_post exit=$SP, fault job exit=$FW, kill of the /ready poller exit=$RK; beside them, this sub-check's instrumentation: events_stop exit=$EV, controller log read exit=$LC, broker log read exit=$LB; a fault job exit other than 0, a STOP line above, a missing INTERRUPTION SHOWN or RECOVERY SHOWN line, a /ready poller that was no longer running at the end (kill exit other than 0: $R.ready.txt does not cover the run), or an empty $R.fault.txt/$R.ready.txt) - check that $SVC is running: ssh egw-tcg \"$DC ps $SVC\""; fi; else stop "test 7: precondition failed - NO fault was injected and nothing was published"; fi
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 130 s (0 0 0 true 2026-10-03T13:37:28.984Z 1 8308 8264 0 0 44 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 2740.09 s, end 2871.05 s, elapsed 130.96 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-03T14:06:53Z -> 2026-10-03T14:09:01Z and bash SECONDS elapsed 128 s, recorded only
+{
+  "label": "before",
+  "seed": 42,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-mongo-fault-01-q1",
+        "last_seq": 299,
+        "last_message_id": "4cbeb615-e6cc-577b-b431-6b203d7da418",
+        "last_ts": "2026-10-03T13:59:09.081Z",
+        "accepted_count": 1691
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-mongo-fault-01-q1",
+        "last_seq": 59,
+        "last_message_id": "97a8fbac-2c53-5246-80fa-408a417e7528",
+        "last_ts": "2026-10-03T13:59:05.946Z",
+        "accepted_count": 326
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-mongo-fault-01-q1",
+        "last_seq": 2999,
+        "last_message_id": "7d0d9c1f-d47f-5841-ad86-ea4818a78a8e",
+        "last_ts": "2026-10-03T13:59:09.981Z",
+        "accepted_count": 16283
+      }
+    }
+  }
+}
+recorder_sha256=1afdce8ca9baaca1bb8d7af840dba4cd2d90069aaa7689227831ac92df0e6480
+start_fact_boot_id=d22195a1-84a7-4e88-806a-639db9d8fd83
+start_fact_MainPID=281
+start_fact_ExecMainStartTimestampMonotonic=12180977
+recorder_since_guest_epoch=1791036423
+Running as unit: egw-events-itest-ditto-fault-01-q1.service; invocation ID: 1c360e756bec4f1cb3c1c3d427fbfca8
+start epoch=1791036544 pid=20690 since=1791036423
+cli-start epoch=1791036544 cli_pid=20692
+ready epoch=1791036545 events_bytes=141524 unit=active
+run_guest_t0=1791036545
+egw_simulator: scenario=nominal seed=42 run_id=itest-ditto-fault-01-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=300.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=3360 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1
+marker monotonic_ns=3137390617574 lag_s=0.151
+confirmation window closed on the controller clock
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 130 s (0 0 0 true 2026-10-03T13:37:28.984Z 1 11668 11619 0 0 49 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 3490.09 s, end 3621.06 s, elapsed 130.97 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-03T14:19:01Z -> 2026-10-03T14:21:09Z and bash SECONDS elapsed 128 s, recorded only
+OUTCOME RECONCILIATION itest-ditto-fault-01-q1: published=3360 with_logged_outcome=3360 without_logged_outcome=0 not_reconcilable=0 queue_depth=0
+  counters since the before reading (secondary consistency figure, decides nothing): total=3360 {'accepted': 3355, 'rejected': 0, 'duplicate': 0, 'failed': 5, 'dropped': 0}
+-> OK: every published record of this run has a logged outcome in the fetched event log
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-ditto-fault-01-q1",
+        "last_seq": 299,
+        "last_message_id": "92f42378-43de-5583-9389-4f59cec43454",
+        "last_ts": "2026-10-03T14:13:55.723Z",
+        "accepted_count": 1991
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-ditto-fault-01-q1",
+        "last_seq": 59,
+        "last_message_id": "4138f2b2-2225-5a13-87af-9d629a8ee0dd",
+        "last_ts": "2026-10-03T14:13:51.724Z",
+        "accepted_count": 386
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-ditto-fault-01-q1",
+        "last_seq": 2999,
+        "last_message_id": "7f6d4917-7dab-5f5f-b6e3-b4a7f7f25d87",
+        "last_ts": "2026-10-03T14:13:56.622Z",
+        "accepted_count": 19278
+      }
+    }
+  }
+}
+{
+  "run_id": "itest-ditto-fault-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 3360,
+  "sent_valid": 3360,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 1465,
+  "lost": 1895,
+  "late_confirmations": 1890,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 5,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 3355,
+  "latency_count": 1465,
+  "latency_ms_p50": 11847.18616,
+  "latency_ms_p95": 225921.5796704,
+  "latency_ms_max": 228979.440096,
+  "marker_lag_s": 0.151,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 3360,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}
+5689c879-5f50-49ed-8303-0d42c4898beb smartwatch: existed_before=True accepted_count 1691 -> 1991 (delta 300); accepted records in events.jsonl 300; last_run_id itest-ditto-fault-01-q1 last_seq 299: OK
+b484f9ea-2dc6-45ef-9434-5fc06a06e2c9 smart_ring: existed_before=True accepted_count 326 -> 386 (delta 60); accepted records in events.jsonl 60; last_run_id itest-ditto-fault-01-q1 last_seq 59: OK
+7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 smart_clothing: existed_before=True accepted_count 16283 -> 19278 (delta 2995); accepted records in events.jsonl 2995; last_run_id itest-ditto-fault-01-q1 last_seq 2999: OK
+/metrics accepted: 8264 -> 11619 (delta 3355); events.jsonl 3355: OK
+/metrics rejected: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics duplicate: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics failed: 44 -> 49 (delta 5); events.jsonl 5: OK
+/metrics dropped: 0 -> 0 (delta 0)
+TEST STATUS itest-ditto-fault-01-q1: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict: compare the values printed above with the test's Expected list.
+ Container egw-ditto-things-1  Stopping
+ Container egw-ditto-things-1  Stopped
+stop exit=0 state_before=running state_after_stop=exited 2026-10-03T14:10:56Z
+INTERRUPTION SHOWN: ditto-things went from 'running' to 'exited'
+ Container egw-ditto-things-1  Starting
+ Container egw-ditto-things-1  Started
+start exit=0 state_after_start=running state_before_start=exited 2026-10-03T14:11:55Z
+RECOVERY SHOWN: ditto-things is 'running' after start (it was 'exited' before the start)
+proof_fetch_sut_log: controller: bounds since_guest_epoch=1791036545 (2026-10-03T14:09:05Z) until_guest_epoch=1791037272 (2026-10-03T14:21:12Z) first=2026-10-03T14:09:06.169002053Z last=2026-10-03T14:21:11.914987145Z excluded_before_since_lines=40484 excluded_sha256=3716ac4c3d9bc4f436ee061dc1ba931f3240760b7a12ce9a8db217b17e3b98d0 outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: controller: 4050 line(s), 945695 bytes, sha256 61c0625bb96ddf7e2ad7bcef779f0cfcdc1aa612ccc24ac4b5afa0e24f22ecb3, written to /home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/controller.log
+proof_fetch_sut_log: broker: bounds since_guest_epoch=1791036545 (2026-10-03T14:09:05Z) until_guest_epoch=1791037290 (2026-10-03T14:21:30Z) first=2026-10-03T14:09:05.503676597Z last=2026-10-03T14:21:16.223227523Z excluded_before_since_lines=2311 excluded_sha256=4e6b434e4fe92c24594eef6cdd44c6b9dc5276732d3bc2591bc4bfdcb6dc24ca outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: broker: 66 line(s), 8264 bytes, sha256 a59fcff12b31ff2e9993dae0e5201c0b49e5cf8983791dc27899b1477ac2897c, written to /home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/broker.log
+proof_fetch_sut_log: docker-events: coverage=complete from RUN_T0 1791036545 (2026-10-03T14:09:05Z) to the stop request; expected=die,stop,start of egw-ditto-things-1; the rules are in /home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.coverage.txt
+proof_fetch_sut_log: docker-events: 505 line(s), 969767 bytes, sha256 712042c324c3a4f48950851b316889d50e1b634a054c2e22b4977544dd01b705, written to /home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.log
+unit_state_before_cleanup=inactive
+--- the recorder's lifecycle record (/tmp/egw-events-itest-ditto-fault-01-q1/lifecycle.txt; its capture stays in /tmp/egw-events-itest-ditto-fault-01-q1)
+start epoch=1791036544 pid=20690 since=1791036423
+cli-start epoch=1791036544 cli_pid=20692
+ready epoch=1791036545 events_bytes=141524 unit=active
+cli-exit epoch=1791037302 rc=143 stop_requested=yes
+events_lines=505
+cli_stderr_bytes=0
+[ "$T7" = 0 ] && python3 -c "import json,collections;ev=[json.loads(l) for l in open('$HOME/egw-tcg/itest/$R/events.jsonl')];print(collections.Counter((e['outcome'],e.get('attempts')) for e in ev)); print([e['error'] for e in ev if e['outcome']=='failed'][:3])" || stop "test 7: not evaluated (T7='$T7': only 0 = run complete AND interruption shown AND recovery shown)"
+Counter({('accepted', 1): 3355, ('failed', 3): 5})
+['PATCH /api/2/things/org.c2dta:7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 failed after 3 attempt(s): ReadTimeout: ', 'PATCH /api/2/things/org.c2dta:7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 failed after 3 attempt(s): ReadTimeout: ', 'PATCH /api/2/things/org.c2dta:7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 failed after 3 attempt(s): ReadTimeout: ']
+[ "$T7" != stop ] && [ "$LC" = 0 ] && [ -s $P/$R.sut/controller.log ] && [ -s $P/$R.twins.after.json ] && { $REC delta $P/$R --controller-log $P/$R.sut/controller.log; case $? in 0|4) true;; *) false;; esac; } || stop "test 7: the optional N1 report was NOT produced (the test line left T7='$T7' - 'stop' when its precondition failed or it was interrupted, and the files of $R may then be an earlier execution's -, controller log read exit='$LC', $P/$R.sut/controller.log or $P/$R.twins.after.json missing or empty, or delta could not be carried out) - it is read-only: finish's delta and T7='$T7' stand"     # optional and read-only (decision 2 of 2026-09-30), and only after a test line that started its run (T7 not 'stop': LC alone may be left in this shell by an earlier sub-check, and a refused precondition leaves the run id's earlier files as they were): delta again on the same files, with the sub-check's controller log read by the test line as the A3 source of its N1 report; 0 and 4 are both results (an identity it names n1_applied_unconfirmed already made finish's delta a MISMATCH, so T7 is then 'failed:'); it writes nothing, changes no status and decides nothing; an itest run has no restart record, so no controller death is a source here, and the twin evidence is the 'after' /metrics reading that finish took after 'drained'; UNVERIFIED: on a real controller log (Appendix B, item 24)
+5689c879-5f50-49ed-8303-0d42c4898beb smartwatch: existed_before=True accepted_count 1691 -> 1991 (delta 300); accepted records in events.jsonl 300; last_run_id itest-ditto-fault-01-q1 last_seq 299: OK
+b484f9ea-2dc6-45ef-9434-5fc06a06e2c9 smart_ring: existed_before=True accepted_count 326 -> 386 (delta 60); accepted records in events.jsonl 60; last_run_id itest-ditto-fault-01-q1 last_seq 59: OK
+7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 smart_clothing: existed_before=True accepted_count 16283 -> 19278 (delta 2995); accepted records in events.jsonl 2995; last_run_id itest-ditto-fault-01-q1 last_seq 2999: OK
+/metrics accepted: 8264 -> 11619 (delta 3355); events.jsonl 3355: OK
+/metrics rejected: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics duplicate: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics failed: 44 -> 49 (delta 5); events.jsonl 5: OK
+/metrics dropped: 0 -> 0 (delta 0)
+N1 REPORT (explanation only; lost and every delta status unchanged): n1_applied_unconfirmed=0 duplicate_only_unexplained=0
+  sources: controller log (--controller-log): 0 A3 connection end(s); controller death not read (no --restart-evidence given)
+  explanation only: a named identity stays in lost and in every zero-lost criterion, the delta line of its device stays a mismatch, and it is never counted as accepted, delivered or on time; no exactly-once claim

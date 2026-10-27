@@ -1,0 +1,8 @@
+## faults: what the system did during the measured run
+none
+## problems: what the two records do not let anyone say
+none
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-ditto-things-1 was restarted in place during the run, as expected: it started again at 2026-10-03T14:11:49.739359502Z (it had been running since 2026-10-03T13:23:54.881438482Z), the same container object (69b2281e5412) with its restart count unchanged (0) and not OOM-killed
+guest state before/after: 0 fault(s), 0 problem(s), 1 expected restart(s)
+guest-state-delta: faults=0 problems=0

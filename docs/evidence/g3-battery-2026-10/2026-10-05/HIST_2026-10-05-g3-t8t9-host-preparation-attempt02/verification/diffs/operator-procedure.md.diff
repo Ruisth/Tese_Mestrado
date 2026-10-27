@@ -1,0 +1,17 @@
+--- first-preparation/operator-procedure.md
++++ operator-procedure.md
+@@ -4,6 +4,14 @@
+ and its decision summary, and changes no rule of either: where they differ, the decision summary governs, then the
+ request. The steps script and its halts are described in `g3_battery.README.md`. G3 stays `Not decided`.
+ 
++**Second opening (2026-10-05).** Root file system expected `b48b010d…`; state directory
++`~/egw-exec/g3-t8t9-s3-attempt02`; operator records sealed as `HIST_<UTC date>-g3-t8t9-s3-operator-records-attempt02`
++when on 2026-10-05. Stop condition 1 below has ONE authorised exception for this session: a preflight exit 3 whose
++sole failure is the numeric duration judgement of `collector-duration`, as the script's checker establishes (the
++README, "Second opening"). The session then records "proceeded under the authorised T8/T9 exception", never
++"preflight passed"; any other preflight failure, a missing or unreadable record, a capture failure or an observed
++system fault is still a halt. The exception reaches neither T6 nor the campaign.
++
+ ## Before the window
+ 
+ - The sealed preparation package is with Rui; S3 starts only on his explicit authorisation of the session and his

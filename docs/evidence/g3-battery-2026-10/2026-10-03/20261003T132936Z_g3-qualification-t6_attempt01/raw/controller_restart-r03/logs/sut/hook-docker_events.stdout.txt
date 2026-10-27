@@ -1,0 +1,2 @@
+proof_fetch_sut_log: docker-events: coverage=complete from RUN_T0 1791034330 (2026-10-03T13:32:10Z) to the stop request; expected=die,start; the rules are in /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r03/logs/sut/docker-events.coverage.txt
+proof_fetch_sut_log: docker-events: 647 line(s), 1239872 bytes, sha256 e632e9c04899f939d687ad1e727531cd3b6bcf5780fb36c5703c5dfaab349e30, written to /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r03/logs/sut/docker-events.log

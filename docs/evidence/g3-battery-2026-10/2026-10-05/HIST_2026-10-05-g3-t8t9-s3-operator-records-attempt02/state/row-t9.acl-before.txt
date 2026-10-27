@@ -1,0 +1,3 @@
+/home/ruisth/egw-tcg/itest/itest-acl-20260918T221558Z
+/home/ruisth/egw-tcg/itest/itest-acl-20260918T221558Z.metrics.after.json
+/home/ruisth/egw-tcg/itest/itest-acl-20260918T221558Z.metrics.before.json

@@ -1,0 +1,33 @@
+Exit request sent.
+TUNNEL CLOSED
+ Container egw-ditto-things-1  Stopping
+ Container egw-controller-1  Stopping
+ Container egw-controller-1  Stopped
+ Container egw-ditto-things-1  Stopped
+ Container egw-ditto-gateway-1  Stopping
+ Container egw-mosquitto-1  Stopping
+ Container egw-mosquitto-1  Stopped
+ Container egw-ditto-gateway-1  Stopped
+ Container egw-ditto-policies-1  Stopping
+ Container egw-ditto-policies-1  Stopped
+ Container egw-mongodb-1  Stopping
+ Container egw-mongodb-1  Stopped
+stop exit=0
+egw-controller-1 Exited (0) 26 seconds ago
+egw-ditto-things-1 Exited (143) 10 seconds ago
+egw-ditto-gateway-1 Exited (143) 23 seconds ago
+egw-ditto-policies-1 Exited (143) 5 seconds ago
+egw-mongodb-1 Exited (0) 4 seconds ago
+egw-mosquitto-1 Exited (0) 24 seconds ago
+no memory-cgroup OOM in this boot
+memory-cgroup OOM lines: 0
+[2026-10-05T12:12:31Z] s1: collecting the final guest state
+[2026-10-05T12:12:41Z] s1: QEMU ended: exit=0 finished=2026-10-05T12:12:40Z
+[2026-10-05T12:12:42Z] s1: G1 artefacts: egw-image-qemuarm64.rootfs.manifest: OK
+[2026-10-05T12:12:42Z] s1: session closed: exit=0 closed=2026-10-05T12:12:42Z
+6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+-rw-r--r-- 1 ruisth ruisth 34359738368 Oct  5 13:12 /home/ruisth/yocto/egw-integrated/egw-data.img
+no qemu process left
+exported 20261005T114428Z_guest-session_attempt11: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-05\20261005T114428Z_guest-session_attempt11 (verified, 85 files, 0 excluded)
+DRIVER RESULT 20261005T114428Z_guest-session_attempt11: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+guest_session_close.sh exit=0

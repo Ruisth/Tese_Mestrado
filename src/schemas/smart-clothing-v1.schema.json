@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://c2dta.org/egw/schemas/smart-clothing-v1.schema.json",
+  "title": "EGW smart clothing telemetry v1",
+  "description": "Smart clothing event: 3-axis acceleration + breathing rate at 10 Hz nominal (high-frequency profile).",
+  "type": "object",
+  "allOf": [
+    { "$ref": "https://c2dta.org/egw/schemas/telemetry-envelope-v1.schema.json" }
+  ],
+  "properties": {
+    "device_type": { "const": "smart_clothing" },
+    "accel_x": { "type": "number", "minimum": -78.0, "maximum": 78.0 },
+    "accel_y": { "type": "number", "minimum": -78.0, "maximum": 78.0 },
+    "accel_z": { "type": "number", "minimum": -78.0, "maximum": 78.0 },
+    "breathing_rpm": {
+      "type": "number",
+      "minimum": 4.0,
+      "maximum": 60.0
+    }
+  },
+  "required": ["device_type", "accel_x", "accel_y", "accel_z", "breathing_rpm"],
+  "unevaluatedProperties": false
+}

@@ -1,0 +1,648 @@
+Sep 18 12:17:20 egw-qemu-integrated kernel: Booting Linux on physical CPU 0x0000000000 [0x414fd0b1]
+Sep 18 12:17:20 egw-qemu-integrated kernel: Linux version 6.6.142-yocto-standard (oe-user@oe-host) (aarch64-poky-linux-gcc (GCC) 13.4.0, GNU ld (GNU Binutils) 2.42.0.20240723) #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026
+Sep 18 12:17:20 egw-qemu-integrated kernel: random: crng init done
+Sep 18 12:17:20 egw-qemu-integrated kernel: Machine model: linux,dummy-virt
+Sep 18 12:17:20 egw-qemu-integrated kernel: Memory limited to 8192MB
+Sep 18 12:17:20 egw-qemu-integrated kernel: efi: UEFI not found.
+Sep 18 12:17:20 egw-qemu-integrated kernel: Zone ranges:
+Sep 18 12:17:20 egw-qemu-integrated kernel:   DMA      [mem 0x0000000040000000-0x00000000ffffffff]
+Sep 18 12:17:20 egw-qemu-integrated kernel:   DMA32    empty
+Sep 18 12:17:20 egw-qemu-integrated kernel:   Normal   [mem 0x0000000100000000-0x000000023fffffff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: Movable zone start for each node
+Sep 18 12:17:20 egw-qemu-integrated kernel: Early memory node ranges
+Sep 18 12:17:20 egw-qemu-integrated kernel:   node   0: [mem 0x0000000040000000-0x000000023fffffff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: Initmem setup node 0 [mem 0x0000000040000000-0x000000023fffffff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: psci: probing for conduit method from DT.
+Sep 18 12:17:20 egw-qemu-integrated kernel: psci: PSCIv1.1 detected in firmware.
+Sep 18 12:17:20 egw-qemu-integrated kernel: psci: Using standard PSCI v0.2 function IDs
+Sep 18 12:17:20 egw-qemu-integrated kernel: psci: Trusted OS migration not required
+Sep 18 12:17:20 egw-qemu-integrated kernel: psci: SMC Calling Convention v1.0
+Sep 18 12:17:20 egw-qemu-integrated kernel: percpu: Embedded 27 pages/cpu s73320 r8192 d29080 u110592
+Sep 18 12:17:20 egw-qemu-integrated kernel: pcpu-alloc: s73320 r8192 d29080 u110592 alloc=27*4096
+Sep 18 12:17:20 egw-qemu-integrated kernel: pcpu-alloc: [0] 0 [0] 1 [0] 2 [0] 3 
+Sep 18 12:17:20 egw-qemu-integrated kernel: Detected PIPT I-cache on CPU0
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: Hardware dirty bit management
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: Spectre-v4
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: Spectre-BHB
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: SSBS not fully self-synchronizing
+Sep 18 12:17:20 egw-qemu-integrated kernel: alternatives: applying boot alternatives
+Sep 18 12:17:20 egw-qemu-integrated kernel: Kernel command line: root=/dev/vda rw  mem=8192M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0 
+Sep 18 12:17:20 egw-qemu-integrated kernel: Dentry cache hash table entries: 1048576 (order: 11, 8388608 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: Inode-cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: Built 1 zonelists, mobility grouping on.  Total pages: 2064384
+Sep 18 12:17:20 egw-qemu-integrated kernel: mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+Sep 18 12:17:20 egw-qemu-integrated kernel: software IO TLB: area num 4.
+Sep 18 12:17:20 egw-qemu-integrated kernel: software IO TLB: SWIOTLB bounce buffer size roundup to 1MB
+Sep 18 12:17:20 egw-qemu-integrated kernel: software IO TLB: mapped [mem 0x00000000ffeff000-0x00000000fffff000] (1MB)
+Sep 18 12:17:20 egw-qemu-integrated kernel: Memory: 8199748K/8388608K available (13632K kernel code, 2016K rwdata, 3204K rodata, 4608K init, 557K bss, 188860K reserved, 0K cma-reserved)
+Sep 18 12:17:20 egw-qemu-integrated kernel: SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+Sep 18 12:17:20 egw-qemu-integrated kernel: ftrace: allocating 41946 entries in 164 pages
+Sep 18 12:17:20 egw-qemu-integrated kernel: ftrace: allocated 164 pages with 3 groups
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu: Preemptible hierarchical RCU implementation.
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu:         RCU event tracing is enabled.
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu:         RCU restricting CPUs from NR_CPUS=256 to nr_cpu_ids=4.
+Sep 18 12:17:20 egw-qemu-integrated kernel:         Trampoline variant of Tasks RCU enabled.
+Sep 18 12:17:20 egw-qemu-integrated kernel:         Rude variant of Tasks RCU enabled.
+Sep 18 12:17:20 egw-qemu-integrated kernel:         Tracing variant of Tasks RCU enabled.
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+Sep 18 12:17:20 egw-qemu-integrated kernel: NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+Sep 18 12:17:20 egw-qemu-integrated kernel: Root IRQ handler: gic_handle_irq
+Sep 18 12:17:20 egw-qemu-integrated kernel: GICv2m: range[mem 0x08020000-0x08020fff], SPI[80:143]
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu: srcu_init: Setting srcu_struct sizes based on contention.
+Sep 18 12:17:20 egw-qemu-integrated kernel: arch_timer: cp15 timer(s) running at 62.50MHz (virt).
+Sep 18 12:17:20 egw-qemu-integrated kernel: clocksource: arch_sys_counter: mask: 0x1ffffffffffffff max_cycles: 0x1cd42e208c, max_idle_ns: 881590405314 ns
+Sep 18 12:17:20 egw-qemu-integrated kernel: sched_clock: 57 bits at 63MHz, resolution 16ns, wraps every 4398046511096ns
+Sep 18 12:17:20 egw-qemu-integrated kernel: kfence: initialized - using 2097152 bytes for 255 objects at 0x(____ptrval____)-0x(____ptrval____)
+Sep 18 12:17:20 egw-qemu-integrated kernel: Console: colour dummy device 80x25
+Sep 18 12:17:20 egw-qemu-integrated kernel: Calibrating delay loop (skipped), value calculated using timer frequency.. 125.00 BogoMIPS (lpj=250000)
+Sep 18 12:17:20 egw-qemu-integrated kernel: pid_max: default: 32768 minimum: 301
+Sep 18 12:17:20 egw-qemu-integrated kernel: LSM: initializing lsm=capability,landlock,integrity
+Sep 18 12:17:20 egw-qemu-integrated kernel: landlock: Up and running.
+Sep 18 12:17:20 egw-qemu-integrated kernel: Mount-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: Mountpoint-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: cacheinfo: Unable to detect cache hierarchy for CPU 0
+Sep 18 12:17:20 egw-qemu-integrated kernel: RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 18 12:17:20 egw-qemu-integrated kernel: RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 18 12:17:20 egw-qemu-integrated kernel: RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu: Hierarchical SRCU implementation.
+Sep 18 12:17:20 egw-qemu-integrated kernel: rcu:         Max phase no-delay instances is 1000.
+Sep 18 12:17:20 egw-qemu-integrated kernel: EFI services will not be available.
+Sep 18 12:17:20 egw-qemu-integrated kernel: smp: Bringing up secondary CPUs ...
+Sep 18 12:17:20 egw-qemu-integrated kernel: Detected PIPT I-cache on CPU1
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU1: Booted secondary processor 0x0000000001 [0x414fd0b1]
+Sep 18 12:17:20 egw-qemu-integrated kernel: Detected PIPT I-cache on CPU2
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU2: Booted secondary processor 0x0000000002 [0x414fd0b1]
+Sep 18 12:17:20 egw-qemu-integrated kernel: Detected PIPT I-cache on CPU3
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU3: Booted secondary processor 0x0000000003 [0x414fd0b1]
+Sep 18 12:17:20 egw-qemu-integrated kernel: smp: Brought up 1 node, 4 CPUs
+Sep 18 12:17:20 egw-qemu-integrated kernel: SMP: Total of 4 processors activated.
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: 32-bit EL0 Support
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: Common not Private translations
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: CRC32 instructions
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: RCpc load-acquire (LDAPR)
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: LSE atomic instructions
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: Privileged Access Never
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: RAS Extension Support
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU features: detected: Speculative Store Bypassing Safe (SSBS)
+Sep 18 12:17:20 egw-qemu-integrated kernel: CPU: All CPU(s) started at EL1
+Sep 18 12:17:20 egw-qemu-integrated kernel: alternatives: applying system-wide alternatives
+Sep 18 12:17:20 egw-qemu-integrated kernel: devtmpfs: initialized
+Sep 18 12:17:20 egw-qemu-integrated kernel: clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+Sep 18 12:17:20 egw-qemu-integrated kernel: futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: DMI not present or invalid.
+Sep 18 12:17:20 egw-qemu-integrated kernel: NET: Registered PF_NETLINK/PF_ROUTE protocol family
+Sep 18 12:17:20 egw-qemu-integrated kernel: DMA: preallocated 1024 KiB GFP_KERNEL pool for atomic allocations
+Sep 18 12:17:20 egw-qemu-integrated kernel: DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+Sep 18 12:17:20 egw-qemu-integrated kernel: DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+Sep 18 12:17:20 egw-qemu-integrated kernel: hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+Sep 18 12:17:20 egw-qemu-integrated kernel: ASID allocator initialised with 65536 entries
+Sep 18 12:17:20 egw-qemu-integrated kernel: Serial: AMBA PL011 UART driver
+Sep 18 12:17:20 egw-qemu-integrated kernel: 9000000.pl011: ttyAMA0 at MMIO 0x9000000 (irq = 13, base_baud = 0) is a PL011 rev1
+Sep 18 12:17:20 egw-qemu-integrated kernel: printk: console [ttyAMA0] enabled
+Sep 18 12:17:20 egw-qemu-integrated kernel: Modules: 26720 pages in range for non-PLT usage
+Sep 18 12:17:20 egw-qemu-integrated kernel: Modules: 518240 pages in range for PLT usage
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: neonx8   gen()  5718 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: neonx4   gen()  4569 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: neonx2   gen()  2753 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: neonx1   gen()  1647 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: int64x8  gen()  3165 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: int64x4  gen()  4123 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: int64x2  gen()  3540 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: int64x1  gen()  2607 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: using algorithm neonx8 gen() 5718 MB/s
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: .... xor() 2330 MB/s, rmw enabled
+Sep 18 12:17:20 egw-qemu-integrated kernel: raid6: using neon recovery algorithm
+Sep 18 12:17:20 egw-qemu-integrated kernel: iommu: Default domain type: Translated
+Sep 18 12:17:20 egw-qemu-integrated kernel: iommu: DMA domain TLB invalidation policy: strict mode
+Sep 18 12:17:20 egw-qemu-integrated kernel: SCSI subsystem initialized
+Sep 18 12:17:20 egw-qemu-integrated kernel: usbcore: registered new interface driver usbfs
+Sep 18 12:17:20 egw-qemu-integrated kernel: usbcore: registered new interface driver hub
+Sep 18 12:17:20 egw-qemu-integrated kernel: usbcore: registered new device driver usb
+Sep 18 12:17:20 egw-qemu-integrated kernel: pps_core: LinuxPPS API ver. 1 registered
+Sep 18 12:17:20 egw-qemu-integrated kernel: pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+Sep 18 12:17:20 egw-qemu-integrated kernel: PTP clock support registered
+Sep 18 12:17:20 egw-qemu-integrated kernel: vgaarb: loaded
+Sep 18 12:17:20 egw-qemu-integrated kernel: clocksource: Switched to clocksource arch_sys_counter
+Sep 18 12:17:20 egw-qemu-integrated kernel: NET: Registered PF_INET protocol family
+Sep 18 12:17:20 egw-qemu-integrated kernel: IP idents hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: tcp_listen_portaddr_hash hash table entries: 4096 (order: 4, 65536 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: TCP established hash table entries: 65536 (order: 7, 524288 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: TCP bind hash table entries: 65536 (order: 9, 2097152 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: TCP: Hash tables configured (established 65536 bind 65536)
+Sep 18 12:17:20 egw-qemu-integrated kernel: UDP hash table entries: 4096 (order: 5, 131072 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: UDP-Lite hash table entries: 4096 (order: 5, 131072 bytes, linear)
+Sep 18 12:17:20 egw-qemu-integrated kernel: NET: Registered PF_UNIX/PF_LOCAL protocol family
+Sep 18 12:17:20 egw-qemu-integrated kernel: RPC: Registered named UNIX socket transport module.
+Sep 18 12:17:20 egw-qemu-integrated kernel: RPC: Registered udp transport module.
+Sep 18 12:17:20 egw-qemu-integrated kernel: RPC: Registered tcp transport module.
+Sep 18 12:17:20 egw-qemu-integrated kernel: RPC: Registered tcp-with-tls transport module.
+Sep 18 12:17:20 egw-qemu-integrated kernel: RPC: Registered tcp NFSv4.1 backchannel transport module.
+Sep 18 12:17:20 egw-qemu-integrated kernel: PCI: CLS 0 bytes, default 64
+Sep 18 12:17:20 egw-qemu-integrated kernel: workingset: timestamp_bits=46 max_order=21 bucket_order=0
+Sep 18 12:17:20 egw-qemu-integrated kernel: NFS: Registering the id_resolver key type
+Sep 18 12:17:20 egw-qemu-integrated kernel: Key type id_resolver registered
+Sep 18 12:17:20 egw-qemu-integrated kernel: Key type id_legacy registered
+Sep 18 12:17:20 egw-qemu-integrated kernel: Key type cifs.idmap registered
+Sep 18 12:17:20 egw-qemu-integrated kernel: xor: measuring software checksum speed
+Sep 18 12:17:20 egw-qemu-integrated kernel:    8regs           :  7212 MB/sec
+Sep 18 12:17:20 egw-qemu-integrated kernel:    32regs          :  6584 MB/sec
+Sep 18 12:17:20 egw-qemu-integrated kernel:    arm64_neon      :  2747 MB/sec
+Sep 18 12:17:20 egw-qemu-integrated kernel: xor: using function: 8regs (7212 MB/sec)
+Sep 18 12:17:20 egw-qemu-integrated kernel: Block layer SCSI generic (bsg) driver version 0.4 loaded (major 250)
+Sep 18 12:17:20 egw-qemu-integrated kernel: io scheduler mq-deadline registered
+Sep 18 12:17:20 egw-qemu-integrated kernel: io scheduler kyber registered
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci-host-generic 4010000000.pcie: host bridge /pcie@10000000 ranges:
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci-host-generic 4010000000.pcie:       IO 0x003eff0000..0x003effffff -> 0x0000000000
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci-host-generic 4010000000.pcie:      MEM 0x0010000000..0x003efeffff -> 0x0010000000
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci-host-generic 4010000000.pcie:      MEM 0x8000000000..0xffffffffff -> 0x8000000000
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci-host-generic 4010000000.pcie: Memory resource size exceeds max for 32 bits
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci-host-generic 4010000000.pcie: ECAM at [mem 0x4010000000-0x401fffffff] for [bus 00-ff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci-host-generic 4010000000.pcie: PCI host bridge to bus 0000:00
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci_bus 0000:00: root bus resource [bus 00-ff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci_bus 0000:00: root bus resource [mem 0x10000000-0x3efeffff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci_bus 0000:00: root bus resource [mem 0x8000000000-0xffffffffff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:00.0: [1b36:0008] type 00 class 0x060000
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:01.0: [1af4:1000] type 00 class 0x020000
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:01.0: BAR 0 [io  0x0000-0x001f]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:01.0: BAR 1 [mem 0x00000000-0x00000fff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:01.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:01.0: ROM [mem 0x00000000-0x0003ffff pref]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:02.0: [1af4:1005] type 00 class 0x00ff00
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:02.0: BAR 0 [io  0x0000-0x001f]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:02.0: BAR 1 [mem 0x00000000-0x00000fff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:02.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:03.0: [1af4:1001] type 00 class 0x010000
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:03.0: BAR 0 [io  0x0000-0x007f]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:03.0: BAR 1 [mem 0x00000000-0x00000fff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:03.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:04.0: [1af4:1001] type 00 class 0x010000
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:04.0: BAR 0 [io  0x0000-0x007f]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:04.0: BAR 1 [mem 0x00000000-0x00000fff]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:04.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+Sep 18 12:17:20 egw-qemu-integrated kernel: pci 0000:00:05.0: [1af4:1050] type 00 class 0x038000
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:05.0: BAR 1 [mem 0x00000000-0x00000fff]
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:05.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:01.0: ROM [mem 0x10000000-0x1003ffff pref]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:01.0: BAR 4 [mem 0x8000000000-0x8000003fff 64bit pref]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:02.0: BAR 4 [mem 0x8000004000-0x8000007fff 64bit pref]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:03.0: BAR 4 [mem 0x8000008000-0x800000bfff 64bit pref]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:04.0: BAR 4 [mem 0x800000c000-0x800000ffff 64bit pref]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:05.0: BAR 4 [mem 0x8000010000-0x8000013fff 64bit pref]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:01.0: BAR 1 [mem 0x10040000-0x10040fff]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:02.0: BAR 1 [mem 0x10041000-0x10041fff]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:03.0: BAR 1 [mem 0x10042000-0x10042fff]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:04.0: BAR 1 [mem 0x10043000-0x10043fff]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:05.0: BAR 1 [mem 0x10044000-0x10044fff]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:03.0: BAR 0 [io  0x1000-0x107f]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:04.0: BAR 0 [io  0x1080-0x10ff]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:01.0: BAR 0 [io  0x1100-0x111f]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: pci 0000:00:02.0: BAR 0 [io  0x1120-0x113f]: assigned
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio-pci 0000:00:01.0: enabling device (0000 -> 0003)
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio-pci 0000:00:02.0: enabling device (0000 -> 0003)
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio-pci 0000:00:03.0: enabling device (0000 -> 0003)
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio-pci 0000:00:04.0: enabling device (0000 -> 0003)
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio-pci 0000:00:05.0: enabling device (0000 -> 0002)
+Sep 18 12:17:21 egw-qemu-integrated kernel: [drm] pci: virtio-gpu-pci detected at 0000:00:05.0
+Sep 18 12:17:21 egw-qemu-integrated kernel: [drm] features: -virgl +edid -resource_blob -host_visible
+Sep 18 12:17:21 egw-qemu-integrated kernel: [drm] features: -context_init
+Sep 18 12:17:21 egw-qemu-integrated kernel: [drm] number of scanouts: 1
+Sep 18 12:17:21 egw-qemu-integrated kernel: [drm] number of cap sets: 0
+Sep 18 12:17:21 egw-qemu-integrated kernel: [drm] Initialized virtio_gpu 0.1.0 0 for 0000:00:05.0 on minor 0
+Sep 18 12:17:21 egw-qemu-integrated kernel: Console: switching to colour frame buffer device 160x50
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio-pci 0000:00:05.0: [drm] fb0: virtio_gpudrmfb frame buffer device
+Sep 18 12:17:21 egw-qemu-integrated kernel: brd: module loaded
+Sep 18 12:17:21 egw-qemu-integrated kernel: loop: module loaded
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio_blk virtio2: 4/0/0 default/read/poll queues
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio_blk virtio2: [vda] 5119852 512-byte logical blocks (2.62 GB/2.44 GiB)
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio_blk virtio3: 4/0/0 default/read/poll queues
+Sep 18 12:17:21 egw-qemu-integrated kernel: virtio_blk virtio3: [vdb] 67108864 512-byte logical blocks (34.4 GB/32.0 GiB)
+Sep 18 12:17:21 egw-qemu-integrated kernel: rtc-pl031 9010000.pl031: registered as rtc0
+Sep 18 12:17:21 egw-qemu-integrated kernel: rtc-pl031 9010000.pl031: setting system clock to 2026-09-18T12:17:17 UTC (1789733837)
+Sep 18 12:17:21 egw-qemu-integrated kernel: device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@redhat.com
+Sep 18 12:17:21 egw-qemu-integrated kernel: usbcore: registered new interface driver usbhid
+Sep 18 12:17:21 egw-qemu-integrated kernel: usbhid: USB HID core driver
+Sep 18 12:17:21 egw-qemu-integrated kernel: hw perfevents: enabled with armv8_pmuv3 PMU driver, 7 counters available
+Sep 18 12:17:21 egw-qemu-integrated kernel: u32 classifier
+Sep 18 12:17:21 egw-qemu-integrated kernel:     input device check on
+Sep 18 12:17:21 egw-qemu-integrated kernel:     Actions configured
+Sep 18 12:17:21 egw-qemu-integrated kernel: NET: Registered PF_INET6 protocol family
+Sep 18 12:17:21 egw-qemu-integrated kernel: Segment Routing with IPv6
+Sep 18 12:17:21 egw-qemu-integrated kernel: In-situ OAM (IOAM) with IPv6
+Sep 18 12:17:21 egw-qemu-integrated kernel: sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+Sep 18 12:17:21 egw-qemu-integrated kernel: NET: Registered PF_PACKET protocol family
+Sep 18 12:17:21 egw-qemu-integrated kernel: Bridge firewalling registered
+Sep 18 12:17:21 egw-qemu-integrated kernel: Key type dns_resolver registered
+Sep 18 12:17:21 egw-qemu-integrated kernel: NET: Registered PF_VSOCK protocol family
+Sep 18 12:17:21 egw-qemu-integrated kernel: registered taskstats version 1
+Sep 18 12:17:21 egw-qemu-integrated kernel: Key type .fscrypt registered
+Sep 18 12:17:21 egw-qemu-integrated kernel: Key type fscrypt-provisioning registered
+Sep 18 12:17:21 egw-qemu-integrated kernel: Btrfs loaded, zoned=no, fsverity=no
+Sep 18 12:17:21 egw-qemu-integrated kernel: Key type encrypted registered
+Sep 18 12:17:21 egw-qemu-integrated kernel: printk: console [netcon0] enabled
+Sep 18 12:17:21 egw-qemu-integrated kernel: netconsole: network logging started
+Sep 18 12:17:21 egw-qemu-integrated kernel: Sending DHCP requests ., OK
+Sep 18 12:17:21 egw-qemu-integrated kernel: IP-Config: Got DHCP answer from 10.0.2.2, my address is 10.0.2.15
+Sep 18 12:17:21 egw-qemu-integrated kernel: IP-Config: Complete:
+Sep 18 12:17:21 egw-qemu-integrated kernel:      device=eth0, hwaddr=52:54:00:12:35:02, ipaddr=10.0.2.15, mask=255.255.255.0, gw=10.0.2.2
+Sep 18 12:17:21 egw-qemu-integrated kernel:      host=10.0.2.15, domain=, nis-domain=(none)
+Sep 18 12:17:21 egw-qemu-integrated kernel:      bootserver=10.0.2.2, rootserver=10.0.2.2, rootpath=
+Sep 18 12:17:21 egw-qemu-integrated kernel:      nameserver0=10.0.2.3
+Sep 18 12:17:21 egw-qemu-integrated kernel: clk: Disabling unused clocks
+Sep 18 12:17:21 egw-qemu-integrated kernel: md: Waiting for all devices to be available before autodetect
+Sep 18 12:17:21 egw-qemu-integrated kernel: md: If you don't use raid, use raid=noautodetect
+Sep 18 12:17:21 egw-qemu-integrated kernel: md: Autodetecting RAID arrays.
+Sep 18 12:17:21 egw-qemu-integrated kernel: md: autorun ...
+Sep 18 12:17:21 egw-qemu-integrated kernel: md: ... autorun DONE.
+Sep 18 12:17:21 egw-qemu-integrated kernel: EXT4-fs (vda): mounted filesystem 6e01c895-f44f-4183-92f5-b61569f9bef8 r/w with ordered data mode. Quota mode: disabled.
+Sep 18 12:17:21 egw-qemu-integrated kernel: VFS: Mounted root (ext4 filesystem) on device 253:0.
+Sep 18 12:17:21 egw-qemu-integrated kernel: devtmpfs: mounted
+Sep 18 12:17:21 egw-qemu-integrated kernel: Freeing unused kernel memory: 4608K
+Sep 18 12:17:21 egw-qemu-integrated kernel: Run /sbin/init as init process
+Sep 18 12:17:21 egw-qemu-integrated kernel:   with arguments:
+Sep 18 12:17:21 egw-qemu-integrated kernel:     /sbin/init
+Sep 18 12:17:21 egw-qemu-integrated kernel:   with environment:
+Sep 18 12:17:21 egw-qemu-integrated kernel:     HOME=/
+Sep 18 12:17:21 egw-qemu-integrated kernel:     TERM=linux
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: systemd 255.21^ running in system mode (-PAM -AUDIT -SELINUX -APPARMOR +IMA -SMACK +SECCOMP -GCRYPT -GNUTLS -OPENSSL +ACL +BLKID -CURL -ELFUTILS -FIDO2 -IDN2 -IDN -IPTC +KMOD -LIBCRYPTSETUP +LIBFDISK -PCRE2 -PWQUALITY -P11KIT -QRENCODE -TPM2 -BZIP2 -LZ4 -XZ -ZLIB +ZSTD -BPF_FRAMEWORK +XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Detected virtualization qemu.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Detected architecture arm64.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Hostname set to <egw-qemu-integrated>.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Initializing machine ID from random generator.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Queued start job for default target Multi-User System.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Created slice Slice /system/getty.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Created slice Slice /system/modprobe.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Created slice Slice /system/serial-getty.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Created slice Slice /system/systemd-growfs.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Created slice User and Session Slice.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Started Dispatch Password Requests to Console Directory Watch.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Started Forward Password Requests to Wall Directory Watch.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Expecting device /dev/disk/by-label/egw-data...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Reached target Path Units.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Reached target Remote File Systems.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Reached target Slice Units.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Reached target Swaps.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Listening on initctl Compatibility Named Pipe.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Journal Audit Socket was skipped because of an unmet condition check (ConditionSecurity=audit).
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Listening on Journal Socket (/dev/log).
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Listening on Journal Socket.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Listening on Network Service Netlink Socket.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Listening on udev Control Socket.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Listening on udev Kernel Socket.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Listening on User Database Manager Socket.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Huge Pages File System was skipped because of an unmet condition check (ConditionPathExists=/sys/kernel/mm/hugepages).
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounting POSIX Message Queue File System...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounting Kernel Debug File System...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounting Kernel Trace File System...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounting Temporary Directory /tmp...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Create List of Static Device Nodes...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Load Kernel Module configfs...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Load Kernel Module drm...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Load Kernel Module fuse...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Journal Service...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Load Kernel Modules...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Generate network units from Kernel command line...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Remount Root and Kernel File Systems...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Coldplug All udev Devices...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounted POSIX Message Queue File System.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounted Kernel Debug File System.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounted Kernel Trace File System.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounted Temporary Directory /tmp.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Create List of Static Device Nodes.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Create Static Device Nodes in /dev gracefully...
+Sep 18 12:17:21 egw-qemu-integrated kernel: fuse: init (API version 7.39)
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: modprobe@fuse.service: Deactivated successfully.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Load Kernel Module fuse.
+Sep 18 12:17:21 egw-qemu-integrated kernel: openvswitch: Open vSwitch switching datapath
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: modprobe@configfs.service: Deactivated successfully.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Load Kernel Module configfs.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Generate network units from Kernel command line.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: modprobe@drm.service: Deactivated successfully.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Load Kernel Module drm.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Load Kernel Modules.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounting FUSE Control File System...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounting Kernel Configuration File System...
+Sep 18 12:17:21 egw-qemu-integrated kernel: EXT4-fs (vda): re-mounted 6e01c895-f44f-4183-92f5-b61569f9bef8.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Apply Kernel Variables...
+Sep 18 12:17:21 egw-qemu-integrated systemd-journald[108]: Collecting audit messages is disabled.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounted FUSE Control File System.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Mounted Kernel Configuration File System.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Remount Root and Kernel File Systems.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Rebuild Hardware Database was skipped because no trigger condition checks were met.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Create Static Device Nodes in /dev gracefully.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Create System Users...
+Sep 18 12:17:21 egw-qemu-integrated systemd-journald[108]: Journal started
+Sep 18 12:17:21 egw-qemu-integrated systemd-journald[108]: Runtime Journal (/run/log/journal/164be2431eb24037a415dd1641011fa6) is 8.0M, max 64.0M, 56.0M free.
+Sep 18 12:17:20 egw-qemu-integrated systemd-modules-load[109]: Inserted module 'openvswitch'
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Started Journal Service.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Flush Journal to Persistent Storage...
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Apply Kernel Variables.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting User Database Manager...
+Sep 18 12:17:21 egw-qemu-integrated systemd-journald[108]: Time spent on flushing to /var/log/journal/164be2431eb24037a415dd1641011fa6 is 39.053ms for 344 entries.
+Sep 18 12:17:21 egw-qemu-integrated systemd-journald[108]: System Journal (/var/log/journal/164be2431eb24037a415dd1641011fa6) is 8.0M, max 256.0M, 248.0M free.
+Sep 18 12:17:21 egw-qemu-integrated systemd-journald[108]: Received client request to flush runtime journal.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Coldplug All udev Devices.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Flush Journal to Persistent Storage.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Started User Database Manager.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Finished Create System Users.
+Sep 18 12:17:21 egw-qemu-integrated systemd[1]: Starting Create Static Device Nodes in /dev...
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Finished Create Static Device Nodes in /dev.
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Reached target Preparation for Local File Systems.
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Mounting /var/volatile...
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Starting Rule-based Manager for Device Events and Files...
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Mounted /var/volatile.
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Bind mount volatile /var/cache was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/var/cache).
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Bind mount volatile /var/lib was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/var/lib).
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Starting Load/Save OS Random Seed...
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Bind mount volatile /var/spool was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/var/spool).
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Bind mount volatile /srv was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/srv).
+Sep 18 12:17:22 egw-qemu-integrated systemd-udevd[164]: Using default interface naming scheme 'v255'.
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Finished Load/Save OS Random Seed.
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: First Boot Complete was skipped because of an unmet condition check (ConditionFirstBoot=yes).
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Started Rule-based Manager for Device Events and Files.
+Sep 18 12:17:22 egw-qemu-integrated kernel: virtio_net virtio0 enp0s1: renamed from eth0 (while UP)
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Found device /dev/disk/by-label/egw-data.
+Sep 18 12:17:22 egw-qemu-integrated systemd[1]: Mounting /var/lib/docker...
+Sep 18 12:17:23 egw-qemu-integrated kernel: EXT4-fs (vdb): mounted filesystem 5244d70e-07de-4875-8dea-8291b0a03bf2 r/w with ordered data mode. Quota mode: disabled.
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Mounted /var/lib/docker.
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Starting Grow File System on /var/lib/docker...
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Listening on Load/Save RF Kill Switch Status /dev/rfkill Watch.
+Sep 18 12:17:23 egw-qemu-integrated kernel: EXT4-fs (vdb): resizing filesystem from 8388608 to 8388608 blocks
+Sep 18 12:17:23 egw-qemu-integrated systemd-growfs[198]: Successfully resized "/var/lib/docker" to 32.0G bytes.
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Starting Virtual Console Setup...
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Finished Grow File System on /var/lib/docker.
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Reached target Local File Systems.
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Starting Rebuild Dynamic Linker Cache...
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Commit a transient machine-id on disk was skipped because of an unmet condition check (ConditionPathIsMountPoint=/etc/machine-id).
+Sep 18 12:17:23 egw-qemu-integrated systemd[1]: Starting Create System Files and Directories...
+Sep 18 12:17:24 egw-qemu-integrated systemd-tmpfiles[206]: /usr/lib/tmpfiles.d/legacy.conf:13: Duplicate line for path "/run/lock", ignoring.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Finished Rebuild Dynamic Linker Cache.
+Sep 18 12:17:24 egw-qemu-integrated systemd-tmpfiles[206]: /usr/lib/tmpfiles.d/tmp.conf:12: Duplicate line for path "/var/tmp", ignoring.
+Sep 18 12:17:24 egw-qemu-integrated systemd-tmpfiles[206]: /usr/lib/tmpfiles.d/var.conf:14: Duplicate line for path "/var/log", ignoring.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Finished Virtual Console Setup.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Finished Create System Files and Directories.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Starting Rebuild Journal Catalog...
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Starting Network Name Resolution...
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Starting Network Time Synchronization...
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Starting Record System Boot/Shutdown in UTMP...
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Finished Rebuild Journal Catalog.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Finished Record System Boot/Shutdown in UTMP.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Starting Update is Completed...
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Finished Update is Completed.
+Sep 18 12:17:24 egw-qemu-integrated systemd-resolved[216]: Positive Trust Anchors:
+Sep 18 12:17:24 egw-qemu-integrated systemd-resolved[216]: . IN DS 20326 8 2 e06d44b80b8f1d39a95c0b0d7c65d08458e880409bbc683457104237c7f8ec8d
+Sep 18 12:17:24 egw-qemu-integrated systemd-resolved[216]: . IN DS 38696 8 2 683d2d0acb8c9b712a1948b27f741219298d0a450d612c483af444a4c0fb2b16
+Sep 18 12:17:24 egw-qemu-integrated systemd-resolved[216]: Negative trust anchors: home.arpa 10.in-addr.arpa 16.172.in-addr.arpa 17.172.in-addr.arpa 18.172.in-addr.arpa 19.172.in-addr.arpa 20.172.in-addr.arpa 21.172.in-addr.arpa 22.172.in-addr.arpa 23.172.in-addr.arpa 24.172.in-addr.arpa 25.172.in-addr.arpa 26.172.in-addr.arpa 27.172.in-addr.arpa 28.172.in-addr.arpa 29.172.in-addr.arpa 30.172.in-addr.arpa 31.172.in-addr.arpa 170.0.0.192.in-addr.arpa 171.0.0.192.in-addr.arpa 168.192.in-addr.arpa d.f.ip6.arpa ipv4only.arpa resolver.arpa corp home internal intranet lan local private test
+Sep 18 12:17:24 egw-qemu-integrated systemd-resolved[216]: Using system hostname 'egw-qemu-integrated'.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Started Network Time Synchronization.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Reached target System Time Set.
+Sep 18 12:17:24 egw-qemu-integrated systemd[1]: Started Network Name Resolution.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Reached target Host and Network Name Lookups.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Reached target System Initialization.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Started Daily Cleanup of Temporary Directories.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Reached target Timer Units.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Listening on Avahi mDNS/DNS-SD Stack Activation Socket.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Listening on D-Bus System Message Bus Socket.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting Docker Socket for the API...
+Sep 18 12:17:25 egw-qemu-integrated systemd-timesyncd[217]: Contacted time server 81.193.254.213:123 (0.pool.ntp.org).
+Sep 18 12:17:25 egw-qemu-integrated systemd-timesyncd[217]: Initial clock synchronization to Fri 2026-09-18 12:17:25.397648 UTC.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting sshd.socket...
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Listening on Docker Socket for the API.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Listening on sshd.socket.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Reached target Socket Units.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Reached target Basic System.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting Avahi mDNS/DNS-SD Stack...
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting D-Bus System Message Bus...
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Started Getty on tty1.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting IPv6 Packet Filtering Framework...
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting IPv4 Packet Filtering Framework...
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Serial Getty on hvc0 was skipped because of an unmet condition check (ConditionPathExists=/dev/hvc0).
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Started Serial Getty on ttyAMA0.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Reached target Login Prompts.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting User Login Management...
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting OpenSSH Key Generation...
+Sep 18 12:17:25 egw-qemu-integrated avahi-daemon[231]: Found user 'avahi' (UID 998) and group 'avahi' (GID 997).
+Sep 18 12:17:25 egw-qemu-integrated avahi-daemon[231]: Successfully dropped root privileges.
+Sep 18 12:17:25 egw-qemu-integrated avahi-daemon[231]: avahi-daemon 0.8 starting up.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Finished IPv6 Packet Filtering Framework.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Finished IPv4 Packet Filtering Framework.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Reached target Preparation for Network.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Starting Network Configuration...
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Started D-Bus System Message Bus.
+Sep 18 12:17:25 egw-qemu-integrated systemd[1]: Started Avahi mDNS/DNS-SD Stack.
+Sep 18 12:17:25 egw-qemu-integrated avahi-daemon[231]: Successfully called chroot().
+Sep 18 12:17:25 egw-qemu-integrated avahi-daemon[231]: Successfully dropped remaining capabilities.
+Sep 18 12:17:25 egw-qemu-integrated avahi-daemon[231]: No service file found in /etc/avahi/services.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface enp0s1.IPv6 with address fec0::5054:ff:fe12:3502.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: New relevant interface enp0s1.IPv6 for mDNS.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface enp0s1.IPv4 with address 10.0.2.15.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: New relevant interface enp0s1.IPv4 for mDNS.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface lo.IPv6 with address ::1.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: New relevant interface lo.IPv6 for mDNS.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface lo.IPv4 with address 127.0.0.1.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: New relevant interface lo.IPv4 for mDNS.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Network interface enumeration completed.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Registering new address record for fec0::5054:ff:fe12:3502 on enp0s1.*.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Registering new address record for 10.0.2.15 on enp0s1.IPv4.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Registering new address record for ::1 on lo.*.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Registering new address record for 127.0.0.1 on lo.IPv4.
+Sep 18 12:17:26 egw-qemu-integrated sshd_check_keys[238]:   generating ssh RSA host key...
+Sep 18 12:17:26 egw-qemu-integrated systemd-logind[237]: New seat seat0.
+Sep 18 12:17:26 egw-qemu-integrated systemd[1]: Started User Login Management.
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: lo: Link UP
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: lo: Gained carrier
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: enp0s1: Link UP
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: enp0s1: Gained carrier
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: enp0s1: Gained IPv6LL
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: Enumeration completed
+Sep 18 12:17:26 egw-qemu-integrated systemd[1]: Started Network Configuration.
+Sep 18 12:17:26 egw-qemu-integrated systemd[1]: Reached target Network.
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: enp0s1: Configuring with /run/systemd/network/71-default.network.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Withdrawing address record for fec0::5054:ff:fe12:3502 on enp0s1.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Leaving mDNS multicast group on interface enp0s1.IPv6 with address fec0::5054:ff:fe12:3502.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface enp0s1.IPv6 with address fe80::5054:ff:fe12:3502.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Registering new address record for fe80::5054:ff:fe12:3502 on enp0s1.*.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Withdrawing address record for 10.0.2.15 on enp0s1.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Leaving mDNS multicast group on interface enp0s1.IPv4 with address 10.0.2.15.
+Sep 18 12:17:26 egw-qemu-integrated systemd[1]: Starting containerd container runtime...
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Interface enp0s1.IPv4 no longer relevant for mDNS.
+Sep 18 12:17:26 egw-qemu-integrated systemd[1]: Starting Wait for Network to be Configured...
+Sep 18 12:17:26 egw-qemu-integrated systemd-networkd[244]: enp0s1: DHCPv4 address 10.0.2.15/24, gateway 10.0.2.2 acquired from 10.0.2.2
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface enp0s1.IPv4 with address 10.0.2.15.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: New relevant interface enp0s1.IPv4 for mDNS.
+Sep 18 12:17:26 egw-qemu-integrated avahi-daemon[231]: Registering new address record for 10.0.2.15 on enp0s1.IPv4.
+Sep 18 12:17:26 egw-qemu-integrated systemd[1]: Finished Wait for Network to be Configured.
+Sep 18 12:17:26 egw-qemu-integrated systemd[1]: Reached target Network is Online.
+Sep 18 12:17:27 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:27.825637757Z" level=info msg="starting containerd" revision=ffa3ba0cfc08e443758c01c73a69db403d31ad1b.m version=v2.0.10
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.022822453Z" level=info msg="loading plugin" id=io.containerd.image-verifier.v1.bindir type=io.containerd.image-verifier.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.027023064Z" level=info msg="loading plugin" id=io.containerd.internal.v1.opt type=io.containerd.internal.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.031536525Z" level=info msg="loading plugin" id=io.containerd.warning.v1.deprecations type=io.containerd.warning.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.032065073Z" level=info msg="loading plugin" id=io.containerd.content.v1.content type=io.containerd.content.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.035279606Z" level=info msg="loading plugin" id=io.containerd.snapshotter.v1.blockfile type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.038491329Z" level=info msg="skip loading plugin" error="no scratch file generator: skip plugin" id=io.containerd.snapshotter.v1.blockfile type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.039016917Z" level=info msg="loading plugin" id=io.containerd.snapshotter.v1.devmapper type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.039612449Z" level=info msg="skip loading plugin" error="devmapper not configured: skip plugin" id=io.containerd.snapshotter.v1.devmapper type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.039982100Z" level=info msg="loading plugin" id=io.containerd.snapshotter.v1.native type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.041413708Z" level=info msg="loading plugin" id=io.containerd.snapshotter.v1.overlayfs type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.050813671Z" level=info msg="loading plugin" id=io.containerd.snapshotter.v1.zfs type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.051850037Z" level=info msg="skip loading plugin" error="lstat /var/lib/containerd/io.containerd.snapshotter.v1.zfs: no such file or directory: skip plugin" id=io.containerd.snapshotter.v1.zfs type=io.containerd.snapshotter.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.052117411Z" level=info msg="loading plugin" id=io.containerd.event.v1.exchange type=io.containerd.event.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.054381622Z" level=info msg="loading plugin" id=io.containerd.monitor.task.v1.cgroups type=io.containerd.monitor.task.v1
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[266]: sync: ignoring all arguments
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.063260790Z" level=info msg="loading plugin" id=io.containerd.metadata.v1.bolt type=io.containerd.metadata.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.066656487Z" level=info msg="metadata content store policy set" policy=shared
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.158586977Z" level=info msg="loading plugin" id=io.containerd.gc.v1.scheduler type=io.containerd.gc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.163912345Z" level=info msg="loading plugin" id=io.containerd.differ.v1.walking type=io.containerd.differ.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.166433598Z" level=info msg="loading plugin" id=io.containerd.lease.v1.manager type=io.containerd.lease.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.167365223Z" level=info msg="loading plugin" id=io.containerd.streaming.v1.manager type=io.containerd.streaming.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.168034335Z" level=info msg="loading plugin" id=io.containerd.transfer.v1.local type=io.containerd.transfer.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.174602080Z" level=info msg="loading plugin" id=io.containerd.service.v1.containers-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.175726622Z" level=info msg="loading plugin" id=io.containerd.service.v1.content-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.176510525Z" level=info msg="loading plugin" id=io.containerd.service.v1.diff-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.179277149Z" level=info msg="loading plugin" id=io.containerd.service.v1.images-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.181442736Z" level=info msg="loading plugin" id=io.containerd.service.v1.introspection-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.182208488Z" level=info msg="loading plugin" id=io.containerd.service.v1.namespaces-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.182975166Z" level=info msg="loading plugin" id=io.containerd.service.v1.snapshots-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.184407269Z" level=info msg="loading plugin" id=io.containerd.shim.v1.manager type=io.containerd.shim.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.186428953Z" level=info msg="loading plugin" id=io.containerd.runtime.v2.task type=io.containerd.runtime.v2
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[271]: sync: ignoring all arguments
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.192216282Z" level=info msg="loading plugin" id=io.containerd.service.v1.tasks-service type=io.containerd.service.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.194325696Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.containers type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.195227946Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.content type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.195681839Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.diff type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.195995153Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.events type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.196265171Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.images type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.196574087Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.introspection type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.196895468Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.leases type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.197159320Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.namespaces type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.198082829Z" level=info msg="loading plugin" id=io.containerd.sandbox.store.v1.local type=io.containerd.sandbox.store.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.198742352Z" level=info msg="loading plugin" id=io.containerd.cri.v1.images type=io.containerd.cri.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.205538821Z" level=info msg="Get image filesystem path \"/var/lib/containerd/io.containerd.snapshotter.v1.overlayfs\" for snapshotter \"overlayfs\""
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.207000647Z" level=info msg="Start snapshots syncer"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.209123154Z" level=info msg="loading plugin" id=io.containerd.cri.v1.runtime type=io.containerd.cri.v1
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[238]:   generating ssh ECDSA host key...
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.219766634Z" level=info msg="starting cri plugin" config="{\"containerd\":{\"defaultRuntimeName\":\"runc\",\"runtimes\":{\"runc\":{\"runtimeType\":\"io.containerd.runc.v2\",\"runtimePath\":\"\",\"PodAnnotations\":null,\"ContainerAnnotations\":null,\"options\":{\"BinaryName\":\"\",\"CriuImagePath\":\"\",\"CriuWorkPath\":\"\",\"IoGid\":0,\"IoUid\":0,\"NoNewKeyring\":false,\"Root\":\"\",\"ShimCgroup\":\"\",\"SystemdCgroup\":false},\"privileged_without_host_devices\":false,\"privileged_without_host_devices_all_devices_allowed\":false,\"baseRuntimeSpec\":\"\",\"cniConfDir\":\"\",\"cniMaxConfNum\":0,\"snapshotter\":\"\",\"sandboxer\":\"podsandbox\",\"io_type\":\"\"}},\"ignoreBlockIONotEnabledErrors\":false,\"ignoreRdtNotEnabledErrors\":false},\"cni\":{\"binDir\":\"/opt/cni/bin\",\"confDir\":\"/etc/cni/net.d\",\"maxConfNum\":1,\"setupSerially\":false,\"confTemplate\":\"\",\"ipPref\":\"\",\"useInternalLoopback\":false},\"enableSelinux\":false,\"selinuxCategoryRange\":1024,\"maxContainerLogSize\":16384,\"disableApparmor\":false,\"restrictOOMScoreAdj\":false,\"disableProcMount\":false,\"unsetSeccompProfile\":\"\",\"tolerateMissingHugetlbController\":true,\"disableHugetlbController\":true,\"device_ownership_from_security_context\":false,\"ignoreImageDefinedVolumes\":false,\"netnsMountsUnderStateDir\":false,\"enableUnprivilegedPorts\":true,\"enableUnprivilegedICMP\":true,\"enableCDI\":true,\"cdiSpecDirs\":[\"/etc/cdi\",\"/var/run/cdi\"],\"drainExecSyncIOTimeout\":\"0s\",\"ignoreDeprecationWarnings\":null,\"containerdRootDir\":\"/var/lib/containerd\",\"containerdEndpoint\":\"/run/containerd/containerd.sock\",\"rootDir\":\"/var/lib/containerd/io.containerd.grpc.v1.cri\",\"stateDir\":\"/run/containerd/io.containerd.grpc.v1.cri\"}"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.222923754Z" level=info msg="loading plugin" id=io.containerd.podsandbox.controller.v1.podsandbox type=io.containerd.podsandbox.controller.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.225422739Z" level=info msg="loading plugin" id=io.containerd.sandbox.controller.v1.shim type=io.containerd.sandbox.controller.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.229269189Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.sandbox-controllers type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.230815786Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.sandboxes type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.231219508Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.snapshots type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.232254915Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.streaming type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.232829949Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.tasks type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.233188590Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.transfer type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated avahi-daemon[231]: Leaving mDNS multicast group on interface enp0s1.IPv6 with address fe80::5054:ff:fe12:3502.
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.238672773Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.version type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.239039812Z" level=info msg="loading plugin" id=io.containerd.monitor.container.v1.restart type=io.containerd.monitor.container.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.241540467Z" level=info msg="loading plugin" id=io.containerd.tracing.processor.v1.otlp type=io.containerd.tracing.processor.v1
+Sep 18 12:17:28 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface enp0s1.IPv6 with address fec0::5054:ff:fe12:3502.
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.243839807Z" level=info msg="skip loading plugin" error="skip plugin: tracing endpoint not configured" id=io.containerd.tracing.processor.v1.otlp type=io.containerd.tracing.processor.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.248625519Z" level=info msg="loading plugin" id=io.containerd.internal.v1.tracing type=io.containerd.internal.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.249268875Z" level=info msg="skip loading plugin" error="skip plugin: tracing endpoint not configured" id=io.containerd.internal.v1.tracing type=io.containerd.internal.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.249454238Z" level=info msg="loading plugin" id=io.containerd.ttrpc.v1.otelttrpc type=io.containerd.ttrpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.250210402Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.healthcheck type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.250614620Z" level=info msg="loading plugin" id=io.containerd.nri.v1.nri type=io.containerd.nri.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.252437650Z" level=info msg="runtime interface created"
+Sep 18 12:17:28 egw-qemu-integrated avahi-daemon[231]: Registering new address record for fec0::5054:ff:fe12:3502 on enp0s1.*.
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.252913248Z" level=info msg="created NRI interface"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.253142435Z" level=info msg="loading plugin" id=io.containerd.grpc.v1.cri type=io.containerd.grpc.v1
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.254728228Z" level=info msg="Connect containerd service"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.256872473Z" level=info msg="using experimental NRI integration - disable nri plugin to prevent this"
+Sep 18 12:17:28 egw-qemu-integrated avahi-daemon[231]: Withdrawing address record for fe80::5054:ff:fe12:3502 on enp0s1.
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.291123462Z" level=error msg="failed to load cni during init, please check CRI plugin status before setting up network for pods" error="cni config load failed: no network config found in /etc/cni/net.d: cni plugin not initialized: failed to load cni config"
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[283]: sync: ignoring all arguments
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[286]: sync: ignoring all arguments
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[238]:   generating ssh ED25519 host key...
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.844378849Z" level=info msg="Start subscribing containerd event"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.848501698Z" level=info msg="Start recovering state"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.856474154Z" level=info msg="Start event monitor"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.856980005Z" level=info msg="Start cni network conf syncer for default"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.857369642Z" level=info msg="Start streaming server"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.858309566Z" level=info msg="Registered namespace \"k8s.io\" with NRI"
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.859825085Z" level=info msg="runtime interface starting up..."
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.861410762Z" level=info msg="starting plugins..."
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.864353259Z" level=info msg="Synchronizing NRI (plugin) with current runtime state"
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[299]: sync: ignoring all arguments
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.880031310Z" level=info msg=serving... address=/run/containerd/containerd.sock.ttrpc
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.881032828Z" level=info msg=serving... address=/run/containerd/containerd.sock
+Sep 18 12:17:28 egw-qemu-integrated systemd[1]: Started containerd container runtime.
+Sep 18 12:17:28 egw-qemu-integrated containerd[256]: time="2026-09-18T12:17:28.890403581Z" level=info msg="containerd successfully booted in 1.076985s"
+Sep 18 12:17:28 egw-qemu-integrated systemd[1]: Starting Docker Application Container Engine...
+Sep 18 12:17:28 egw-qemu-integrated sshd_check_keys[303]: sync: ignoring all arguments
+Sep 18 12:17:29 egw-qemu-integrated systemd[1]: Finished OpenSSH Key Generation.
+Sep 18 12:17:29 egw-qemu-integrated systemd[1]: Created slice Slice /system/sshd.
+Sep 18 12:17:29 egw-qemu-integrated avahi-daemon[231]: Server startup complete. Host name is egw-qemu-integrated.local. Local service cookie is 2536857175.
+Sep 18 12:17:29 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:34158).
+Sep 18 12:17:29 egw-qemu-integrated sshd[306]: Accepted publickey for egw from 10.0.2.2 port 34158 ssh2: ED25519 SHA256:sqrWU+T9FQotzAHDIpQnE6ZwhnRclhkIlUZyEDoapOs
+Sep 18 12:17:29 egw-qemu-integrated sshd[315]: Received disconnect from 10.0.2.2 port 34158:11: disconnected by user
+Sep 18 12:17:29 egw-qemu-integrated sshd[315]: Disconnected from user egw 10.0.2.2 port 34158
+Sep 18 12:17:29 egw-qemu-integrated systemd[1]: sshd@0-10.0.2.15:22-10.0.2.2:34158.service: Deactivated successfully.
+Sep 18 12:17:30 egw-qemu-integrated dockerd[302]: time="2026-09-18T12:17:30.125930459Z" level=info msg="Starting up"
+Sep 18 12:17:30 egw-qemu-integrated dockerd[302]: time="2026-09-18T12:17:30.657517518Z" level=info msg="[graphdriver] trying configured driver: overlay2"
+Sep 18 12:17:30 egw-qemu-integrated systemd[1]: var-lib-docker-metacopy\x2dcheck3900509872-merged.mount: Deactivated successfully.
+Sep 18 12:17:30 egw-qemu-integrated dockerd[302]: time="2026-09-18T12:17:30.787241443Z" level=info msg="Loading containers: start."
+Sep 18 12:17:32 egw-qemu-integrated kernel: Initializing XFRM netlink socket
+Sep 18 12:17:33 egw-qemu-integrated avahi-daemon[231]: Joining mDNS multicast group on interface docker0.IPv4 with address 172.17.0.1.
+Sep 18 12:17:33 egw-qemu-integrated avahi-daemon[231]: New relevant interface docker0.IPv4 for mDNS.
+Sep 18 12:17:33 egw-qemu-integrated systemd-networkd[244]: docker0: Link UP
+Sep 18 12:17:33 egw-qemu-integrated avahi-daemon[231]: Registering new address record for 172.17.0.1 on docker0.IPv4.
+Sep 18 12:17:34 egw-qemu-integrated dockerd[302]: time="2026-09-18T12:17:34.331534865Z" level=info msg="Loading containers: done."
+Sep 18 12:17:34 egw-qemu-integrated dockerd[302]: time="2026-09-18T12:17:34.566407136Z" level=info msg="Docker daemon" commit=a926bec8fc91332410133b24f3e9e3f5add13b48 containerd-snapshotter=false storage-driver=overlay2 version=25.0.9
+Sep 18 12:17:34 egw-qemu-integrated systemd[1]: var-lib-docker-overlay2-opaque\x2dbug\x2dcheck507637390-merged.mount: Deactivated successfully.
+Sep 18 12:17:34 egw-qemu-integrated dockerd[302]: time="2026-09-18T12:17:34.572418700Z" level=info msg="Daemon has completed initialization"
+Sep 18 12:17:35 egw-qemu-integrated dockerd[302]: time="2026-09-18T12:17:35.144969224Z" level=info msg="API listen on /run/docker.sock"
+Sep 18 12:17:35 egw-qemu-integrated systemd[1]: Started Docker Application Container Engine.
+Sep 18 12:17:35 egw-qemu-integrated systemd[1]: Reached target Multi-User System.
+Sep 18 12:17:35 egw-qemu-integrated systemd[1]: Starting Record Runlevel Change in UTMP...
+Sep 18 12:17:35 egw-qemu-integrated systemd[1]: systemd-update-utmp-runlevel.service: Deactivated successfully.
+Sep 18 12:17:35 egw-qemu-integrated systemd[1]: Finished Record Runlevel Change in UTMP.
+Sep 18 12:17:35 egw-qemu-integrated systemd[1]: Startup finished in 1.425s (kernel) + 17.492s (userspace) = 18.918s.
+Sep 18 12:17:47 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:59884).
+Sep 18 12:17:48 egw-qemu-integrated sshd[450]: Accepted publickey for egw from 10.0.2.2 port 59884 ssh2: ED25519 SHA256:sqrWU+T9FQotzAHDIpQnE6ZwhnRclhkIlUZyEDoapOs
+Sep 18 12:17:48 egw-qemu-integrated sshd[452]: Received disconnect from 10.0.2.2 port 59884:11: disconnected by user
+Sep 18 12:17:48 egw-qemu-integrated sshd[452]: Disconnected from user egw 10.0.2.2 port 59884
+Sep 18 12:17:48 egw-qemu-integrated systemd[1]: sshd@1-10.0.2.15:22-10.0.2.2:59884.service: Deactivated successfully.
+Sep 18 12:17:48 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:59900).
+Sep 18 12:17:48 egw-qemu-integrated sshd[456]: Accepted publickey for egw from 10.0.2.2 port 59900 ssh2: ED25519 SHA256:sqrWU+T9FQotzAHDIpQnE6ZwhnRclhkIlUZyEDoapOs
+Sep 18 12:17:49 egw-qemu-integrated sudo[462]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/bin/true
+Sep 18 12:17:49 egw-qemu-integrated sshd[458]: Received disconnect from 10.0.2.2 port 59900:11: disconnected by user
+Sep 18 12:17:49 egw-qemu-integrated sshd[458]: Disconnected from user egw 10.0.2.2 port 59900
+Sep 18 12:17:49 egw-qemu-integrated systemd[1]: sshd@2-10.0.2.15:22-10.0.2.2:59900.service: Deactivated successfully.
+Sep 18 12:17:49 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:59908).
+Sep 18 12:17:49 egw-qemu-integrated sshd[466]: User root from 10.0.2.2 not allowed because not listed in AllowUsers
+Sep 18 12:17:49 egw-qemu-integrated sshd[466]: Connection closed by invalid user root 10.0.2.2 port 59908 [preauth]
+Sep 18 12:17:49 egw-qemu-integrated systemd[1]: sshd@3-10.0.2.15:22-10.0.2.2:59908.service: Deactivated successfully.
+Sep 18 12:17:49 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:59922).
+Sep 18 12:17:50 egw-qemu-integrated sshd[470]: Connection closed by authenticating user egw 10.0.2.2 port 59922 [preauth]
+Sep 18 12:17:50 egw-qemu-integrated systemd[1]: sshd@4-10.0.2.15:22-10.0.2.2:59922.service: Deactivated successfully.
+Sep 18 12:17:50 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:59932).
+Sep 18 12:17:51 egw-qemu-integrated sshd[474]: Accepted publickey for egw from 10.0.2.2 port 59932 ssh2: ED25519 SHA256:sqrWU+T9FQotzAHDIpQnE6ZwhnRclhkIlUZyEDoapOs
+Sep 18 12:17:51 egw-qemu-integrated sudo[493]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/sbin/blkid
+Sep 18 12:17:56 egw-qemu-integrated dbus-daemon[232]: [system] Activating via systemd: service name='org.freedesktop.timedate1' unit='dbus-org.freedesktop.timedate1.service' requested by ':1.13' (uid=1000 pid=574 comm="timedatectl")
+Sep 18 12:17:56 egw-qemu-integrated systemd[1]: Starting Time & Date Service...
+Sep 18 12:17:57 egw-qemu-integrated dbus-daemon[232]: [system] Successfully activated service 'org.freedesktop.timedate1'
+Sep 18 12:17:57 egw-qemu-integrated systemd[1]: Started Time & Date Service.
+Sep 18 12:17:58 egw-qemu-integrated systemd-resolved[216]: Clock change detected. Flushing caches.
+Sep 18 12:17:58 egw-qemu-integrated sudo[581]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/bin/journalctl --disk-usage
+Sep 18 12:17:58 egw-qemu-integrated sudo[583]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/bin/journalctl --list-boots --no-pager
+Sep 18 12:17:58 egw-qemu-integrated sudo[590]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/sbin/visudo -c
+Sep 18 12:17:59 egw-qemu-integrated sudo[593]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/sbin/sshd -T
+Sep 18 12:17:59 egw-qemu-integrated sshd[476]: Received disconnect from 10.0.2.2 port 59932:11: disconnected by user
+Sep 18 12:17:59 egw-qemu-integrated sshd[476]: Disconnected from user egw 10.0.2.2 port 59932
+Sep 18 12:17:59 egw-qemu-integrated systemd[1]: sshd@5-10.0.2.15:22-10.0.2.2:59932.service: Deactivated successfully.
+Sep 18 12:17:59 egw-qemu-integrated systemd[1]: sshd@5-10.0.2.15:22-10.0.2.2:59932.service: Consumed 6.666s CPU time.
+Sep 18 12:18:28 egw-qemu-integrated systemd[1]: systemd-timedated.service: Deactivated successfully.
+Sep 18 12:18:31 egw-qemu-integrated systemd-resolved[216]: Clock change detected. Flushing caches.
+Sep 18 12:18:37 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:36528).
+Sep 18 12:18:37 egw-qemu-integrated sshd[600]: Accepted publickey for egw from 10.0.2.2 port 36528 ssh2: ED25519 SHA256:sqrWU+T9FQotzAHDIpQnE6ZwhnRclhkIlUZyEDoapOs
+Sep 18 12:18:38 egw-qemu-integrated sudo[609]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/sbin/sshd -T
+Sep 18 12:18:38 egw-qemu-integrated sshd[602]: Received disconnect from 10.0.2.2 port 36528:11: disconnected by user
+Sep 18 12:18:38 egw-qemu-integrated sshd[602]: Disconnected from user egw 10.0.2.2 port 36528
+Sep 18 12:18:38 egw-qemu-integrated systemd[1]: sshd@6-10.0.2.15:22-10.0.2.2:36528.service: Deactivated successfully.
+Sep 18 12:18:38 egw-qemu-integrated systemd[1]: sshd@6-10.0.2.15:22-10.0.2.2:36528.service: Consumed 1.040s CPU time.
+Sep 18 12:18:38 egw-qemu-integrated systemd[1]: Started OpenSSH Per-Connection Daemon (10.0.2.2:36538).
+Sep 18 12:18:38 egw-qemu-integrated sshd[620]: Accepted publickey for egw from 10.0.2.2 port 36538 ssh2: ED25519 SHA256:sqrWU+T9FQotzAHDIpQnE6ZwhnRclhkIlUZyEDoapOs
+Sep 18 12:18:39 egw-qemu-integrated sudo[623]:      egw : PWD=/home/egw ; USER=root ; COMMAND=/usr/bin/journalctl -b --no-pager

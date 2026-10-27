@@ -1,0 +1,16 @@
+# Retrieved 2026-09-21 (curl -sS -L), verification copies of third-party documentation; not part of the review record.
+# https://mosquitto.org/man/mosquitto-8.html -> man_mosquitto-8.html
+# https://mosquitto.org/man/mosquitto-conf-5.html -> man_mosquitto-conf-5.html
+# https://mosquitto.org/man/mosquitto_ctrl-1.html -> man_mosquitto_ctrl-1.html
+# https://mosquitto.org/man/mosquitto_ctrl_dynsec-1.html -> man_mosquitto_ctrl_dynsec-1.html
+# https://mosquitto.org/ChangeLog.txt -> ChangeLog.txt (top entry 2.1.2 - 2026-02-09)
+# https://docs.oasis-open.org/mqtt/mqtt/v3.1.1/os/mqtt-v3.1.1-os.html -> oasis_mqtt-v3.1.1-os.html
+# *.txt are html2txt.py conversions (block per line) used only for searching.
+261db8dc7f3324f2d160bbc20f1fde3219d620ac73d3186538ddb02c63711b69 *man_mosquitto-8.html
+8518d0708f32f9a929749a8350787c003e3f55f1bc97485367e6da76e04886d3 *man_mosquitto-conf-5.html
+bafb526431ed42413047ef3e53bca14433d0229163714a580972cd4484d23200 *man_mosquitto_ctrl-1.html
+0e3493d8db4bd418255dbb01e61d0f53317531ded81753776323fe1a6e5f3ad4 *man_mosquitto_ctrl_dynsec-1.html
+53a0ea35c7e591d402cb19f57615861ab43b68ab2c90ecddb9ee38af2a470edc *oasis_mqtt-v3.1.1-os.html
+a29df2b6b3883b1f2dad56416655c7485f1512272b0a33eb7679083bca95796a *ChangeLog.txt
+# Byte copy made 2026-09-21 of scratchpad/mosq-src/mosquitto.conf.5.xml (not retrieved by curl into this folder): man/mosquitto.conf.5.xml at tag v2.0.22 of eclipse-mosquitto/mosquitto, as identified in gates/item1_broker_limits.md section 1 -> mosquitto.conf.5-2.0.22.xml
+5d53da5908063b7a8c0f0d0f3f2fdba4331ad9cd4b900ffa247f84f5f4b651c4 *mosquitto.conf.5-2.0.22.xml

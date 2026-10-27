@@ -1,0 +1,8 @@
+ Container egw-mongodb-1  Stopping
+ Container egw-mongodb-1  Stopped
+stop exit=0 state_before=running state_after_stop=exited 2026-10-03T13:56:13Z
+INTERRUPTION SHOWN: mongodb went from 'running' to 'exited'
+ Container egw-mongodb-1  Starting
+ Container egw-mongodb-1  Started
+start exit=0 state_after_start=running state_before_start=exited 2026-10-03T13:57:14Z
+RECOVERY SHOWN: mongodb is 'running' after start (it was 'exited' before the start)

@@ -1,0 +1,254 @@
+bench tree: /tmp/g3-s3-seal-QWKkTw (HOME=/tmp/g3-s3-seal-QWKkTw/home); UTC date 2026-10-05; grep on PATH: /tmp/g3-s3-seal-QWKkTw/bin/grep
+scripts under test:
+1a51ab3471fc77094a068e6d8f4b43960a78d0d69c0bb3c10d9020b27bfb457c  seal_prep.sh
+5429aacea1abf854002278bf666e5e4bca153f114a6e713b9183f8ed73a31691  ops/seal_ops.sh
+04cb1a4f32fa3592dc169c076c2e9619e00e6e9239ee212cee4d414f61b710cd  ops/seal_ops_finish.sh
+83950a9f532d84ab1057234062e1be882cbd62dda88e4a385603eee0529c0716  ops/g3_go.sh
+b1324eff4ca16692c61fd43961a4f628757be115d75ccbc23a55e7250d4afbaf  ops/g3_wait.sh
+c6a82cc9985c618c5349442b48cbb94306b0ffcd63a77ff39a8534321f32c029  base/ops/seal_ops.sh
+
+===== A. seal_prep.sh =====
+--- A1 a complete preparation folder is sealed
+    | of the preparation folder, not copied: operator-procedure.battery.md base scratch.tmp stray-dir; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 43 files; seal 7e3fe4caf639; record outcome: outcome=prepared (at 2026-10-04T00:00:00.000Z)
+    exit=0
+PASS: A1 exit (0)
+PASS: A1 sha256sum -c of the sealed package
+PASS: A1 every file is in SHA256SUMS (43)
+PASS: A1 7 files of the package hold the sweep's pattern text (the sealing scripts, their diffs, this bench) and the sweep counted 0
+PASS: A1 the private-key sweep does not match its own pattern line
+PASS: A1 secret-named variables swept (the 3-character one is skipped, the plain ones are not secrets) (2)
+PASS: A1 fake secret values on a grep command line (0)
+PASS: A1 fake secret values in the sealing console (0)
+PASS: A1 notes in verification/, brief as prep_brief.md, the battery's procedure not copied
+PASS: A1 diffs against base/ (11)
+PASS: A1 scripts, ops/, part1-record/, bench/, host-record/ present; base/ not copied
+PASS: A1 every *-record folder is copied; what is outside the file set is named in the console and in the README, and not copied
+    README (first 14 lines):
+    | # G3, session S3 (tests 8 and 9): host preparation (sealed 2026-10-05T08:40:42Z)
+    | 
+    | Authority: the decision summary of 2026-10-04 (output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md)
+    | on the request of the same date (2026-10-04_g3-t8-t9-session-request.md). This package authorises nothing and is
+    | not a G3 result: session S3 starts only on Rui's explicit authorisation and his go in the attended window.
+    | The host-preparation script starts no guest and does not touch the controller image, the guest deployment or
+    | the data disk.
+    | 
+    | ## Part 1 - identities and freshness (part1-record/console.txt)
+    | 
+    | Outcome line of the record: `outcome=prepared (at 2026-10-04T00:00:00.000Z)`. STOP lines in the record: 0.
+    | Lines of the record, verbatim (the HEAD= line that carries tree= is the clone after the checkout):
+    | 
+    |     HEAD=80e833f44f647fe9cd8f5e99d3abf3c444de95aa branch=(detached)
+--- A2 a second sealing on the same name is refused and changes nothing
+    | STOP: /tmp/g3-s3-seal-QWKkTw/out/runs/2026-10-05/HIST_2026-10-05-g3-t8t9-host-preparation exists - never overwritten
+    exit=2
+PASS: A2 exit (2)
+PASS: A2 says the package is never overwritten
+PASS: A2 SHA256SUMS unchanged (7e3fe4caf6392f444fd0e5025c2c69369dab90f4269ef8f8175f224e1eb9489f)
+PASS: A2 the package still verifies
+--- A3 a wrong package name, a wrong date folder, a missing input, a record with no outcome, no .env, an .env with no secret name: refused, nothing created
+    | STOP: the package must be named HIST_<UTC date>-g3-t8t9-host-preparation[-attemptNN], not HIST_2026-10-05-g3-battery-host-preparation - nothing was created
+    exit=2
+PASS: A3a wrong name (2)
+    | STOP: HIST_2026-10-05-g3-t8t9-host-preparation-attempt02 is not under a directory named after its own date (it is under 2026-01-01) - nothing was created
+    exit=2
+PASS: A3b date folder that is not the name's date (2)
+    | STOP: /tmp/g3-s3-seal-QWKkTw/prep-missing/bench-notes.md is missing - nothing was created
+    exit=2
+PASS: A3c missing bench-notes.md (2)
+    | STOP: /tmp/g3-s3-seal-QWKkTw/prep-noend/record/console.txt holds no outcome= line: the host preparation did not end - nothing was created
+    exit=2
+PASS: A3d record without an outcome line (2)
+    | STOP: /tmp/g3-s3-seal-QWKkTw/home/egw-tcg/.env could not be read: the secret sweep cannot be made - nothing was created
+    exit=2
+PASS: A3e no .env (2)
+    | STOP: /tmp/g3-s3-seal-QWKkTw/home/egw-tcg/.env names no secret variable: the sweep would be empty - nothing was created
+    exit=2
+PASS: A3f .env without a secret-named variable (2)
+PASS: A3 nothing was created under the bench output_test by the six refusals (b0be603e20148885)
+--- A4 a secret value in a record: STOP, not sealed, the value not printed
+    | of the preparation folder, not copied: operator-procedure.battery.md base scratch.tmp stray-dir; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 1 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: A4 exit (1)
+PASS: A4 the variable is named, the package is left without SHA256SUMS
+PASS: A4 the value in the sealing console (0)
+PASS: A4 the value on a grep command line (0)
+--- A5 a private-key header in a record: STOP, not sealed
+    | of the preparation folder, not copied: operator-procedure.battery.md base scratch.tmp stray-dir; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 1 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: A5 exit (1)
+PASS: A5 one file with a header, not sealed
+--- A6 a record whose outcome is not 'prepared': sealed, exit 3, the README's title says so; the suffix -attemptNN and a record directory given as the fourth argument
+    | of the preparation folder, not copied: operator-procedure.battery.md base scratch.tmp stray-dir; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 43 files; seal c0ad4c5f496a; record outcome: outcome=failed (at 2026-10-04T00:00:01.000Z)
+    exit=3
+PASS: A6 exit (3)
+PASS: A6 sealed and verifiable, title and STOP count say it was not prepared
+
+===== B. ops/seal_ops.sh =====
+--- B0 (red) the FIRST preparation's seal_ops.sh on the same kind of input: the known false alarm, and the value on a command line
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private keys -> 1 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: B0 exit of the first preparation's script (1)
+PASS: B0 false alarm reproduced: its own pattern line is the one file
+PASS: B0 the first preparation's sweep put a secret value on grep's command line (2 logged command lines)
+--- B1 (green) the S3 script: sealed, state directory by default under HOME
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 12 files; seal 563d9697d62b
+    exit=0
+PASS: B1 exit (0)
+PASS: B1 sha256sum -c of the sealed package
+PASS: B1 the copy of seal_ops.sh holds the pattern text and the sweep counted 0
+PASS: B1 fake secret values on a grep command line (0)
+PASS: B1 state copied without the turn lock, notes copied, finish script not copied
+PASS: B1 README: steps script and manifest as opened equal the preparation package's (2)
+    README:
+    | # G3, session S3 (tests 8 and 9): operator records (sealed 2026-10-05T08:40:44Z)
+    | 
+    | state/: the steps script's state directory as it stood when this package was sealed (session and row state
+    | files, one console per invocation, the frozen drivers' consoles, the environment copy record, the script and
+    | manifest as opened). operator/: the operator's launcher and waiter (read-only helpers that start one
+    | subcommand detached and wait for it), this sealing script, and the classification notes given to 'classify'
+    | (one reason and one next-action file per classified row).
+    | The session, preflight, gate and row packages are under output_test/runs/, each under its own UTC date;
+    | state/session-S3.env and state/row-*.env name them. Nothing here is a G3 result.
+    | 
+    | The steps script, the row files and their verification are in HIST_2026-10-05-g3-t8t9-host-preparation
+    | (its SHA256SUMS: sha256 7e3fe4caf6392f444fd0e5025c2c69369dab90f4269ef8f8175f224e1eb9489f).
+    | - steps script as opened (state/S3-g3_battery.sh): sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745, equal to the preparation package's
+    | - manifest as opened (state/S3-rows.manifest.json): sha256 f75d4643cd2a6ef26df0a277d03ff3d97215153d39576d421b2296e5ac43633b, equal to the preparation package's
+--- B2 refusals: the same name again, label S2, a wrong name, an unsealed preparation package, a state directory that is missing
+    | STOP: /tmp/g3-s3-seal-QWKkTw/out/runs/2026-10-05/HIST_2026-10-05-g3-t8t9-s3-operator-records exists - never overwritten
+    exit=2
+PASS: B2a same name (2)
+PASS: B2a SHA256SUMS unchanged (563d9697d62bed03e5d3916d792d254a759f1cb592897fb6492d9204a66c84ce)
+    | STOP: the label must be S3 (the records of S1 and S2 are sealed), not S2 - nothing was created
+    exit=2
+PASS: B2b label S2 (2)
+    | STOP: the package must be named HIST_<UTC date>-g3-t8t9-s3-operator-records[-attemptNN], not HIST_2026-10-05-g3-battery-s3-operator-records - nothing was created
+    exit=2
+PASS: B2c wrong name (2)
+    | STOP: /tmp/g3-s3-seal-QWKkTw/out/runs/2026-10-05/HIST_2026-10-05-g3-t8t9-host-preparation-attempt02 is not a sealed host-preparation package (no SHA256SUMS or no g3_battery.sh) - nothing was created
+    exit=2
+PASS: B2d preparation package without SHA256SUMS (2)
+    | STOP: the state directory /tmp/g3-s3-seal-QWKkTw/no-such-state is missing or empty - nothing was created
+    exit=2
+PASS: B2e missing state directory (2)
+PASS: B2 nothing was created by the five refusals (e30576ef7593af66)
+--- B3 a secret value in a state console: STOP, unsealed; seal_ops_finish.sh is not a way round
+    | secret sweep: EGW_MQTT_PASSWORD -> 1 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: B3 exit (state directory from EGW_G3_STATE) (1)
+PASS: B3 not sealed
+PASS: B3 the value in the sealing console (0)
+    | secret sweep: EGW_MQTT_PASSWORD -> 1 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: B3f finish exit (1)
+PASS: B3f still unsealed, no README written
+--- B4 a private-key header in a state file: STOP; no notes directory: sealed, the README says there are none
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 1 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: B4a exit (1)
+PASS: B4a one file with a header
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 10 files; seal 578d61cd99a6
+    exit=0
+PASS: B4b exit (0)
+PASS: B4b sealed without notes, said so
+
+===== C. ops/seal_ops_finish.sh =====
+--- C1 an interrupted package (copy done, turn lock still in the copy, no README, no SHA256SUMS) is finished in place
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 13 files; seal 0564bc3ead1b
+    exit=0
+PASS: C1 exit (0)
+PASS: C1 sha256sum -c of the finished package
+PASS: C1 the files that were there are unchanged (22269c4c73ace916)
+PASS: C1 sealing note, completeness and the lock's removal stated; the finish script kept in operator/
+PASS: C1 fake secret values on a grep command line (0)
+    README (from the sealing note):
+    | Sealing note: seal_ops.sh did not seal this package (it stopped, or was interrupted, after its copy began; the
+    | operator's result note says why). seal_ops_finish.sh found the files seal_ops.sh copies, repeated the whole
+    | sweep on the package as it stood (2 secret-named variable(s): 0 files with a value; 0 files with a
+    | private-key header) and wrote this README and SHA256SUMS in place; nothing was copied again or replaced; the copy of the turn lock (state/turn.lock) was removed, as seal_ops.sh does.
+    | Completeness of the copy: state/ is identical to the state directory as it stood at finishing (diff -rq, the turn lock aside).
+    | Whether the classification notes are complete is not something this script can tell.
+--- C2 refusals: already sealed; an incomplete copy; label S1
+    | STOP: /tmp/g3-s3-seal-QWKkTw/out/runs/2026-01-06/HIST_2026-01-06-g3-t8t9-s3-operator-records is already sealed - nothing was written
+    exit=2
+PASS: C2a already sealed (2)
+    | STOP: /tmp/g3-s3-seal-QWKkTw/out/runs/2026-01-07/HIST_2026-01-07-g3-t8t9-s3-operator-records/operator/seal_ops.sh is missing: the copy did not finish - nothing was written
+    exit=2
+PASS: C2b operator/seal_ops.sh missing (2)
+PASS: C2b nothing written
+    | STOP: the label must be S3 (the records of S1 and S2 are sealed), not S1 - nothing was written
+    exit=2
+PASS: C2c label S1 (2)
+--- C3 the state directory changed after the copy: sealed, and the README says the copy differs
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | NOTE: state/ DIFFERS from the state directory as it stood at finishing (1 line(s) of diff -rq, kept in operator/state-compare-at-finish.txt): the copy was incomplete, or the state directory changed after it
+    | sealed 14 files; seal 711ef619414d
+    exit=0
+PASS: C3 exit (0)
+PASS: C3 the difference is stated and listed; the package verifies
+
+===== D. ops/g3_go.sh and ops/g3_wait.sh =====
+PASS: D0 the folder that holds ops/ (where the launcher and the waiter look for the steps script) holds g3_battery.sh
+PASS: D0 no path of the first preparation, and no fixed path, is left in the launcher or the waiter
+--- D1 'open S3' is launched detached with the clone named, waited for, and its console (S3 state directory) and the status are shown
+    | launched 'open S3' detached at 2026-10-05T08:40:44Z
+    | WAITER: 'g3_battery.sh open' ended or the waiter timed out after 5 s (host uptime)
+    | == last console: /tmp/g3-s3-seal-QWKkTw/home/egw-exec/g3-t8t9-s3/console/900-open-S3.txt
+    | stub console of [open S3]
+    | == status
+    | your 131072x1 screen size is bogus. expect trouble
+    | your 131072x1 screen size is bogus. expect trouble
+    | stub status: no session
+    exit=0
+PASS: D1 exit (0)
+PASS: D1 the stub was started with 'open S3' and EGW_EXEC_REPO=$HOME/egw-exec/repo
+PASS: D1 the stub led its own session (sid = pid: setsid)
+PASS: D1 the waiter read the S3 state directory and ran 'status'
+--- D2 usage
+    | usage: g3_go.sh <open S3|row <t8|t9>|close> [max minutes]
+    exit=2
+PASS: D2 'row' without a slug (2)
+PASS: D2 the usage names S3, t8 and t9
+PASS: no stub process of the bench is left
+
+===== summary: 76 PASS, 0 FAIL =====
+bench tree /tmp/g3-s3-seal-QWKkTw removed

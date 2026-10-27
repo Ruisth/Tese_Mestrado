@@ -1,0 +1,6 @@
+62da1188-4cd1-434b-a9c7-236a8c211f84 smartwatch: existed_before=False accepted_count None -> 60 (delta 60); accepted records in events.jsonl 60; last_run_id itest-g2-01 last_seq 59: OK
+/metrics accepted: 0 -> 60 (delta 60); events.jsonl 60: OK
+/metrics rejected: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics duplicate: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics failed: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics dropped: 0 -> 0 (delta 0)

@@ -1,0 +1,28 @@
+{
+  "capture_failures": [],
+  "created_utc": "2026-09-28T21:00:29.314539Z",
+  "emulated": true,
+  "ended_utc": "2026-09-28T21:00:36.394561Z",
+  "expected_artefacts": [],
+  "headline": "candidate started as required",
+  "historical": false,
+  "identities": {
+    "drivers_sha256": "761df315a4702b5b128d31f9cac546ec7d810125c767bf2c850750cd4450139e",
+    "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+    "repo_commit": "b65a06ddc02842cd6464555e319ee4cc5e0d1bfb",
+    "repo_dirty_lines": 0
+  },
+  "instrumentation_validity": "valid",
+  "next_action": "gate_health.sh with the packet's environment",
+  "pid": 1002,
+  "purpose": "engineering",
+  "reason": "the broker started after the installation with the candidate's mosquitto.conf and no reload; the controller is the 489bc9e5b5b0660026ea2630b8d1d124049ba2ce image",
+  "run_id": "20260928T210029Z_candidate-start-check_attempt03",
+  "scenario": "candidate start check",
+  "seed": null,
+  "started_utc": "2026-09-28T21:00:29.401107Z",
+  "status": "finished",
+  "system_outcome": "pass",
+  "validity_note": "",
+  "workload": {}
+}

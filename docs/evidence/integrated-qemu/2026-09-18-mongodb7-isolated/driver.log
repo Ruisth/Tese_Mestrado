@@ -1,0 +1,9 @@
+[2026-09-18T13:50:45Z] mongo-boot-01: guest up, is-system-running=running
+[2026-09-18T13:50:45Z] phase 1 starts
+[2026-09-18T13:53:16Z] phase 1 ssh exit=0 ; PHASE 1 RESULT: failed_checks=0
+[2026-09-18T13:53:21Z] mongo-boot-01: exit=0 finished=2026-09-18T13:53:21Z
+[2026-09-18T13:53:53Z] mongo-boot-02: guest up, is-system-running=running
+[2026-09-18T13:53:53Z] phase 2 starts
+[2026-09-18T13:54:26Z] phase 2 ssh exit=0 ; PHASE 2 RESULT: failed_checks=0
+[2026-09-18T13:54:31Z] mongo-boot-02: exit=0 finished=2026-09-18T13:54:29Z
+[2026-09-18T13:54:34Z] done: exit=0 finished=2026-09-18T13:54:34Z

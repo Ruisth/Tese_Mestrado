@@ -1,0 +1,1 @@
+fetch_started_at: egw-controller-1 id a7428fc55b53 started 2026-10-03T13:37:18.698631325Z, read at guest epoch 1791035332; written to /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r03/logs/sut/controller-started-at.txt

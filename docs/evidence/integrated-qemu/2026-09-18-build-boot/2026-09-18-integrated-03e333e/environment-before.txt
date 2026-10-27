@@ -1,0 +1,7 @@
+source_commit=03e333e4ac5f726373d5b56350b46c0b30e3609b
+branch=build/integrated-qemu-03e333e
+previous_attempt=68f9ae7 (failed do_rootfs, preserved in ../2026-09-18-integrated-68f9ae7/attempt-01-68f9ae7)
+kas=kas 5.4 (configuration format version 23, earliest compatible version 1)
+Linux Ruisth-Desktop 6.6.87.2-microsoft-standard-WSL2 #1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025 x86_64 x86_64 x86_64 GNU/Linux
+Mem:           31798         708       30905           3         493       31089
+/dev/sdd       1007G  164G  792G  18% /

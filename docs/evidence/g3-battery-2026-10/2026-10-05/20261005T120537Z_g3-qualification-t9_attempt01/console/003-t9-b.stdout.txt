@@ -1,0 +1,31 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# (b) and (c): the broker log is the actual evidence, the simulator discards the CONNACK reason. Each sub-check takes the
+# guest epoch just before its simulator, 3 s back (guest_epoch 3: the guest's wall clock steps back by up to 3 s, and a
+# step between that read and the broker's line would stamp the line before the bound, where '--since' drops it), and
+# reads the broker log bounded to [that epoch, the guest's clock at the read] right after it (sut_log, 6.1): never an
+# earlier session's line. Those 3 s may hold the last line of the step before it ((a)'s TLS failure in (b)'s log; one
+# of (b)'s in (c)'s, if (b)'s read took less than 3 s). A line in (c)'s log that names (b)'s client id,
+# egw-simulator-itest-auth-wrongpw-q2, is (b)'s, never (c)'s. UNVERIFIED: whether the broker's "not authorised" line names
+# the client id at all or reads <unknown> (as in (e) below); either way a "not authorised" line in (c)'s log, named or
+# <unknown>, is never (c)'s evidence, which is a TLS/socket error (Expected below). A lower bound that was not read runs
+# no probe and prints no 'exit=' (a STOP names the sub-check): exit 1 is the refusal status (b) and (c) expect, so an
+# unbounded probe's exit could read as their evidence, and its connection attempt would change the broker log.
+# (b) wrong password -> CONNACK not authorised
+if T0_9B=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-auth-wrongpw-q2 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password wrong --ca-cert ~/egw-tcg/ca.crt; echo "exit=$?"; else stop "test 9(b): the lower bound of (b)'s evidence was NOT read - the probe was NOT run"; fi
+egw_simulator: scenario=smoke seed=42 run_id=itest-auth-wrongpw-q2 broker=127.0.0.1:8883 tls=True qos=1 duration=10.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: connection failed: MQTT connect to 127.0.0.1:8883 not acknowledged within 15 s
+exit=1
+sut_log broker itest-auth-wrongpw-q2 "$T0_9B" && cat ~/egw-tcg/itest/itest-auth-wrongpw-q2.sut/broker.log || stop "test 9(b): the broker log bounded to (b) was NOT read - (b) has no evidence (a read that failed shows no refusal)"
+proof_fetch_sut_log: broker: bounds since_guest_epoch=1791201950 (2026-10-05T12:05:50Z) until_guest_epoch=1791201968 (2026-10-05T12:06:08Z) first=2026-10-05T12:05:52.533323399Z last=2026-10-05T12:06:00.770357055Z excluded_before_since_lines=2656 excluded_sha256=3f9234be2a805e2badc1bdbbf2e4124d4cbae195686ff4065d5b5fc1ab4d5724 outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: broker: 11 line(s), 1465 bytes, sha256 469f651338011ee3568becedfcb0544e008e8cf72e7a0066ec28eaca3e530122, written to /home/ruisth/egw-tcg/itest/itest-auth-wrongpw-q2.sut/broker.log
+[2Kmosquitto-1  | 2026-10-05T12:05:52.533323399Z 2026-10-05T12:05:52: Client connection from 10.0.2.2 failed: error:0A000418:SSL routines::tlsv1 alert unknown ca.
+[2Kmosquitto-1  | 2026-10-05T12:05:53.584144295Z 2026-10-05T12:05:53: New connection from 10.0.2.2:46215 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:53.587122039Z 2026-10-05T12:05:53: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:54.663977863Z 2026-10-05T12:05:54: New connection from 10.0.2.2:49617 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:54.664244327Z 2026-10-05T12:05:54: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:56.682553895Z 2026-10-05T12:05:56: New connection from 10.0.2.2:54835 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:56.685707639Z 2026-10-05T12:05:56: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:59.304290127Z 2026-10-05T12:05:59: New connection from 10.0.2.2:43609 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:59.312597487Z 2026-10-05T12:05:59: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:06:00.573559167Z 2026-10-05T12:06:00: New connection from 127.0.0.1:52490 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:06:00.770357055Z 2026-10-05T12:06:00: Client egw-healthcheck disconnected, not authorised.

@@ -1,0 +1,35 @@
+g3_check_rows.sh sha256 ae7038d3e046afa921ca7084240388bd8e87fe4c34797b9c750bffedc4d48494; clone 1fd9792bb76f02c6948f33887207dba4837202db at 2026-10-05T20:19:39Z
+## the blob
+clone mode: the blob is read with git show from the clone /home/ruisth/egw-exec/repo
+ok    clone HEAD is 1fd9792bb76f02c6948f33887207dba4837202db
+ok    runbook blob sha256 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f
+ok    1624 lines
+ok    no '-q2' in the blob
+ok    no '-q1' and no '-q2' in lines 1421-1428 of the blob (the lines of the step file)
+ok    test 6's heading on line 1416, its one fence opened on 1420 and closed on 1429 (test 7's heading on 1437), eight host$ lines 1421-1428
+## the directory
+ok    exactly the 3 expected files (1 step, 1 diff, the manifest)
+## every file: LF only, one final newline, UTF-8
+ok    no CR, final newline, UTF-8 in 3 files (the empty diff is that of the file without a substitution)
+## the runbook step files
+ok    t6.sh: bash -n
+ok    t6.sh: byte-identical to the blob's lines (NR>=1421&&NR<=1428), the prompt removed
+ok    t6.sh: 0 '-q2' in all, each one an id's
+ok    t6.sh: no substitution, empty diff, the file is the blob's lines
+## the run id, the literals and the three changes of the merged block (t6.sh; nothing substituted)
+ok    t6.sh: 8 lines
+ok    t6.sh: controller_restart-r04 stands once, opening line 1 ('RID=controller_restart-r04; F6=used; ...')
+ok    t6.sh: the plan-entry literals are controller_restart-r01 (line 1's comment) and controller_restart-r04, once each
+ok    t6.sh: no itest id
+ok    no '-q1' (sessions S1 and S2) and no '-q2' (session S3) in any step file
+ok    t6.sh: line 5, and no other line, hands the harness '--restart-transition-rule 1a-option-a-2026-10-05'
+ok    t6.sh: line 7, and no other line, is the exactly-once check of the post-drain copy, run only when T6=ok
+ok    t6.sh holds no 'STOP:' text (a line of its console that opens with 'STOP:' is the helpers' stop)
+## the manifest
+ok     manifest: 1 file(s) in 1 row(s) (t6; session S4), runbook 1fd9792, substitution: none; every sha256_after and diff_sha256 is the file's; rule checked against the frozen functions: True
+ok    manifest sha256_before of the 1 runbook file recomputed from the blob with awk and sed
+## the clone, after
+ok    clone clean at 1fd9792bb76f02c6948f33887207dba4837202db
+
+ROW FILES OK (0 failures; clone mode: against the clone /home/ruisth/egw-exec/repo)
+exit=0

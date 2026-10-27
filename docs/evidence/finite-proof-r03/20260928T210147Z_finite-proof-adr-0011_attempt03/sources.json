@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-09-28T21:01:47.214785Z",
+      "kind": "raw",
+      "path": "/home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03",
+      "role": "harness raw run directory of the finite proof (sealed by the harness if complete)",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-09-28T21:01:47.251480Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/proof-adr0011-r03.config_identity.json",
+      "role": "the prefix files of runbook 6.1 (configuration identity, /metrics readings, twin snapshots, restart record)",
+      "siblings_glob": "proof-adr0011-r03.*"
+    }
+  ]
+}

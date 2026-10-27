@@ -1,0 +1,7 @@
+# Local secrets and generated material stay out of version control
+# (plan §9.2). Defense in depth on top of the repository root .gitignore.
+.env
+mosquitto/config/passwd
+mosquitto/config/certs/*
+!mosquitto/config/certs/README.md
+data/

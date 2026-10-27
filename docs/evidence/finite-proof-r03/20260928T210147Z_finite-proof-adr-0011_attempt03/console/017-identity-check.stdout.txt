@@ -1,0 +1,1 @@
+configuration identity: controller_source_commit=489bc9e5b5b0660026ea2630b8d1d124049ba2ce broker_reloaded=False W=4999 controller_image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 stop_grace_period=130s stop_grace_period_s=130 paho=2.1.0

@@ -1,0 +1,1 @@
+the collector held its whole window: 45 s of the duration=45s its 'start:' line declares

@@ -1,0 +1,34 @@
+running
+ 23:18:33 up 0 min,  load average: 0.50, 0.12, 0.04
+              total        used        free      shared  buff/cache   available
+Mem:           8012         109        7734           4         168        7829
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    392.8M      1.7G  18% /
+/dev/vdb                 31.2G      2.4G     27.2G   8% /var/lib/docker
+tmpfs                     3.9G         0      3.9G   0% /tmp
+## journal replay / fsck
+Sep 20 23:18:09 egw-qemu-integrated kernel: raid6: using neon recovery algorithm
+Sep 20 23:18:09 egw-qemu-integrated kernel: EXT4-fs (vda): mounted filesystem 6e01c895-f44f-4183-92f5-b61569f9bef8 r/w with ordered data mode. Quota mode: disabled.
+Sep 20 23:18:09 egw-qemu-integrated kernel: EXT4-fs (vda): re-mounted 6e01c895-f44f-4183-92f5-b61569f9bef8.
+Sep 20 23:18:11 egw-qemu-integrated kernel: EXT4-fs (vdb): mounted filesystem 5244d70e-07de-4875-8dea-8291b0a03bf2 r/w with ordered data mode. Quota mode: disabled.
+Sep 20 23:18:11 egw-qemu-integrated kernel: EXT4-fs (vdb): resizing filesystem from 8388608 to 8388608 blocks
+Sep 20 23:18:16 egw-qemu-integrated containerd[246]: time="2026-09-20T23:18:16.528799475Z" level=info msg="Start recovering state"
+## docker
+egw-controller-1 Exited (0) 27 hours ago egw-controller:0.1.0
+egw-ditto-things-1 Exited (143) 27 hours ago eclipse/ditto-things:3.9.4
+egw-ditto-gateway-1 Exited (143) 27 hours ago eclipse/ditto-gateway:3.9.4
+egw-ditto-policies-1 Exited (143) 27 hours ago eclipse/ditto-policies:3.9.4
+egw-mongodb-1 Exited (0) 27 hours ago mongo:7.0.39
+egw-mosquitto-1 Exited (0) 27 hours ago eclipse-mosquitto:2.0.22
+## clock
+Timezone=UTC
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Sun 2026-09-20 23:18:35 UTC
+RTCTimeUSec=Sun 2026-09-20 23:18:35 UTC
+2026-09-20T23:18:35Z
+## OOM so far this boot
+0

@@ -1,0 +1,502 @@
+--- base/g3_battery.sh
++++ g3_battery.sh
+@@ -1,30 +1,36 @@
+ #!/bin/bash
+-# G3 qualification, session S3 (test 8 and test 9 only) - the operator's steps script.
+-# Second opening (authorisation of 2026-10-05, output_test/decisions/2026-10-05_g3-s3b-exception-authorisation.md):
+-# a new copy of the sealed S3 script with three changes only, each marked 'S3, second opening': the expected
+-# root file system, a fresh state directory, and the authorised exception for collector-duration at open.
++# G3 qualification, session S4 (test 6 only) - the operator's steps script.
++# S4 (2026-10-05): a copy of the script that S3's second opening ran, finished for ONE
++# further session, S4, which runs row t6 once, on plan entry controller_restart-r04. Each
++# change of behaviour made for S4 stands under a comment that names S4 and the point of the
++# preparation's brief it answers. The marks 'S3 (...)' and 'S3, second opening' are kept
++# where the code they explain is unchanged; S3's authorised exception for collector-duration
++# is removed (S4, point 3).
+ #
+ # S3: this is the battery's steps script (sessions S1 and S2 of 2026-10-02/03) finished
+ # for ONE further session. Each change of behaviour made for S3 stands under a comment
+ # that names S3 and the point of the preparation's brief it answers.
+ #
+-# Authority: the request of 2026-10-04 and its decision summary
+-# (output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md: four choices, two
+-# conditions). The session itself starts only on Rui's explicit authorisation and his go
+-# in the attended window. The authority of 2026-10-02 (S1, S2, the -q1 identifiers) is
+-# consumed: 'open' accepts S3 only. Procedure and tools: the merged commit 8e49261 (tree
+-# 2f05148). The candidate (controller image, pinned images, deployment, guest OS) is
+-# unchanged and this script edits nothing of it. It sources the frozen
++# Authority (S4, point 7): the request of 2026-10-05
++# (output_test/decisions/2026-10-05_g3-t6-session-request.md) and Rui's authorisation of
++# one attempt. The session itself starts only on Rui's explicit authorisation and his go
++# in the attended window. The authorities of S1, S2 and S3 are consumed: 'open' accepts S4
++# only. Test 6 is judged under the criterion amended on 2026-10-05 (LOG #C052) with the
++# transition rule 1a-option-a-2026-10-05 (LOG #C053). Procedure and tools: the merged
++# commit 1fd9792 (tree 14f89c4). The candidate (controller image, pinned images,
++# deployment, guest OS) is unchanged and this script edits nothing of it; the frozen
++# preflight installs the merged collector at 'open'. It sources the frozen
+ # tools/session/common.sh and guest_common.sh and records ONLY through their functions
+ # (new_attempt, ex, gx, gcp, hx, healthy_wait, headline, driver_code, driver_interrupt)
+ # and through local_export (set, add-source, finish). One place does not use gx: the
+ # polls of test 8's wait run gx's own recorded command behind the host's 'timeout'
+-# (t8_wait_ssh), because a shell function cannot be bounded by 'timeout'.
++# (t8_wait_ssh), because a shell function cannot be bounded by 'timeout' (S4, point 9:
++# test 8's and test 9's code is left as it was and is reached by nothing in S4).
+ #
+ # The operator runs ONE subcommand per invocation and classifies between rows:
+-#   open S3        checks, UP0, then the frozen drivers guest_session_open.sh,
++#   open S4        checks, UP0, then the frozen drivers guest_session_open.sh,
+ #                  preflight.sh, the environment copy (PM condition 2), gate_health.sh
+-#   row <slug>     t8, then t9: one attempt (purpose official), the row's step files
++#   row t6         S4's one row: one attempt (purpose official), the row's step file
+ #                  through hx, the gate before and after; the attempt is left OPEN
+ #   classify <slug> <status> <validity> <outcome> <reason> <next-action>
+ #   term <slug>    TERM (never KILL) to the recorded process group of a row
+@@ -40,6 +46,10 @@
+ # never re-launches QEMU and never signals it. The one stack start of S3 is the frozen
+ # preflight driver's, at 'open' (decision summary, condition B); after test 8's reboot
+ # nothing on the guest is started, restarted or recreated by this script.
++# S4 (point 10): the same holds in S4. The one stack start of S4 is the frozen preflight
++# driver's, at 'open'. The controller restart at +300 s is test 6's own fault, issued by
++# the harness's --restart-cmd inside the runbook's line that t6.sh holds, never by this
++# script and never a restoration; nothing else on the guest is started or restarted.
+ # Every halt prints 'HALT: ...' and leaves the decision to the operator.
+ #
+ # Usage (WSL, login shell; ONE subcommand per wsl.exe invocation, so that a row's
+@@ -47,9 +57,10 @@
+ #   EGW_EXEC_REPO=$HOME/egw-exec/repo bash g3_battery.sh <subcommand> [arguments]
+ # Exit: 0 done; 1 a HALT; 2 refused (nothing was started or changed); 130 (or the
+ # code driver_status.py derives) after an interrupt.
+-# State: ${EGW_G3_STATE:-$EXEC/g3-t8t9-s3-attempt02} (session-S3.env, row-<slug>.env, the
++# State: ${EGW_G3_STATE:-$EXEC/g3-t6-s4} (session-S4.env, row-t6.env, the
+ # consoles of every invocation and of the four drivers); the battery's own state
+-# directory, $EXEC/g3-battery, is never written. Row files: the rows/ folder
++# directory, $EXEC/g3-battery, and S3's two ($EXEC/g3-t8t9-s3, $EXEC/g3-t8t9-s3-attempt02)
++# are never written. Row files: the rows/ folder
+ # beside this script, checked against rows/rows.manifest.json before anything runs.
+ # The script is never edited while a session is open (a row refuses a changed script).
+ # One changing subcommand at a time: open, row, classify and close each take the turn
+@@ -72,26 +83,32 @@
+ DRIVERS=$REPO/tools/session     # common.sh derives DRIVERS from $0, which is this script
+ S=$SESSION                      # the open session's attempt directory, or empty
+ 
+-# --- the procedure and tools, and the unchanged candidate (request of 2026-10-04, section 2) ---
+-# S3 (point 2): TOOLS and TREE are the merged commit and its tree, RUNBOOK_SHA the runbook
+-# blob at that commit (1,623 lines). The drivers, the export tool, the helper heredoc,
+-# tunnel.sh and ca.crt did not change against 80e833f: their values are the battery's.
+-TOOLS=8e492613d36490a560ae56beabd6d5c2c01a8696
+-TREE=2f0514837f267d8975f7071041aad14a5c18dcab
+-DRIVERS_SHA=4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5
++# --- the procedure and tools, and the unchanged candidate (request of 2026-10-05, section 2) ---
++# S4 (point 2): TOOLS and TREE are the merged commit 1fd9792 and its tree, DRIVERS_SHA the
++# 38 driver files at that commit (was 4a6a572d...: collector_check.py, collector_shortfall.py
++# and a comment of preflight.sh changed), RUNBOOK_SHA the runbook blob at that commit (1,624
++# lines). The export tool, the helper heredoc, tunnel.sh and ca.crt did not change against
++# 8e49261 (nor against 80e833f): their values are the battery's.
++TOOLS=1fd9792bb76f02c6948f33887207dba4837202db
++TREE=14f89c4d3692aea8ef4f8f1fe29c333a9a7192ec
++DRIVERS_SHA=2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed
+ EXPORT_TOOL_SHA=544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b
+-RUNBOOK_SHA=4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
++RUNBOOK_SHA=317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f
+ HELPER_SHA=e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb
+ HELPER_LINES=545
+ TUNNEL_SHA=38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1
+ CA_SHA=556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff
+-# S3, second opening: the guest root file system expected before the boot is the value the
+-# close of S3's first opening recorded (rootfs_after_close of session-S3.env, in the sealed
+-# operator records output_test/runs/2026-10-05/HIST_2026-10-05-g3-t8t9-s3-operator-records/state/).
+-ROOTFS_BEFORE_S3=b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093
+-# S3, second opening: the read-only checker of the authorised exception for collector-duration
+-# (beside this script), and its sha256: another checker is a halt, never a pass.
+-EXCEPTION_SHA=ab6ee3216f51919105ea8a6c67aa8d8dc2e5d1c1cd860ab3b64451072d6e7a95
++# S4 (point 2): the collector of the clone, src/deployment/scripts/collect-resources.sh at
++# 1fd9792 (was 11444c0a... at 8e49261: its start: and stop: records now carry uptime_s= and
++# boot_id=). The frozen preflight copies THIS file to the guest and installs it at 'open';
++# verify_candidate compares it at 'open' and before the row.
++COLLECTOR_SHA=9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97
++# S4 (point 1): the guest root file system expected before S4's boot is the value the close
++# of S3's second opening recorded (rootfs_after_close of session-S3.env, in the sealed
++# operator records output_test/runs/2026-10-05/HIST_2026-10-05-g3-t8t9-s3-operator-records-attempt02/state/).
++ROOTFS_BEFORE_S4=6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4
++# S4 (point 3): S3's prospective exception for collector-duration (its checker and that
++# checker's sha256) is removed: in S4 a preflight that ends non-zero is a halt at 'open'.
+ # S3 (point 3): four identities the frozen open driver only records (guest_session_open.sh
+ # lines 112-119), compared here with what S2's open recorded (console
+ # 001-identities-before-boot of 20261003T132249Z_guest-session_attempt09): the kernel,
+@@ -110,9 +127,9 @@
+ 
+ # --- paths ----------------------------------------------------------------------------
+ # S3 (point 1): a state directory of its own; the battery's ($EXEC/g3-battery) is never written.
+-# S3, second opening: a fresh state directory; the first opening's ($EXEC/g3-t8t9-s3) is kept as it is.
+-STATE=${EGW_G3_STATE:-$EXEC/g3-t8t9-s3-attempt02}
+-EXCEPTION_PY=$SELF_DIR/s3b_preflight_exception.py
++# S4 (point 2): S4's own state directory; S3's two ($EXEC/g3-t8t9-s3 and
++# $EXEC/g3-t8t9-s3-attempt02) and the battery's are kept as they are and never written.
++STATE=${EGW_G3_STATE:-$EXEC/g3-t6-s4}
+ ROWS_DIR=${EGW_G3_ROWS:-$SELF_DIR/rows}
+ MANIFEST=$ROWS_DIR/rows.manifest.json
+ HELPER=$HOME/egw-tcg/itest-helpers.sh
+@@ -128,17 +145,17 @@
+ QEMUBOOT=${ROOTFS_EXT4%.ext4}.qemuboot.conf
+ QEMU_BIN=$BUILD/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+ 
+-# --- the rows (request of 2026-10-04, section 4) ----------------------------------------
+-# S3 (point 1): the one session is S3 and its rows are t8, then t9. The battery's other
+-# rows (t1-smokes to t7-ditto) belong to no session of this script: 'row', 'classify' and
+-# 'term' refuse them as unknown. Their entries in the tables below are the battery's,
+-# left as they were and reached by nothing.
+-ROWS_S3="t8 t9"
++# --- the rows (request of 2026-10-05, sections 3 and 4) ---------------------------------
++# S4 (point 1): the one session is S4 and its one row is t6. Every other row (t1-smokes to
++# t7-ditto, and S3's t8 and t9) belongs to no session of this script: 'row', 'classify' and
++# 'term' refuse them as unknown. Their entries in the tables below, and test 8's and test
++# 9's functions (S4, point 9), are left as they were and reached by nothing.
++ROWS_S4="t6"
+ 
+-session_rows() { case $1 in S3) echo "$ROWS_S3" ;; esac; }
++session_rows() { case $1 in S4) echo "$ROWS_S4" ;; esac; }
+ 
+ row_session() {
+-    case " $ROWS_S3 " in *" $1 "*) echo S3; return 0 ;; esac
++    case " $ROWS_S4 " in *" $1 "*) echo S4; return 0 ;; esac
+     return 1
+ }
+ 
+@@ -192,9 +209,14 @@
+ # as sealed), and the name the export tool is expected to give each row's new attempt (it
+ # numbers by scenario slug: the next number after the highest one found).
+ T8_ADMITTED=20261003T142310Z_g3-qualification-t8_attempt01
+-row_attempt_suffix() { case $1 in t8) echo _g3-qualification-t8_attempt02 ;; t9) echo _g3-qualification-t9_attempt01 ;; esac; }
++# S4 (point 5): the one earlier attempt of row t6 that is admitted, S2's invalid one (plan
++# entry controller_restart-r03), kept as sealed in the WSL attempts directory and under
++# output_test/runs/2026-10-03/; S4's attempt of t6 must therefore be attempt02.
++T6_ADMITTED=20261003T132936Z_g3-qualification-t6_attempt01
++row_attempt_suffix() { case $1 in t6) echo _g3-qualification-t6_attempt02 ;; t8) echo _g3-qualification-t8_attempt02 ;; t9) echo _g3-qualification-t9_attempt01 ;; esac; }
+ 
+-row_harness_id() { case $1 in t1-harness) echo nominal-r02 ;; t6) echo controller_restart-r03 ;; esac; }
++# S4 (point 4): t6 runs the runbook's own literal, the supplementary plan entry r04.
++row_harness_id() { case $1 in t1-harness) echo nominal-r02 ;; t6) echo controller_restart-r04 ;; esac; }
+ 
+ # The container the row itself restarts in place (guest_state_delta.py --expect-restarted).
+ row_restarted() {
+@@ -409,7 +431,8 @@
+     (slug, session, label, ceiling, up0, now, steps_sha, helper_sha, clone, ids, harness, note) = sys.argv[4:16]
+     names = sys.argv[16:]
+     # S3 (point 2): the authority of this session, in the field that named the battery (the key is kept).
+-    w = {"battery": "G3 qualification, session S3 (second opening): tests 8 and 9 only (request of 2026-10-04; decision summary output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md; authorisation of 2026-10-05 with the prospective exception for collector-duration, output_test/decisions/2026-10-05_g3-s3b-exception-authorisation.md)",
++    # S4 (point 7): the authority of S4 in that field.
++    w = {"battery": "G3 qualification, session S4: test 6 only (controller_restart-r04; request of 2026-10-05, output_test/decisions/2026-10-05_g3-t6-session-request.md; criterion amended on 2026-10-05, LOG #C052; transition rule 1a-option-a-2026-10-05, LOG #C053)",
+          "row": slug, "session": session, "session_label": label,
+          "itest_run_ids": [i for i in ids.split(",") if i], "harness_run_id": harness or None,
+          "ids_note": note or None,
+@@ -603,14 +626,15 @@
+     exec 9>&-
+ }
+ 
+-# open_label: the label (S3; point 1) of the session whose state file names the session
++# open_label: the label (S4; point 1) of the session whose state file names the session
+ # that is open now, or nothing.
+ open_label() {
+     local l f
+     [ -n "$SESSION" ] || return 1
+     # S3 (point 1): one label; the battery's loop over its labels is kept in its form.
++    # S4 (point 1): the one label is S4.
+     # shellcheck disable=SC2043
+-    for l in S3; do
++    for l in S4; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || continue
+         if [ "$(state_get "$f" session_attempt)" = "$SESSION" ]; then
+@@ -639,7 +663,7 @@
+     [ "$got" = "$2" ] || { WHY="$1 ($3) is $got, the recorded identity is $2"; return 1; }
+ }
+ 
+-# verify_candidate: the identities this host holds (request of 2026-10-04, section 2: the
++# verify_candidate: the identities this host holds (request of 2026-10-05, section 2: the
+ # merged procedure and tools, and the unchanged candidate). Non-zero, with WHY, at the
+ # first that differs.
+ WHY=""
+@@ -657,6 +681,8 @@
+     case $ids in *"\"drivers_sha256\": \"$DRIVERS_SHA\""*) ;; *) WHY="drivers_sha256 is not $DRIVERS_SHA"; return 1 ;; esac
+     case $ids in *"\"export_tool_sha256\": \"$EXPORT_TOOL_SHA\""*) ;; *) WHY="export_tool_sha256 is not $EXPORT_TOOL_SHA"; return 1 ;; esac
+     want_sha runbook "$RUNBOOK_SHA" "$REPO/docs/setup/qemu_integrated_gateway.md" || return 1
++    # S4 (point 2): the clone's collector, the one the frozen preflight installs on the guest.
++    want_sha collector "$COLLECTOR_SHA" "$REPO/src/deployment/scripts/collect-resources.sh" || return 1
+     want_sha helpers "$HELPER_SHA" "$HELPER" || return 1
+     n=$(wc -l < "$HELPER") || n=unreadable
+     [ "$n" = "$HELPER_LINES" ] || { WHY="the helper file has $n lines, not $HELPER_LINES"; return 1; }
+@@ -694,6 +720,11 @@
+ # each cut before ' container_id='. The build-identity lines that follow them in that
+ # file are not compared here: the frozen preflight compares the controller image id with
+ # the guest's record.
++# S4 (point 6): the constant and its comparison are kept; the comparison now runs before
++# row t6. S3's gate package matched these six lines in the three compared fields (read on
++# 2026-10-05: output_test/runs/2026-10-05/20261005T115022Z_g2-gate-preconditions_attempt07/
++# environment/container_identities.txt, sha256
++# a713c8ba15548631b4e2576ff30c7636c79565c7d3d82bcad3a2cdb6978cac86, six identity lines).
+ GATE_IDENTITIES_S2='identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c image_id=sha256:5fef2509a20f85341b1e5c4dd7864e1a4a15fba155b88afa025cbcd5b5611ce9 repo_digest=eclipse-mosquitto@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+ identity egw-mongodb-1 image=docker.io/library/mongo:7.0.39@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d image_id=sha256:d58a07b4b2ecaff800c05ed786685d18dcbb5b31a801fdc57bdfb819a9f46c8f repo_digest=mongo@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d
+ identity egw-ditto-policies-1 image=docker.io/eclipse/ditto-policies:3.9.4@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb image_id=sha256:0e93f53bed2734b7ef83a59054b61077612cc40bbe47c4b6753d12eaefa3e99c repo_digest=eclipse/ditto-policies@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb
+@@ -779,6 +810,9 @@
+ # (T8_ADMITTED), where it is kept: in the WSL attempts directory and under
+ # output_test/runs/2026-10-03/. Any other earlier attempt of t8, that one found anywhere
+ # else, and any earlier attempt of t9, is NOT FRESH.
++# S4 (point 5): the same rule for t6, S4's one row: exactly ONE earlier attempt is
++# admitted, S2's invalid one (T6_ADMITTED), in the same two places; any other earlier
++# attempt of t6, or that one found anywhere else, is NOT FRESH.
+ fresh_row() {
+     local slug=$1 bad=0 h f
+     # shellcheck disable=SC2046
+@@ -788,6 +822,10 @@
+     for f in "$ATTEMPTS"/*_g3-qualification-"$slug"_attempt* "$OUT"/runs/*/*_g3-qualification-"$slug"_attempt* \
+         "$OUT"/incomplete/*_g3-qualification-"$slug"_attempt*; do
+         [ -e "$f" ] || continue
++        if [ "$slug" = t6 ] && { [ "$f" = "$ATTEMPTS/$T6_ADMITTED" ] || [ "$f" = "$OUT/runs/2026-10-03/$T6_ADMITTED" ]; }; then
++            echo "admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): $f"
++            continue
++        fi
+         if [ "$slug" = t8 ] && { [ "$f" = "$ATTEMPTS/$T8_ADMITTED" ] || [ "$f" = "$OUT/runs/2026-10-03/$T8_ADMITTED" ]; }; then
+             echo "admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): $f"
+             continue
+@@ -915,13 +953,16 @@
+ 
+ cmd_open() {
+     local slug l f st expect rootfs listing id pre_id pre gate_id rc bad
+-    [ "$#" -eq 1 ] || refuse "usage: g3_battery.sh open S3"
++    [ "$#" -eq 1 ] || refuse "usage: g3_battery.sh open S4"
+     LABEL=$1
+     # S3 (point 1): S3 only. S1 and S2 are the battery's sessions: nothing of them is re-run.
++    # S4 (point 1): S4 only. S1, S2 (the battery's) and S3 (tests 8 and 9) are refused: their
++    # authority is consumed and nothing of them is re-run.
+     case $LABEL in
+-        S3) ;;
+-        S1 | S2) refuse "session $LABEL is a session of the battery of 2026-10-02/03, whose authority is consumed (request of 2026-10-04): nothing of S1 or S2 is re-run or replaced. This script opens S3 only: g3_battery.sh open S3" ;;
+-        *) refuse "usage: g3_battery.sh open S3" ;;
++        S4) ;;
++        S1 | S2) refuse "session $LABEL is a session of the battery of 2026-10-02/03, whose authority is consumed: nothing of S1 or S2 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4" ;;
++        S3) refuse "session S3 (tests 8 and 9, 2026-10-05) is closed and its authority is consumed: nothing of S3 is re-run or replaced. This script opens S4 only: g3_battery.sh open S4" ;;
++        *) refuse "usage: g3_battery.sh open S4" ;;
+     esac
+     start_log "open-$LABEL"
+     take_turn "open $LABEL"
+@@ -932,10 +973,11 @@
+     # S3 (point 1): the preconditions of S3 are no open session and no QEMU process (the two
+     # refusals here) and the root file system at the expected value (a HALT of the checks
+     # below). The battery's S2-only precondition (S1 ended without a halt) is gone with S2.
++    # S4 (point 1): the same three preconditions for S4 (the root file system: ROOTFS_BEFORE_S4).
+     [ ! -e "$EXEC/current_session" ] || refuse "a session is open ($EXEC/current_session names '${SESSION}')"
+     [ ! -e "$STATE/session-$LABEL.env" ] || refuse "$STATE/session-$LABEL.env exists: session $LABEL was already opened (a session is opened once; after a halt Rui directs what happens next)"
+     # shellcheck disable=SC2043
+-    for l in S3; do
++    for l in S4; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || continue
+         st=$(state_get "$f" state)
+@@ -948,7 +990,7 @@
+         *) refuse "whether a qemu-system-aarch64 process is running could not be determined" ;;
+     esac
+ 
+-    # Checks (request of 2026-10-04, section 5 item 1: S3 starts only if every identity matches).
++    # Checks (request of 2026-10-05, section 5 item 1: S4 starts only if every identity matches).
+     say "candidate identities"
+     verify_candidate || { echo "HALT: $WHY (packet section 4, halt 6); nothing was started"; exit 1; }
+     say "row files of $LABEL against $MANIFEST"
+@@ -963,11 +1005,11 @@
+     done
+     [ "$bad" -eq 0 ] || { echo "HALT: an id of $LABEL is not fresh on the host; nothing was started"; exit 1; }
+     say "guest root file system before the boot"
+-    # S3, second opening: the expected value is the one the first opening's close recorded.
+-    expect=$ROOTFS_BEFORE_S3
++    # S4 (point 1): the expected value is the one the close of S3's second opening recorded.
++    expect=$ROOTFS_BEFORE_S4
+     rootfs=$(sha_of "$ROOTFS_EXT4") || rootfs=unreadable
+     echo "rootfs ext4: $rootfs  $ROOTFS_EXT4"
+-    echo "expected:    ${expect:-<not recorded>} (the value the close of S3's first opening recorded)"
++    echo "expected:    ${expect:-<not recorded>} (the value the close of S3's second opening recorded)"
+     [ -n "$expect" ] && [ "$rootfs" = "$expect" ] || { echo "HALT: the guest root file system is not the expected one, or the expected value is not recorded (packet section 4, halt 6); nothing was started"; exit 1; }
+     say "keepalive"
+     keepalive_check "$KEEPALIVE_OPEN_S" || refuse "the keepalive client is not attached (see above); nothing was started"
+@@ -1007,27 +1049,11 @@
+     pre_id=$(driver_run_id "$DRIVER_CONSOLE")
+     pre=$ATTEMPTS/$pre_id
+     state_set "$SESSION_FILE" preflight_attempt "$pre"
+-    # S3, second opening (authorisation of 2026-10-05, on the Project Manager's terms of the
+-    # register entry "2026-10-05 12:09 WEST"): a preflight that ended exit 3 lets this session go
+-    # on ONLY when the read-only checker shows the actual attempt identified and complete, the
+-    # fifteen other steps ended 0, collector-check with no problem, and the sole failure the
+-    # numeric duration judgement of collector-duration. Anything else is the halt it always was.
+-    # The preflight stays failed and invalid; nothing it recorded is changed; the session records
+-    # 'proceeded under the authorised T8/T9 exception', never 'preflight passed'. The environment
+-    # copy, the fresh gate, the identity checks and the units' absence below stay mandatory.
+-    excepted=no
+-    if [ "$rc" -eq 3 ] && [ -n "$pre_id" ] && [ -d "$pre" ]; then
+-        say "preflight.sh exited 3: the authorised T8/T9 exception for collector-duration is examined (read-only)"
+-        [ "$(sha_of "$EXCEPTION_PY")" = "$EXCEPTION_SHA" ] \
+-            || open_halt "preflight.sh exited 3, and the exception's checker $EXCEPTION_PY is not the prepared one (sha256 $EXCEPTION_SHA): the exception was NOT examined; see $DRIVER_CONSOLE"
+-        "$PY" "$EXCEPTION_PY" "$pre" "$DRIVER_CONSOLE" 2>&1 | tee_safe "$STATE/$LABEL-preflight-exception.txt"
+-        erc=${PIPESTATUS[0]}
+-        [ "$erc" -eq 0 ] || open_halt "preflight.sh exited 3 and the authorised exception does NOT apply (checker exit $erc; see $STATE/$LABEL-preflight-exception.txt and $DRIVER_CONSOLE)"
+-        excepted=yes
+-        state_set "$SESSION_FILE" preflight_exception "proceeded under the authorised T8/T9 exception (collector-duration only; preflight $pre_id stays failed and invalid)"
+-        echo "PROCEEDED UNDER THE AUTHORISED T8/T9 EXCEPTION: preflight $pre_id stays failed and invalid (collector-duration only); the environment copy, the gate and every identity check below stay mandatory"
+-    fi
+-    [ "$rc" -eq 0 ] || [ "$excepted" = yes ] || open_halt "preflight.sh exited $rc; see $DRIVER_CONSOLE"
++    # S4 (point 3): no exception. The frozen preflight at 1fd9792 judges collector-duration on
++    # the uptime bounds of the merged collector's own start: and stop: records; a preflight that
++    # ends non-zero (collector-duration included) is a halt here, in the form of S3's first
++    # opening, and test 6 is not run (request of 2026-10-05, section 5 item 1).
++    [ "$rc" -eq 0 ] || open_halt "preflight.sh exited $rc; see $DRIVER_CONSOLE"
+     [ -n "$pre_id" ] && [ -d "$pre" ] || open_halt "the preflight's attempt could not be named from its DRIVER RESULT line"
+ 
+     environment_copy "$pre" 2>&1 | tee_safe "$STATE/$LABEL-environment-copy.txt"
+@@ -1038,6 +1064,7 @@
+     rc=$?
+     # S3 (point 4): the gate package is named in the session's state file, as the
+     # preflight's is: 'row t8' compares its record of the running images with S2's.
++    # S4 (point 6): in S4 it is 'row t6' that compares it.
+     gate_id=$(driver_run_id "$DRIVER_CONSOLE")
+     [ -z "$gate_id" ] || state_set "$SESSION_FILE" gate_attempt "$ATTEMPTS/$gate_id"
+     [ "$rc" -eq 0 ] || open_halt "gate_health.sh exited $rc; see $DRIVER_CONSOLE"
+@@ -1534,6 +1561,11 @@
+             snapshot after both || halt "row t1-harness: the plan and processed/ could not be copied after the row"
+             ;;
+         t6)
++            # S4 (point 8): the battery's t6 path, unchanged. The one step sources t6.sh (the
++            # eight lines 1421-1428 of the runbook at 1fd9792); the snapshots before and after
++            # show the plan entry's status as the harness rewrites it (run.py update_plan_status:
++            # 'running', then 'completed' or 'failed' with result_dir, finished_utc and
++            # validity) and processed/ as line 1428's analyze rewrites it.
+             snapshot before both || { halt "row t6: the plan and processed/ could not be copied before the harness (snapshot exit $?): the row's step was NOT run"; return; }
+             run_step t6 || return
+             snapshot after both || halt "row t6: the plan and processed/ could not be copied after the row"
+@@ -1596,9 +1628,9 @@
+     # The preamble of hx reopens a tunnel that is down before the check runs: say so.
+     # S3 (bounded check of 2026-10-05, O2): that reopening is a restoration of a lost tunnel
+     # (request, section 5, items 7 and 9): the gate fails, so a halt is recorded and no
+-    # further row starts.
++    # further row starts. S4 (point 1): the same in S4; only the label in the note changed.
+     if grep -q '^TUNNEL UP$' "$(console_of gate-tunnel-check)" 2> /dev/null; then
+-        echo "NOTE: the tunnel was DOWN after the row and the preamble of hx reopened it (TUNNEL UP in the gate's console): a restoration, and in S3 a halt"
++        echo "NOTE: the tunnel was DOWN after the row and the preamble of hx reopened it (TUNNEL UP in the gate's console): a restoration, and a halt (S4 as S3)"
+         row_set gate_tunnel "found down after the row and reopened by the preamble of hx"
+         GATE_BAD+=("the tunnel was found down after the row and reopened by the preamble of hx (request, section 5, items 7 and 9)")
+     fi
+@@ -1676,7 +1708,8 @@
+     [ "$#" -eq 1 ] || refuse "usage: g3_battery.sh row <slug>"
+     ROW_SLUG=$1
+     # S3 (point 1): the rows of S3 only; the battery's other rows are not rows of this script.
+-    LABEL=$(row_session "$ROW_SLUG") || refuse "unknown row '$ROW_SLUG' (S3: $ROWS_S3, in that order; the rows of the battery's S1 and S2 are not run again)"
++    # S4 (point 1): the one row of S4; the rows of S1, S2 and S3 are not rows of this script.
++    LABEL=$(row_session "$ROW_SLUG") || refuse "unknown row '$ROW_SLUG' (S4: $ROWS_S4 only; the rows of S1, S2 and S3 are not run again)"
+     start_log "row-$ROW_SLUG"
+     # The turn comes before the first check: "this row was not started yet" is tested
+     # below and made true only when the attempt exists, seconds later.
+@@ -1711,8 +1744,9 @@
+     # lets a further row start after it (decision summary, choice 2: a procedural,
+     # instrumentation or safe-state halt does not permit continuation; request, section 5:
+     # "Test 9 is then not run"). EGW_G3_RUI_GO is read by 'close' outside the script only.
++    # S4 (point 1): the same rule; the text names S4's request.
+     if [ -n "$(state_get "$f" halt)" ]; then
+-        refuse "NOT STARTED: session $LABEL has a recorded halt ($(state_get "$f" halt)). In S3 a halt ends the session (decision summary, choice 2; request, section 5): classify the row if it awaits classification, then 'close', then hand back to Rui"
++        refuse "NOT STARTED: session $LABEL has a recorded halt ($(state_get "$f" halt)). A halt ends the session (request of 2026-10-05, section 5): classify the row if it awaits classification, then 'close', then hand back to Rui"
+     fi
+     ceiling=$(row_ceiling_min "$ROW_SLUG")
+     need=$((ceiling * 60 + KEEPALIVE_MARGIN_S))
+@@ -1760,10 +1794,11 @@
+     # S3 (point 4): before row t8, the gate package's record of the running images against
+     # S2's (gate_images_check). A difference, or a record that cannot be read, is a halt of
+     # the same kind as an identity that differs: row t8 is not started.
+-    if [ "$ROW_SLUG" = t8 ]; then
+-        say "row t8: the running images recorded by the gate driver at open, against S2's record"
++    # S4 (point 6): the same check, before row t6 (S3's gate matched S2's record).
++    if [ "$ROW_SLUG" = t6 ]; then
++        say "row t6: the running images recorded by the gate driver at open, against S2's record"
+         if ! gate_images_check; then
+-            halt "$WHY: row t8 was NOT started and no attempt was created (packet section 4, halt 6: an identity differing from the recorded candidate)"
++            halt "$WHY: row t6 was NOT started and no attempt was created (request of 2026-10-05, section 5 item 1: an identity differing from the recorded candidate)"
+             exit 1
+         fi
+     fi
+@@ -1795,10 +1830,12 @@
+     # must be attempt02 (attempt01 is S2's halted one) and T9's attempt01; under any other
+     # name the row halts here, before any step (nothing of the row is run or recorded
+     # further; the attempt is classified 'not started' as it stands).
++    # S4 (point 5): the same mechanism for t6, whose new attempt must be attempt02
++    # (attempt01 is S2's invalid one, T6_ADMITTED; request of 2026-10-05, section 3).
+     case $(basename "$A") in
+         *"$(row_attempt_suffix "$ROW_SLUG")") ;;
+         *)
+-            halt "row $ROW_SLUG: the new attempt is named $(basename "$A"), which does not end '$(row_attempt_suffix "$ROW_SLUG")' (the name the request of 2026-10-04, section 3, expects): an attempt of this row exists that was not accounted for, or the admitted one is not where it is kept. No step of the row was run"
++            halt "row $ROW_SLUG: the new attempt is named $(basename "$A"), which does not end '$(row_attempt_suffix "$ROW_SLUG")' (the name the request of 2026-10-05, section 3, expects): an attempt of this row exists that was not accounted for, or the admitted one is not where it is kept. No step of the row was run"
+             LATE_DONE=1     # no step ran: there is nothing of this row to register after it
+             ;;
+     esac
+@@ -1943,7 +1980,8 @@
+     case $class in
+         "not started") halt "row $ROW_SLUG is classified not started (packet section 4, halt 1): it is not attempted again under this approval" ;;
+         # S3 (bounded check of 2026-10-05, O3): recorded as a halt, so that no further row starts.
+-        "invalid instrumentation") halt "row $ROW_SLUG is classified invalid instrumentation (request, section 5 item 2; decision summary, choice 2): no further row of S3 starts" ;;
++        # S4 (point 1): the label in the text.
++        "invalid instrumentation") halt "row $ROW_SLUG is classified invalid instrumentation (request, section 5 item 2): no further row of S4 starts" ;;
+     esac
+     case $(state_get "$ROW_FILE" gate) in
+         pass) ;;
+@@ -2075,7 +2113,7 @@
+ 
+ # rootfs_after_close SESSION_DIR: the root file system hash the frozen close driver
+ # recorded after the power-off (its 'artefacts-after-poweroff' step), kept in the
+-# session's state file. S3 (point 1): no session of this script opens after S3; the
++# session's state file. S4 (point 1): no session of this script opens after S4; the
+ # value is the one a later boot of this image would have to expect.
+ rootfs_after_close() {
+     local line
+@@ -2115,13 +2153,13 @@
+ # script changes the record only on Rui's explicit direction (EGW_G3_RUI_GO, recorded)
+ # and only when nothing is left to close: no current_session, no qemu-system-aarch64
+ # process, no row running or unfinished. It records a halt with the change. It never
+-# returns. S3 (point 1): the one label is S3.
++# returns. S4 (point 1): the one label is S4.
+ close_outside() {
+     local l f st="" found=""
+     [ ! -e "$EXEC/current_session" ] \
+         || refuse "no open session: $EXEC/current_session names '${SESSION}', which is not a session directory. Nothing was changed; hand back to Rui"
+     # shellcheck disable=SC2043
+-    for l in S3; do
++    for l in S4; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || continue
+         st=$(state_get "$f" state)
+@@ -2230,9 +2268,9 @@
+         halt "guest_session_close.sh exited $rc and $EXEC/current_session is kept: the session is NOT closed. Read $DRIVER_CONSOLE; check for a qemu-system-aarch64 process by hand, never kill it"
+     fi
+     echo "What remains for the operator:"
+-    # S3 (point 1): the names of S3's operator records and of its result note.
+-    echo "  1. verify every export (the export tool's own verification, then 'sha256sum -c' in each package), then seal the operator records ($STATE: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<UTC date>-g3-t8t9-s3-operator-records (with -attempt02 when sealed on 2026-10-05, beside the first opening's);"
+-    echo "  2. write output_test/decisions/<date>_g3-t8-t9-results.md (each row's validity, functional outcome and timed delivery stated apart; no G3 claim);"
++    # S4 (point 1): the names of S4's operator records and of its result note.
++    echo "  1. verify every export (the export tool's own verification, then 'sha256sum -c' in each package), then seal the operator records ($STATE: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<UTC date>-g3-t6-s4-operator-records (with an -attemptNN suffix if that name exists);"
++    echo "  2. write output_test/decisions/<date>_g3-t6-results.md (the row's validity, the amended criterion's items, and lost and late_confirmations reported apart as a sizing finding; no G3 claim);"
+     echo "  3. release the keepalive client and the Windows keep-awake."
+     [ "$HALTED" -eq 0 ] || exit 1
+ }
+@@ -2254,8 +2292,9 @@
+         echo "turn of the changing subcommands: last taken by '$(state_get "$f" what)' (pid $(state_get "$f" pid), $(state_get "$f" taken_wall)); that invocation: $st"
+     fi
+     # S3 (point 1): the one session of this script.
++    # S4 (point 1): S4.
+     # shellcheck disable=SC2043
+-    for l in S3; do
++    for l in S4; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || { echo "session $l: not opened"; continue; }
+         up0=$(state_get "$f" up0)
+@@ -2305,7 +2344,8 @@
+         close) cmd_close "$@" ;;
+         status) cmd_status ;;
+         *)
+-            echo "usage: EGW_EXEC_REPO=\$HOME/egw-exec/repo bash g3_battery.sh open S3 | row <t8|t9> | classify <slug> <status> <validity> <outcome> <reason> <next-action> | term <slug> | close | status" >&2
++            # S4 (point 1): the usage of S4.
++            echo "usage: EGW_EXEC_REPO=\$HOME/egw-exec/repo bash g3_battery.sh open S4 | row t6 | classify t6 <status> <validity> <outcome> <reason> <next-action> | term t6 | close | status" >&2
+             return 2
+             ;;
+     esac

@@ -1,0 +1,22 @@
+confirmation window closed on the controller clock
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 132 s (0 2026-09-20T23:21:31.554Z 60 0 0 0 0) - an observation, not proof that processing has finished
+OUTCOME RECONCILIATION itest-g2-01: published=60 with_logged_outcome=60 without_logged_outcome=0 not_reconcilable=0 queue_depth=0
+  counters since the before reading (secondary consistency figure, decides nothing): total=60 {'accepted': 60, 'rejected': 0, 'duplicate': 0, 'failed': 0, 'dropped': 0}
+-> OK: every published record of this run has a logged outcome in the fetched event log
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "62da1188-4cd1-434b-a9c7-236a8c211f84": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-g2-01",
+        "last_seq": 59,
+        "last_message_id": "ad6d3d6f-be53-56d4-93d1-c16fa42706d1",
+        "last_ts": "2026-09-20T23:28:39.715Z",
+        "accepted_count": 60
+      }
+    }
+  }
+}

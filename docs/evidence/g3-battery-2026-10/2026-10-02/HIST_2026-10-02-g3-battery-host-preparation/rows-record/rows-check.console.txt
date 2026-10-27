@@ -1,0 +1,131 @@
+## 2026-10-02T11:59:39Z g3_check_rows.sh (sha256 1173e78cb81a1e5d4e39e26645f322d1f5f360cb086899e6951c15b7228ddc26)
+## the blob
+ok    clone HEAD is 80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+ok    runbook blob sha256 c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae
+ok    1614 lines
+ok    no '-q1' in lines 1297-1527 of the blob
+## the directory
+ok    exactly the 39 expected files (20 steps, 18 diffs, the manifest)
+## every file: LF only, one final newline, UTF-8
+ok    no CR, final newline, UTF-8 in 39 files (the empty diffs are those of the files without a substitution)
+## the runbook step files
+ok    t1-smokes.sh: bash -n
+ok    t1-smokes.sh: without '-q1' it is byte-identical to the blob's lines (NR==1300)
+ok    t1-smokes.sh: itest-smoke-$i-q1 stands 2 time(s)
+ok    t1-smokes.sh: 2 '-q1' in all, each one an id's
+ok    t1-smokes.sh: the diff is ids-only (1 line(s) changed)
+ok    t1-harness.sh: bash -n
+ok    t1-harness.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1310&&NR<=1313)
+ok    t1-harness.sh: 0 '-q1' in all, each one an id's
+ok    t1-harness.sh: no substitution, empty diff, the file is the blob's lines
+ok    t2.sh: bash -n
+ok    t2.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1325&&NR<=1337)
+ok    t2.sh: itest-3dev-01-q1 stands 1 time(s)
+ok    t2.sh: 1 '-q1' in all, each one an id's
+ok    t2.sh: the diff is ids-only (1 line(s) changed)
+ok    t3.sh: bash -n
+ok    t3.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1345&&NR<=1373)
+ok    t3.sh: itest-invalid-01-q1 stands 1 time(s)
+ok    t3.sh: 1 '-q1' in all, each one an id's
+ok    t3.sh: the diff is ids-only (1 line(s) changed)
+ok    t4-replay.sh: bash -n
+ok    t4-replay.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1383&&NR<=1391)
+ok    t4-replay.sh: itest-dup-01-q1 stands 1 time(s)
+ok    t4-replay.sh: 1 '-q1' in all, each one an id's
+ok    t4-replay.sh: the diff is ids-only (1 line(s) changed)
+ok    t4-reset.sh: bash -n
+ok    t4-reset.sh: without '-q1' it is byte-identical to the blob's lines (NR==1399)
+ok    t4-reset.sh: itest-dup-02-q1 stands 1 time(s)
+ok    t4-reset.sh: 1 '-q1' in all, each one an id's
+ok    t4-reset.sh: the diff is ids-only (1 line(s) changed)
+ok    t5.sh: bash -n
+ok    t5.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1407&&NR<=1409)
+ok    t5.sh: itest-dropout-01-q1 stands 1 time(s)
+ok    t5.sh: 1 '-q1' in all, each one an id's
+ok    t5.sh: the diff is ids-only (1 line(s) changed)
+ok    t6.sh: bash -n
+ok    t6.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1421&&NR<=1427)
+ok    t6.sh: 0 '-q1' in all, each one an id's
+ok    t6.sh: no substitution, empty diff, the file is the blob's lines
+ok    t7-mongo.sh: bash -n
+ok    t7-mongo.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1439&&NR<=1461)
+ok    t7-mongo.sh: itest-mongo-fault-01-q1 stands 1 time(s)
+ok    t7-mongo.sh: 1 '-q1' in all, each one an id's
+ok    t7-mongo.sh: the diff is ids-only (1 line(s) changed)
+ok    t7-ditto.sh: bash -n
+ok    t7-ditto.sh: without '-q1' it is byte-identical to the blob's lines ((NR>=1440&&NR<=1458)+(NR>=1477&&NR<=1480))
+ok    t7-ditto.sh: itest-ditto-fault-01-q1 stands 1 time(s)
+ok    t7-ditto.sh: 1 '-q1' in all, each one an id's
+ok    t7-ditto.sh: the diff is ids-only (1 line(s) changed)
+ok    t8-a-reboot.sh: bash -n
+ok    t8-a-reboot.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1486&&NR<=1488)
+ok    t8-a-reboot.sh: itest-reboot-q1 stands 3 time(s)
+ok    t8-a-reboot.sh: 3 '-q1' in all, each one an id's
+ok    t8-a-reboot.sh: the diff is ids-only (1 line(s) changed)
+ok    t8-b-return.sh: bash -n
+ok    t8-b-return.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1489&&NR<=1490)
+ok    t8-b-return.sh: 0 '-q1' in all, each one an id's
+ok    t8-b-return.sh: no substitution, empty diff, the file is the blob's lines
+ok    t8-c-snapshot.sh: bash -n
+ok    t8-c-snapshot.sh: without '-q1' it is byte-identical to the blob's lines (NR==1491)
+ok    t8-c-snapshot.sh: itest-reboot-q1 stands 5 time(s)
+ok    t8-c-snapshot.sh: 5 '-q1' in all, each one an id's
+ok    t8-c-snapshot.sh: the diff is ids-only (1 line(s) changed)
+ok    t8-d-smoke.sh: bash -n
+ok    t8-d-smoke.sh: without '-q1' it is byte-identical to the blob's lines (NR==1492)
+ok    t8-d-smoke.sh: itest-post-reboot-01-q1 stands 1 time(s)
+ok    t8-d-smoke.sh: 1 '-q1' in all, each one an id's
+ok    t8-d-smoke.sh: the diff is ids-only (1 line(s) changed)
+ok    t9-a.sh: bash -n
+ok    t9-a.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1501&&NR<=1502)
+ok    t9-a.sh: itest-tls-wrongca-q1 stands 1 time(s)
+ok    t9-a.sh: 1 '-q1' in all, each one an id's
+ok    t9-a.sh: the diff is ids-only (1 line(s) changed)
+ok    t9-b.sh: bash -n
+ok    t9-b.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1503&&NR<=1516)
+ok    t9-b.sh: itest-auth-wrongpw-q1 stands 4 time(s)
+ok    t9-b.sh: 4 '-q1' in all, each one an id's
+ok    t9-b.sh: the diff is ids-only (3 line(s) changed)
+ok    t9-c.sh: bash -n
+ok    t9-c.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1517&&NR<=1519)
+ok    t9-c.sh: itest-notls-q1 stands 3 time(s)
+ok    t9-c.sh: 3 '-q1' in all, each one an id's
+ok    t9-c.sh: the diff is ids-only (2 line(s) changed)
+ok    t9-de.sh: bash -n
+ok    t9-de.sh: without '-q1' it is byte-identical to the blob's lines (NR>=1520&&NR<=1526)
+ok    t9-de.sh: 0 '-q1' in all, each one an id's
+ok    t9-de.sh: no substitution, empty diff, the file is the blob's lines
+## no old literal left without its '-q1' (all step files)
+ok    itest-smoke-$i: every occurrence is followed by '-q1' (2 in all, t7's shared definitions hold none)
+ok    itest-3dev-01: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-invalid-01: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-dup-01: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-dup-02: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-dropout-01: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-mongo-fault-01: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-ditto-fault-01: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-reboot: every occurrence is followed by '-q1' (8 in all, t7's shared definitions hold none)
+ok    itest-post-reboot-01: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-tls-wrongca: every occurrence is followed by '-q1' (1 in all, t7's shared definitions hold none)
+ok    itest-auth-wrongpw: every occurrence is followed by '-q1' (4 in all, t7's shared definitions hold none)
+ok    itest-notls: every occurrence is followed by '-q1' (3 in all, t7's shared definitions hold none)
+ok    unchanged: nominal-r02 x2 (t1-harness.sh), controller_restart-r03 x1 (t6.sh), itest-acl-$T x11 (t9-de.sh), itest-replay x2 (t4-replay.sh)
+## t7-ditto.sh: its first 19 lines only define (traced in a bash with an empty PATH and no environment)
+ok    one assignment (DC) and four function definitions (fault, fault_recover, readyp, svc_state); no other command ran
+ok    line 20 is the Ditto repeat's first line
+ok    the 19 definition lines are lines 2-20 of t7-mongo.sh
+## the prose-only step files
+ok    t1-harness-analyze.sh: bash -n
+ok    t1-harness-analyze.sh: the sentence quoted on its line 4 stands on runbook line 1320
+ok    t9-exposure.sh: bash -n
+ok    t9-exposure.sh: the sentence quoted on its line 4 stands on runbook line 1529
+ok    t1-harness-analyze.sh: its analyze command is the runbook's fenced line 1427
+ok    t9-exposure.sh: three commands (ssh, ss, ssh)
+## the manifest
+ok     manifest: 20 files in 12 rows, every sha256_after and diff_sha256 is the file's; rule checked against the frozen functions: True
+ok    manifest sha256_before of the 18 runbook files recomputed from the blob with awk and sed
+## the clone, after
+ok    clone clean at 80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+
+ROW FILES OK (0 failures)
+check exit=0

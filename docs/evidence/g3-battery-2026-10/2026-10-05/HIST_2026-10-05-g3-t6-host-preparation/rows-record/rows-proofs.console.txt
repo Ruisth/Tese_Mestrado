@@ -1,0 +1,53 @@
+## 2026-10-05T18:44:00Z rows-proofs.sh (sha256 1e806e1fef3238ba02d82833caf439f3a548b0d01e05bdc63ad3913eb28dc037) <S>/g3/t6prep/rows <S>/g3/battery/prep/rows/t6.sh <S>/g3/t6prep/runbook.1fd9792.md <the sealed copies>
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## the sealed packages' own SHA256SUMS for the copies of t6.sh used:
+  first preparation SHA256SUMS: ./rows/t6.sh: OK
+  S2 attempt01 SHA256SUMS: environment/t6.sh: OK
+## inputs
+runbook blob: sha256 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f, 1624 lines
+S4 t6.sh: sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377, 8 lines, 12167 bytes
+the battery's t6.sh (<S>/g3/battery/prep/rows/t6.sh): sha256 ebc9700c8968b633990e0a198027bbfb5d6a246e3828e696cf8a5467b36d3400, 7 lines, 8897 bytes
+
+## 1. t6.sh = runbook lines 1421-1428, the prompt removed, byte for byte
+IDENTICAL  t6.sh: runbook lines 1421-1428 (8 lines, 8 with the prompt), prompt removed: sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377, 12167 bytes; t6.sh: sha256 ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377, 12167 bytes
+WHOLE BLOCK  the fence: line 1420 '```bash', line 1429 '```', heading on line 1416 '### Test 6 — controller restart with recovery and traceability'
+EMPTY  t6.sh.diff: 0 bytes
+IDENTICAL  the same with sed: sed -n '1421,1428p' | sed 's/^host\$ //' | cmp - t6.sh: no difference
+
+## 2. the battery's t6.sh (80e833f, seven lines) against S4's t6.sh: diff (battery '<', S4 '>'), each line cut at 200 characters
+1c1
+< RID=controller_restart-r03; F6=used; if [ -e ~/egw-tcg/pilot/results/raw/$RID ] || [ -e $P/$RID.sut ]; then stop "test 6: $RID was already used (~/egw-tcg/pilot/results/raw/$RID or $P/$RID.sut exist
+---
+> RID=controller_restart-r04; F6=used; if [ -e ~/egw-tcg/pilot/results/raw/$RID ] || [ -e $P/$RID.sut ]; then stop "test 6: $RID was already used (~/egw-tcg/pilot/results/raw/$RID or $P/$RID.sut exist
+5c5
+< T6=stop; if [ "$F6" = fresh ] && [ -n "$SEED" ] && wait_ready && drained && config_identity $P/$RID.config_identity.json; then DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$
+---
+> T6=stop; if [ "$F6" = fresh ] && [ -n "$SEED" ] && wait_ready && drained && config_identity $P/$RID.config_identity.json; then DRAIN_QUIET_S=$DRAIN_QUIET_S DRAIN_STEP_S=$DRAIN_STEP_S DRAIN_LIMIT_S=$
+6a7
+> [ "$T6" = ok ] && $REC acceptance $RAW6/logs/simulator/$RID --events $RAW6/events.post-drain.jsonl --exactly-once || stop "test 6: the per-identity exactly-once check was not run (T6='$T6'), could n
+diff exit=1 (1: the files differ)
+hunk headers: 1c1 5c5 6a7 
+EXACTLY THREE  the changed RID line (1c1), the changed harness line (5c5) and the added line 7 (6a7)
+unified hunk header: @@ -1,7 +1,8 @@
+UNCHANGED  battery line 2 = S4 line 2 (157 characters, sha256 e1a2325b3aa3aef4)
+UNCHANGED  battery line 3 = S4 line 3 (126 characters, sha256 45f8cd979181c43e)
+UNCHANGED  battery line 4 = S4 line 4 (1231 characters, sha256 ea1db2d574271a58)
+UNCHANGED  battery line 6 = S4 line 6 (1506 characters, sha256 65c6a8685d9b8499)
+UNCHANGED  battery line 7 = S4 line 8 (110 characters, sha256 e8a677958f7e05ab)
+ADDED  S4 line 7 (added, 1560 characters) opens with the exactly-once check, run only when T6=ok
+line 1 (the RID line): battery 731 characters (the command its first 413, then the comment), S4 1196 characters (the command its first 413, then the comment)
+    in the command: replace battery[25:26] '3' -> S4[25:26] '4'
+    in the comment: battery 318 characters -> S4 783 characters (changed)
+    AS EXPECTED: the command differs only by r03 -> r04
+line 5 (the harness line): battery 5029 characters (the command its first 2976, then the comment), S4 6273 characters (the command its first 3499, then the comment)
+    in the command: insert battery[724:724] '' -> S4[724:773] ' --restart-transition-rule 1a-option-a-2026-10-05'
+    in the command: insert battery[1504:1504] '' -> S4[1553:2027] ': $RAW6/manifest.json could not be read"; python3 -c "import json; d=json.load(open(\'$RAW6/manifest.json\')).get(\'resources_transition_rows\'); print(\'test 6: res'
+    in the comment: battery 2053 characters -> S4 2774 characters (changed)
+    AS EXPECTED: the command gains only the flag --restart-transition-rule 1a-option-a-2026-10-05 and a read-only print of the manifest's resources_transition_rows
+
+## 3. the battery's t6.sh is the first preparation's sealed file and the file session S2 ran
+IDENTICAL  <OT>/runs/2026-10-02/HIST_2026-10-02-g3-battery-host-preparation/rows/t6.sh (ebc9700c8968b633990e0a198027bbfb5d6a246e3828e696cf8a5467b36d3400)
+IDENTICAL  <OT>/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01/environment/t6.sh (ebc9700c8968b633990e0a198027bbfb5d6a246e3828e696cf8a5467b36d3400)
+
+PROOFS HOLD (0 differences)
+proofs exit=0

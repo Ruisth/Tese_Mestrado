@@ -1,0 +1,36 @@
+## g3_extract_rows.before.py with HOME=/home/ruisth
+  /home/ruisth/egw-tcg/itest                                   -> inside /home/ruisth/egw-tcg
+  /home/ruisth/egw-exec/repo/rows                              -> inside /home/ruisth/egw-exec
+  /home/ruisth/egw-exec/attempts/x                             -> inside /home/ruisth/egw-exec
+  /home/ruisth/egw-images/x                                    -> inside /home/ruisth/egw-images
+  /home/ruisth/yocto/x                                         -> inside /home/ruisth/yocto
+  /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/x  -> inside a 'output_test' directory
+  ...ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/rows -> None
+  /tmp/g3-dry-fix/rows-copy                                    -> None
+## g3_extract_rows.before.py with HOME=/tmp/g3-dry-fix/redirected-home
+  /home/ruisth/egw-tcg/itest                                   -> None
+  /home/ruisth/egw-exec/repo/rows                              -> None
+  /home/ruisth/egw-exec/attempts/x                             -> None
+  /home/ruisth/egw-images/x                                    -> None
+  /home/ruisth/yocto/x                                         -> None
+  /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/x  -> inside a 'output_test' directory
+  ...ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/rows -> None
+  /tmp/g3-dry-fix/rows-copy                                    -> None
+## g3_extract_rows.py with HOME=/home/ruisth
+  /home/ruisth/egw-tcg/itest                                   -> inside /home/ruisth/egw-tcg
+  /home/ruisth/egw-exec/repo/rows                              -> inside /home/ruisth/egw-exec
+  /home/ruisth/egw-exec/attempts/x                             -> inside /home/ruisth/egw-exec
+  /home/ruisth/egw-images/x                                    -> inside /home/ruisth/egw-images
+  /home/ruisth/yocto/x                                         -> inside /home/ruisth/yocto
+  /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/x  -> inside a 'output_test' directory
+  ...ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/rows -> None
+  /tmp/g3-dry-fix/rows-copy                                    -> None
+## g3_extract_rows.py with HOME=/tmp/g3-dry-fix/redirected-home
+  /home/ruisth/egw-tcg/itest                                   -> inside a 'egw-tcg' directory
+  /home/ruisth/egw-exec/repo/rows                              -> inside a 'egw-exec' directory
+  /home/ruisth/egw-exec/attempts/x                             -> inside a 'egw-exec' directory
+  /home/ruisth/egw-images/x                                    -> inside a 'egw-images' directory
+  /home/ruisth/yocto/x                                         -> inside a 'yocto' directory
+  /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/x  -> inside a 'output_test' directory
+  ...ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/rows -> None
+  /tmp/g3-dry-fix/rows-copy                                    -> None

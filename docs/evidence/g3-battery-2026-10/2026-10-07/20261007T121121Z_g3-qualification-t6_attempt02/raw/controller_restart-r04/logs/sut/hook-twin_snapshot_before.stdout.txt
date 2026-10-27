@@ -1,0 +1,40 @@
+{
+  "label": "before",
+  "seed": 1715385812,
+  "devices": {
+    "99ba765b-fdd6-47c7-92f6-275a902de683": {
+      "device_type": "smartwatch",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    },
+    "841605f3-df2b-46e5-afde-41c480ec938c": {
+      "device_type": "smart_ring",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    },
+    "e1734197-9f33-41fe-811c-7f6d40cb61d4": {
+      "device_type": "smart_clothing",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    }
+  }
+}
+proof_hook_twins: controller_restart-r04 before: snapshot kept as /home/ruisth/egw-tcg/itest/controller_restart-r04.twins.before.json and /home/ruisth/egw-tcg/pilot/results/raw/controller_restart-r04/twins.before.json

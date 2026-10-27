@@ -1,0 +1,129 @@
+\documentclass[12pt,reqno, oneside]{amsbook}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\usepackage{eurosym}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage[onehalfspacing]{setspace}
+\usepackage{chngcntr}
+\usepackage{graphicx}
+\usepackage[a4paper, margin=2.5cm]{geometry}
+\usepackage[english]{babel}
+\usepackage{fancyhdr}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{etoolbox}
+\usepackage{csquotes}
+\usepackage[printonlyused]{acronym}
+%
+% you may need to uncomment the command below if you use eps format for figures
+%\usepackage{epstopdf}
+%
+\usepackage[
+    backend=biber,
+    style=ieee,
+  ]{biblatex}
+\addbibresource{../refs/references.bib}
+%
+\makeatletter
+    \def\section{\@startsection{section}{1}%
+      \z@{.5\linespacing\@plus.7\linespacing}{.25\linespacing}%
+      {\normalfont\bfseries\flushleft}}
+    \def\subsection{\@startsection{subsection}{2}%
+      \z@{.5\linespacing\@plus.7\linespacing}{.25\linespacing}%
+      {\normalfont\bfseries\flushleft}}
+%
+\makeatother
+\setcounter{MaxMatrixCols}{10}
+%
+\providecommand{\U}[1]{\protect\rule{.1in}{.1in}}
+\theoremstyle{plain}
+\newtheorem{acknowledgement}{Acknowledgement}
+\newtheorem{algorithm}{Algorithm}[chapter]
+\newtheorem{axiom}{Axiom}[chapter]
+\newtheorem{case}{Case}[chapter]
+\newtheorem{claim}{Claim}[chapter]
+\newtheorem{conclusion}{Conclusion}[chapter]
+\newtheorem{condition}{Condition}[chapter]
+\newtheorem{conjecture}{Conjecture}[chapter]
+\newtheorem{corollary}{Corollary}[chapter]
+\newtheorem{criterion}{Criterion}[chapter]
+\newtheorem{definition}{Definition}[chapter]
+\newtheorem{example}{Example}[chapter]
+\newtheorem{exercise}{Exercise}[chapter]
+\newtheorem{lemma}{Lemma}[chapter]
+\newtheorem{notation}{Notation}[chapter]
+\newtheorem{problem}{Problem}[chapter]
+\newtheorem{proposition}{Proposition}[chapter]
+\newtheorem{remark}{Remark}[chapter]
+\newtheorem{solution}{Solution}[chapter]
+\newtheorem{summary}{Summary}[chapter]
+\newtheorem{theorem}{Theorem}[chapter]
+\numberwithin{equation}{chapter}
+%
+\makeatletter
+\newcommand\frontFont{\@setfontsize\frontFont{14.4}{14.4}}
+\makeatother
+%
+% Please write the references according to your school
+%
+\newenvironment{dedication}
+  {%\clearpage           % we want a new page
+   \thispagestyle{empty}% no header and footer
+   \vspace*{\stretch{1}}% some space at the top
+   \itshape             % the text is in italics
+   \raggedleft          % flush to the right margin
+  }
+  {\par % end the paragraph
+   \vspace{\stretch{3}} % space at bottom is three times that at the top
+   %\clearpage           % finish off the page
+  }
+  \numberwithin{section}{chapter}
+\fancyhead{}
+\fancyfoot{}
+\pagestyle{fancy}
+\fancyfoot[R]{\thepage}
+%
+\makeatletter
+\def\ps@plain{\ps@empty
+ \def\@evenfoot{%
+   \normalfont\scriptsize
+   \rlap{\thepage}\hfil
+   }%
+ \def\@oddfoot{%
+   \normalfont\scriptsize \hfil
+   \llap{\thepage}}%
+}
+\makeatother
+\renewcommand{\headrulewidth}{0pt}
+\renewcommand{\footrulewidth}{0pt}
+%
+\usepackage{montserrat}
+\usepackage[T1]{fontenc}
+\renewcommand*\oldstylenums[1]{{\fontfamily{Montserrat-TOsF}\selectfont #1}}
+%
+\numberwithin{table}{chapter}
+\numberwithin{figure}{chapter}
+%
+%%% PT: BEGIN
+% \addto\captionsenglish{\renewcommand{\chaptername}{Capítulo}}
+% \addto\captionsenglish{\renewcommand{\tablename}{Tabela}}
+% \addto\captionsenglish{\renewcommand{\figurename}{Figura}}
+% \addto\captionsenglish{\renewcommand{\figurename}{Figura}}
+% \addto\captionsenglish{\renewcommand{\contentsname}{Conteúdo}}
+% \addto\captionsenglish{\renewcommand{\listfigurename}{Lista de Figuras}}
+% \addto\captionsenglish{\renewcommand{\listtablename}{Lista de Tabelas}}
+% \DeclareDelimFormat{finalnamedelim}{\addspace e\space}
+%%% PT: END
+%
+
+\newcommand{\thesistitle}{Blockchain-powered Personal AI -- Digital Twin Edge Gateway}
+\input{word-import-support}
+
+\begin{document}
+\pagestyle{plain}
+\setcounter{chapter}{1}
+\nocite{word01,word02,word03,word04,word05,word06,word07,word08,word09,word10,word11,word12,word13,word14,word15,word16,word17,word18,word19,word20,word21,word22,word23,word24,word25,word26,word27,word28,word29,word30,word31,word32,word33}
+\input{chapters/02_background}
+\printbibliography[title={References}]
+\end{document}

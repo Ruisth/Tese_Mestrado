@@ -1,0 +1,389 @@
+{
+  "capture_failures": [],
+  "capture_reconciliation": "",
+  "console_extra_files": [],
+  "copy_verification": "verified",
+  "destination": {
+    "package": "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T140639Z_g3-qualification-t7-ditto_attempt01",
+    "windows_path": "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\output_test\\runs\\2026-10-03\\20261003T140639Z_g3-qualification-t7-ditto_attempt01"
+  },
+  "excluded": [],
+  "expected_artefacts_missing": [],
+  "exported_utc": "2026-10-03T14:22:49.308986Z",
+  "failed_copies": [],
+  "files": [
+    {
+      "package_path": "attempt.json",
+      "sha256": "b88684eac3eefc21eebeb6ec1c69154532898bbd96210912c7669d2db88a4c72",
+      "size": 3743,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/attempt.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "commands.jsonl",
+      "sha256": "311de9350b10ac951b1e4fb3281d6e8e0f9c8817d8254cab865ba706eefda7f4",
+      "size": 12727,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/commands.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-guest-state-before.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/001-guest-state-before.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-guest-state-before.stdout.txt",
+      "sha256": "8f6a5e64dcd39a0f6488deecd0f4f28173c21b2c8c138e7ad906d69afaa3f96b",
+      "size": 1710,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/001-guest-state-before.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-t7-ditto.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/002-t7-ditto.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-t7-ditto.stdout.txt",
+      "sha256": "be877ced3255541a0c437ff1216f0d32901557015f95e425458c693994171f53",
+      "size": 17354,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/002-t7-ditto.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-guest-state-after.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/003-guest-state-after.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-guest-state-after.stdout.txt",
+      "sha256": "75c78361badc669de9ab554cda73a305ef3c0f29fb0b654f23200a8afc74de02",
+      "size": 1710,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/003-guest-state-after.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-guest-state-delta.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/004-guest-state-delta.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-guest-state-delta.stdout.txt",
+      "sha256": "c58969cfe6d2a6fae0d91740ab11d23f41a9169e6eda479a9446a32c8033626a",
+      "size": 611,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/004-guest-state-delta.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-gate-healthy.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/005-gate-healthy.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-gate-healthy.stdout.txt",
+      "sha256": "14ee64cd10c93b0f5abfcf8c05ddee0a6d0ac331727d7d57573d031e1317c83f",
+      "size": 348,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/005-gate-healthy.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-gate-units.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/006-gate-units.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-gate-units.stdout.txt",
+      "sha256": "8c648e58851cdf309c702fdb4e50ec9d646bcc7814d766ac85cd6eb19d46dd87",
+      "size": 54,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/006-gate-units.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-gate-tunnel-check.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/007-gate-tunnel-check.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-gate-tunnel-check.stdout.txt",
+      "sha256": "66a16585f4f1aad2bf5148d416ed20ba1b58dc0b3fd624de07305ddba0adcf6a",
+      "size": 68,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/console/007-gate-tunnel-check.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/g3_battery.sh",
+      "sha256": "fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1",
+      "size": 98349,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/environment/g3_battery.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/rows.manifest.json",
+      "sha256": "cfca6a9397715d0c95881a2c824cad83a95e73727a500351920faf5552ad230c",
+      "size": 37232,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/environment/rows.manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/rows.manifest.t7-ditto.json",
+      "sha256": "0dfb4687f04973c8f1bbfaeb28877d80eec5a53c26ee7f20ab063b67b6a64a20",
+      "size": 5968,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/environment/rows.manifest.t7-ditto.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/t7-ditto.sh",
+      "sha256": "23ea0b99fa9f3e7eccbe429e42d51a9b2c68d9cc2d0b4c641a0ab7b306cc74e0",
+      "size": 5799,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/environment/t7-ditto.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/t7-ditto.sh.diff",
+      "sha256": "26053922f2ec6132298c46caad9a99ef63b941f713886747cf8328330c96f363",
+      "size": 220,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/environment/t7-ditto.sh.diff",
+      "state": "verified"
+    },
+    {
+      "package_path": "sources.json",
+      "sha256": "620f5e68280af296fa0bfa62f6523db211bf9634d5eea41b19ecbc888822c72a",
+      "size": 465,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01/sources.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1/events.jsonl",
+      "sha256": "eaa744b29508fac8054d95fa7d32ddf0eb127d8fd29de096430fa909a9cb7f08",
+      "size": 1120529,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1/events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1/manifest.json",
+      "sha256": "c88d6f3b8aa8edfe982aebb433b18e230c6124040521ee4925fef2d4755dd199",
+      "size": 1143,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1/sent_events.jsonl",
+      "sha256": "e4da43c77fb9b58eee26e6b7d4c32fd181df0c3705b8366611df7177857c7ef2",
+      "size": 941118,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.fault.txt",
+      "sha256": "e39d05d5dc532cfcfa7923b81949d2f68f2e6a39482662d9a9712fc3d2796fb1",
+      "size": 476,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.fault.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.marker.json",
+      "sha256": "4fd09dd88654df976d425e32dfda7985448e2be690d05172b4a20545adc18f19",
+      "size": 376,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.marker.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.metrics.after.json",
+      "sha256": "8350ac2ec6ae645b1059daf38aeca9b3429f7e4922831d90fce17ffdc99b2d14",
+      "size": 332,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.metrics.after.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.metrics.before.json",
+      "sha256": "5388c51fc85474bfbe9c43045365e39e12d37578e8995c59ed44070df5b6be55",
+      "size": 323,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.metrics.before.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.ready.txt",
+      "sha256": "d153d06ab697f582a38ccc579ccca973a22ad782664f468d3b904daa3f2e2cb0",
+      "size": 7125,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.ready.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.reconcile/events.jsonl",
+      "sha256": "eaa744b29508fac8054d95fa7d32ddf0eb127d8fd29de096430fa909a9cb7f08",
+      "size": 1120529,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.reconcile/events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.reconcile/manifest.json",
+      "sha256": "527946a3bcbd8b589cb89c7feaafc4232ec69d8182925438b40a500943813a99",
+      "size": 764,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.reconcile/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.reconcile/sent_events.jsonl",
+      "sha256": "e4da43c77fb9b58eee26e6b7d4c32fd181df0c3705b8366611df7177857c7ef2",
+      "size": 941118,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.reconcile/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.reconcile.json",
+      "sha256": "315f05e6222e4ee1b71c74031009887385dc43666888fa0805b539e9aad99f5d",
+      "size": 877,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.reconcile.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.stderr.txt",
+      "sha256": "1e545d8c2501288661b2d875a10d7cf6025d9719a371eb5d6b210fbd0f29d445",
+      "size": 325,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/broker.fetch.txt",
+      "sha256": "f828e527bbf30e01966603ed3463bb9c19a8866bb7caa0fe6e21293523f19671",
+      "size": 601,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/broker.fetch.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/broker.log",
+      "sha256": "a59fcff12b31ff2e9993dae0e5201c0b49e5cf8983791dc27899b1477ac2897c",
+      "size": 8264,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/broker.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/controller.fetch.txt",
+      "sha256": "2273a5455449b929d211d47bed0efc9ca12e7fb95df2e781ec8016786b8c93be",
+      "size": 618,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/controller.fetch.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/controller.log",
+      "sha256": "61c0625bb96ddf7e2ad7bcef779f0cfcdc1aa612ccc24ac4b5afa0e24f22ecb3",
+      "size": 945695,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/controller.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/docker-events.cli-stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.cli-stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/docker-events.coverage.txt",
+      "sha256": "a958c6c6efeec574d79b460a25a5758cf59036c623f72672d786b650d923ee47",
+      "size": 2845,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.coverage.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/docker-events.fetch.txt",
+      "sha256": "560729681c80875e694bd97938d3068b70a39abf88b8f48bcb0a6b6e62443a1e",
+      "size": 487,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.fetch.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/docker-events.lifecycle.txt",
+      "sha256": "0d1711e09a4da6369ea516c8d974c00e732bd5844464e3953ecd9433ec723934",
+      "size": 198,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.lifecycle.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/docker-events.log",
+      "sha256": "712042c324c3a4f48950851b316889d50e1b634a054c2e22b4977544dd01b705",
+      "size": 969767,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/docker-events.start-facts.txt",
+      "sha256": "947912e3a7dd2f6663e58abd31bf746a141716948358828f251086627c5158cd",
+      "size": 98,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.start-facts.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/docker-events.stop.txt",
+      "sha256": "f743eaf72aad0cd0042ed7c9c346a889b920765af8ecf241f8ad23f0ae3bcde7",
+      "size": 339,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.stop.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.sut/events-start.txt",
+      "sha256": "820bcb75299053601c5d21c55a9892d7aea0791aeb0bf8755d26c37a993cda51",
+      "size": 529,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/events-start.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.twins.after.json",
+      "sha256": "63b567bd98cd63d23a0f1a39e05b2f0f4b1090cb28635fb6e519494aca8ef3d5",
+      "size": 1139,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.twins.after.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.twins.before.json",
+      "sha256": "ad864c7da03b7d3336ac9c2519bfe31bb474d03f5c3f58f79e9026b29b262b5c",
+      "size": 1138,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.twins.before.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-ditto-fault-01-q1.window-closed.json",
+      "sha256": "437ed016ec5aa1218eb3f4e71747348e00993f75257ebf7270be46ff02cef4cc",
+      "size": 195,
+      "source": "/home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.window-closed.json",
+      "state": "verified"
+    }
+  ],
+  "missing_sources": [],
+  "package_completeness": "complete",
+  "path_mapping": "sources are WSL paths; sealed files inside raw/ keep their original absolute paths",
+  "run_id": "20261003T140639Z_g3-qualification-t7-ditto_attempt01",
+  "sanitized_derivatives": [],
+  "secret_scan": {
+    "note": "values of the listed variables (names only) and PEM private keys were searched in every file",
+    "private_keys": true,
+    "secret_values": [
+      "DITTO_DEVOPS_PASSWORD",
+      "EGW_MQTT_PASSWORD",
+      "MOSQUITTO_CONTROLLER_PASSWORD",
+      "MOSQUITTO_SIMULATOR_PASSWORD"
+    ]
+  },
+  "skipped_attempt_entries": [],
+  "skipped_registered_artefacts": [],
+  "skipped_source_roots": [],
+  "skipped_special": [],
+  "source_attempt_dir": "/home/ruisth/egw-exec/attempts/20261003T140639Z_g3-qualification-t7-ditto_attempt01",
+  "tool": "egw_experiments.local_export",
+  "tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+  "tool_version": "1"
+}

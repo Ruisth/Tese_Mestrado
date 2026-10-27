@@ -1,0 +1,129 @@
+{
+  "condition_id": "controller_restart",
+  "criterion": {
+    "detail": "0/3 controller_restart run(s) recovery_observed (3 planned)",
+    "name": "restart_recovery_observed_every_run",
+    "not_qualified": [
+      {
+        "qualification": "not_evidenced",
+        "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+        "run_id": "controller_restart-r01"
+      },
+      {
+        "qualification": "not_evidenced",
+        "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+        "run_id": "controller_restart-r02"
+      },
+      {
+        "qualification": "not_evidenced",
+        "reason": "validity 'absent'; integrity 'absent': the run is not evidence",
+        "run_id": "controller_restart-r03"
+      }
+    ],
+    "passed": false
+  },
+  "plan": "/home/ruisth/egw-tcg/pilot/campaign_plan.json",
+  "plan_problem": null,
+  "runs": [
+    {
+      "captured_utc": null,
+      "drain_outcome": "absent",
+      "drain_source": null,
+      "duplicate_only_unexplained": 0,
+      "excluded": false,
+      "integrity": "unsealed",
+      "n1": {
+        "accepted_lines_without_device": 0,
+        "devices": {},
+        "duplicate_only_unexplained": [],
+        "events_copy": "events.jsonl",
+        "n1_applied_unconfirmed": [],
+        "note": "explanation only: a named identity stays in lost and in every zero-lost criterion, the delta line of its device stays a mismatch, and it is never counted as accepted, delivered or on time; no exactly-once claim",
+        "notes": [],
+        "run_id": "controller_restart-r01",
+        "sources": {
+          "a3_ends": 0,
+          "controller_log_note": "the manifest records no controller_log fetch",
+          "controller_log_read": false,
+          "deaths": [],
+          "deaths_note": "the manifest records no docker_events fetch",
+          "deaths_read": false
+        },
+        "twin_evidence_problem": "the run's recovery qualification is 'not_evidenced' (validity 'invalid'; integrity 'unsealed': the run is not evidence)"
+      },
+      "n1_applied_unconfirmed": 0,
+      "planned": true,
+      "post_drain_present": false,
+      "post_drain_verified": false,
+      "qualification": "not_evidenced",
+      "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+      "run_id": "controller_restart-r01",
+      "twins_after_present": false,
+      "twins_after_verified": false,
+      "twins_before_present": false,
+      "twins_before_verified": false,
+      "validity": "invalid"
+    },
+    {
+      "captured_utc": null,
+      "drain_outcome": "absent",
+      "drain_source": null,
+      "duplicate_only_unexplained": 0,
+      "excluded": false,
+      "integrity": "unsealed",
+      "n1": {
+        "accepted_lines_without_device": 0,
+        "devices": {},
+        "duplicate_only_unexplained": [],
+        "events_copy": "events.jsonl",
+        "n1_applied_unconfirmed": [],
+        "note": "explanation only: a named identity stays in lost and in every zero-lost criterion, the delta line of its device stays a mismatch, and it is never counted as accepted, delivered or on time; no exactly-once claim",
+        "notes": [],
+        "run_id": "controller_restart-r02",
+        "sources": {
+          "a3_ends": 0,
+          "controller_log_note": "the manifest records no controller_log fetch",
+          "controller_log_read": false,
+          "deaths": [],
+          "deaths_note": "the manifest records no docker_events fetch",
+          "deaths_read": false
+        },
+        "twin_evidence_problem": "the run's recovery qualification is 'not_evidenced' (validity 'invalid'; integrity 'unsealed': the run is not evidence)"
+      },
+      "n1_applied_unconfirmed": 0,
+      "planned": true,
+      "post_drain_present": false,
+      "post_drain_verified": false,
+      "qualification": "not_evidenced",
+      "reason": "validity 'invalid'; integrity 'unsealed': the run is not evidence",
+      "run_id": "controller_restart-r02",
+      "twins_after_present": false,
+      "twins_after_verified": false,
+      "twins_before_present": false,
+      "twins_before_verified": false,
+      "validity": "invalid"
+    },
+    {
+      "captured_utc": null,
+      "drain_outcome": "absent",
+      "drain_source": null,
+      "duplicate_only_unexplained": null,
+      "excluded": false,
+      "integrity": "absent",
+      "n1": null,
+      "n1_applied_unconfirmed": null,
+      "planned": true,
+      "post_drain_present": false,
+      "post_drain_verified": false,
+      "qualification": "not_evidenced",
+      "reason": "validity 'absent'; integrity 'absent': the run is not evidence",
+      "run_id": "controller_restart-r03",
+      "twins_after_present": false,
+      "twins_after_verified": false,
+      "twins_before_present": false,
+      "twins_before_verified": false,
+      "validity": "absent"
+    }
+  ],
+  "statement": "This layer changes no count of lost, late or N1 messages and adds nothing to the analyser's acceptance table (acceptance_by_condition.csv): every figure of the analysis comes from egw_experiments.analyze, unchanged (ADR 0011); the N1 columns are this layer's report of identities read from the run's files and change no figure; the qualification is read from the sealed manifests' restart evidence records alone."
+}

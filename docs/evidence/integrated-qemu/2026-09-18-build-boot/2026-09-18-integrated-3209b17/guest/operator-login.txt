@@ -1,0 +1,3 @@
+uid=1000(egw) gid=1000(egw) groups=995(docker),1000(egw)
+egw-qemu-integrated
+SUDO_OK

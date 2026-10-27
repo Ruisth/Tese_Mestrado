@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1383-1391 (prompt removed)
++++ b/rows/t4-replay.sh
+@@ -1 +1 @@
+-R=itest-dup-01; T4=stop; REPLAYED=stop; run_test $R 42 --scenario smoke --duration 60 && keep $P/$R.reconcile.json $P/$R.reconcile.pre-replay.json && keep $P/$R/events.jsonl $P/$R.events.pre-replay.jsonl && T4=ok || stop "test 4: the first run did not complete, or its pre-replay copies were not saved - do NOT replay (T4=$T4)"   # the copies keep the pre-replay accounting: the second fetch and the second check below overwrite both originals
++R=itest-dup-01-q1; T4=stop; REPLAYED=stop; run_test $R 42 --scenario smoke --duration 60 && keep $P/$R.reconcile.json $P/$R.reconcile.pre-replay.json && keep $P/$R/events.jsonl $P/$R.events.pre-replay.jsonl && T4=ok || stop "test 4: the first run did not complete, or its pre-replay copies were not saved - do NOT replay (T4=$T4)"   # the copies keep the pre-replay accounting: the second fetch and the second check below overwrite both originals

@@ -1,0 +1,578 @@
+{
+  "summary": "Build the S4 (test 6 only) operator tooling in three streams, then two independent bounded checks",
+  "agentCount": 5,
+  "logs": [
+    "ROWS: 19 files; 8 open issue(s)",
+    "OPERATOR: 14 files; 6 open issue(s)",
+    "HOST: 16 files; 8 open issue(s)"
+  ],
+  "result": {
+    "built": [
+      {
+        "stream": "ROWS",
+        "result": {
+          "files": [
+            {
+              "path": "<S>/g3/t6prep/g3_extract_rows.py",
+              "sha256": "e3aa669d38c6320db1bfa853fd25834ac4d848e6fb04c6e9f341fbfd39c23050"
+            },
+            {
+              "path": "<S>/g3/t6prep/g3_check_rows.sh",
+              "sha256": "ae7038d3e046afa921ca7084240388bd8e87fe4c34797b9c750bffedc4d48494"
+            },
+            {
+              "path": "<S>/g3/t6prep/g3_rows_dryrun.sh",
+              "sha256": "1f32c56c32895b5d2cfd466b5e18db8cc3465a295df61085527294f75983c994"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows/t6.sh",
+              "sha256": "ec8ac010d79ba87ff7f2b4c828c4fbe85c7f0c765d6869670552a6c1ba326377"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows/t6.sh.diff",
+              "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows/rows.manifest.json",
+              "sha256": "7d2a0f0d940c1d2f978a33693869fe4372cf7c63c4592d3d911d1440bdb8fb47"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-notes.md",
+              "sha256": "0bc5d93ce512619052ddc24a5f21785979d969a2048343c2c911ef93494f4f0e"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/run-record.sh",
+              "sha256": "7ffe2535e2cc7a40cdd8d8bf825394486d58c7e00e726824ccc34f610d7cce31"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-proofs.sh",
+              "sha256": "1e806e1fef3238ba02d82833caf439f3a548b0d01e05bdc63ad3913eb28dc037"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/manifest-compat.py",
+              "sha256": "82451baf0972498f642fdac7b32b7164c40048d92f2640bd400ff84f15f35acd"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-extract.console.txt",
+              "sha256": "dac0c4bc00d61e083a5f1f0fa79a01741362617370a8eaa3e47d89b6c2c4595c"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-check.console.txt",
+              "sha256": "4cfd2d7abea2ff5708a88eb401674e0adf507777839368a818bb6b175a1ef431"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-dryrun.console.txt",
+              "sha256": "07975c7eefb7731f58536af802ed004494f0354289d97def39a76e4c948d378e"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-proofs.console.txt",
+              "sha256": "27ef27c67730913f7bf32c308edb264b1cbab868b2202f21d029748a4a381810"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-check-clone-mode.console.txt",
+              "sha256": "5cd01b0b4e37a366550057836e3f770c4e3f80bd0490bc8ac591c63194ccd537"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/manifest-compat.console.txt",
+              "sha256": "3c44b7622a129f94bac4cfd13da43458290f48d684989cfa1b3bdc5ca922a6bc"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-static.console.txt",
+              "sha256": "9e426309a51ebb451e26f51303e4f894669eec794d10e02a1c2a4dafebae0b22"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-untouched.console.txt",
+              "sha256": "4025dee98a19b2450f36fa34e6f6fca16483ca9f02d8f29610a703b4b87cae8a"
+            },
+            {
+              "path": "<S>/g3/t6prep/rows-record/rows-files.sha256",
+              "sha256": "a3a184ee2bd10ab14b6cb6e018450baef598ee97b1fb6e092ea7e0b42f837d4f"
+            }
+          ],
+          "summary": "I finished stream ROWS for S4 (test 6 only). The three scripts now target the merged commit 1fd9792 and session S4, and substitute nothing: controller_restart-r04 is the runbook's own run id.\n\n**What was produced.** I ran the extraction on P/runbook.1fd9792.md, which checks the file's sha256 (317165936...) and its 1,624 lines. It wrote three files into P/rows:\n- `t6.sh`: 8 lines, sha256 ec8ac010...6377.\n- `t6.sh.diff`: empty, as the battery's was.\n- `rows.manifest.json`: sha256 7d2a0f0d....\n\n**Checks.**\n- **Extraction `--check`:** 0 differences. It agrees with the test module's own `_section` and `_host_commands` (rule source b63ef7d8...).\n- **Checker, blob mode:** 22 ok, 0 FAIL, `ROW FILES OK`, with git called 0 times.\n- **Proofs:** `t6.sh` is runbook lines 1421-1428 with `host$ ` removed, byte for byte, shown two ways (Python byte slicing, then sed and cmp). Lines 1420 and 1429 open and close test 6's only fenced block.\n- **Against the battery's `t6.sh`:** that file (ebc9700c...) is identical to the sealed copy and to the one S2 ran. The diff has exactly three hunks, `1c1 5c5 6a7`: the RID line, the harness line, and the added `acceptance --exactly-once` line (new lines 1, 5, 7). In the commands themselves:\n  - line 1 changes only r03 to r04;\n  - line 5 gains `--restart-transition-rule 1a-option-a-2026-10-05` and a read-only print of the manifest's `resources_transition_rows`.\n  \n  Both comments also changed. The diff lines, cut at 200 characters, are quoted in the notes.\n- **Dry run:** `t6.sh` ran in the steps script's step form (`set -v`, stdin closed, stub helpers) under /tmp/g3-s4-dry-rows.*. All 10 cases gave the expected results: entry already used (twice), no seed, harness exit 2, 3 and 1, drain gave up, and a quiet drain with acceptance 0, acceptance 4, and delta 4. The checker refused all 12 altered copies, passed the unaltered one, and made 0 git calls.\n- **Clone mode:** exercised on a throw-away /tmp clone (pass at 1fd9792; fail on an untracked file, at 8e49261, and with no clone).\n- **Steps-script compatibility:** the manifest passes `MANIFEST_PY` from both `P/base/g3_battery.sh` and the current `P/g3_battery.sh`.\n- **Untouched:** the real-HOME tree timestamps (stat only) were identical before and after.\n\nAll files are LF with no BOM and pass `bash -n`. Diff sizes against P/base (added/removed lines):\n\n| Script | Added | Removed |\n|---|---|---|\n| `g3_extract_rows.py` | 131 | 249 |\n| `g3_check_rows.sh` | 68 | 72 |\n| `g3_rows_dryrun.sh` | 163 | 71 |\n\nThe consoles are in P/rows-record (driver `run-record.sh`), and everything above is written up in P/rows-notes.md.",
+          "open_issues": [
+            "Clone mode against the real execution clone still has to be run, after the host preparation moves ~/egw-exec/repo to 1fd9792: `bash g3_check_rows.sh <rows dir>` without --blob. Until then the row file has only been shown equal to a file with the pinned sha256.",
+            "`t6.sh` has never run with the real helpers or the harness here. The dry run only exercises the control flow of the eight lines against stubs.",
+            "The manifest's `generator_sha256` follows the extraction script. Any edit to `g3_extract_rows.py` changes `rows.manifest.json`, so `rows-record/run-record.sh` must be run again. The compatibility check was made against `P/g3_battery.sh` at sha256 bb086f6a..., which belongs to the OPERATOR stream and is still changing; it needs re-running if its `MANIFEST_PY` changes.",
+            "For the operator procedure: line 7 (`acceptance --exactly-once`) still runs after a failed delta, because it only reads T6. Line 8 (analyze) runs in every case.",
+            "The harness receives `DRAIN_QUIET_S`, `DRAIN_STEP_S` and `DRAIN_LIMIT_S` empty, because STEP_PRE unsets them; this is unchanged from S2. `proof_hook_drained.sh` treats empty values as the defaults (130, 5, 900).",
+            "Observed, not caused by this stream: ~/egw-exec/repo/.git has mtime 2026-10-05 19:20:04 +0100, before this stream started, and it did not change during the run.",
+            "Observed, read-only: a Windows `git status` of S/t6m shows 99 entries (97 modified, 2 deleted), all under docs/evidence/, with a 'Filename too long' warning. None is a file this stream reads, and the runbook and test module there equal their 1fd9792 blobs.",
+            "The manifest's schema name is still `g3-battery-rows-manifest/1`; its form was kept as the brief requires."
+          ],
+          "deviations_from_brief": [
+            "Guards and assertions added to the extraction script that the brief did not ask for. It now refuses output paths containing the components t6m, t6int, s3prep, s3bprep or battery (the directories hard rule 1 lists). It also asserts how often each plan-entry literal appears and checks three line markers: the RID on 1421, the transition-rule flag on 1425, the exactly-once line on 1427.",
+            "S3's prose-only step `t9-exposure.sh` and its constants were removed from the extraction. S4 extracts only `t6.sh`, and the sentence that step quoted has moved from runbook line 1537 to 1538 in the 1fd9792 blob. S3 removed test 1's prose step the same way.",
+            "The dry run was rewritten around `t6.sh`: ten step-form cases plus a checker self-test. It takes an optional fourth argument, the battery's `t6.sh`. The brief only said to change the files it names; S3's cases (test 8 carriers, test 9 exposure) have nothing to apply to in S4.",
+            "Clone mode was also exercised against a throw-away /tmp clone made with `git clone -s` from the Windows repository, as S3's record did, because that code path was edited. Nothing was written in any worktree or in the source repository.",
+            "The system python3 was used instead of the venv's: the scripts use only the standard library, and the venv lives under the real HOME.",
+            "CR bytes were counted with `tr -cd '\\r' | wc -c` in WSL rather than rule 4's `grep -c $'\\r'`, because in Git Bash that grep pattern arrives empty. The count was 0 everywhere.",
+            "Rule 6: the project's own directory name 'ChatGPT' still appears as a refused path component in the extraction script (unchanged from the sealed version), in the record driver that tests that refusal, and in the console that shows it."
+          ]
+        }
+      },
+      {
+        "stream": "OPERATOR",
+        "result": {
+          "files": [
+            {
+              "path": "<S>/g3/t6prep/g3_battery.sh",
+              "sha256": "7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c"
+            },
+            {
+              "path": "<S>/g3/t6prep/g3_battery.README.md",
+              "sha256": "2dd119bf4c1ec5f1ed1e147b638688c82ff54efccaa6598034e2fd5695e67fdd"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-procedure.md",
+              "sha256": "67f41d772d2905010f008dc55a1acd3a3a1fe11d1359def6d8765ef9863356db"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-notes.md",
+              "sha256": "25a5be045acd087e37042618685d3aa65da1b1c44e9d4eb3c33414369054d7f5"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/bs4_op.sh",
+              "sha256": "104783449e3979658068d3e354032c8c5484b5d176629927ae7489085480531f"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/static.console.txt",
+              "sha256": "a9e3ad236a619db8114d147b7ab5720c1b44772407ad5286aae707be736f706b"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/labels.console.txt",
+              "sha256": "c99bdc3b2152a843c295da6738f59d5255d7f5c999a51837667f9b5d68a1f0e6"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/pass.console.txt",
+              "sha256": "2756c9238a0f741b22d9d23b1a7c94c80bfb57d3e5c4c62b1c9bb91181c688ba"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/preflight3.console.txt",
+              "sha256": "a10dff5d81a1747eef877fbbe9353c83b936915b6437c9f06a9e258b1a97cd41"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/collector.console.txt",
+              "sha256": "93236d1471869f2ff4e4736125de750fbb83386a278277c0c298682ac761d446"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/rootfs.console.txt",
+              "sha256": "cc71f2a2509aace40fc79ab0d342b501c806fa687d849683ab9642b08565a6a4"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/fresh.console.txt",
+              "sha256": "efa7014801d5318f14dcbb5bf7cca0e5e94d98e5b22235dbcd1102fba51fc317"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/suffix.console.txt",
+              "sha256": "15c3726b700c2df9eed8e00c25acfea354cba8d81908ffe0afdb3cb12aac5a4a"
+            },
+            {
+              "path": "<S>/g3/t6prep/operator-record/gate.console.txt",
+              "sha256": "76a72b2c8255a1bf2f9d5285f0be862bf9ff4ac9eda66ee524c457265436b905"
+            }
+          ],
+          "summary": "I finished Stream OPERATOR for S4 (test 6 only). Everything was done offline: no guest, no QEMU, no ssh, no git writes, nothing under the real HOME or output_test.\n\n**g3_battery.sh**\n- It is S3b's script (base 42de225a…) with 135 insertions and 95 deletions. Every change sits under an \"S4 (point N)\" comment.\n- The final file is 2,356 lines, LF only, and `bash -n` passes. shellcheck 0.11.0 `-S warning` exits 0, with the same info-level findings as the base.\n\nWhat changed:\n1. **Point 1:** `open` accepts only S4. S1/S2 are refused as the battery's consumed authority, and S3 as closed and consumed. The rows are `ROWS_S4=\"t6\"`. The root file system constant is now `ROOTFS_BEFORE_S4=6fce1688…`. I read that value from S3b's sealed `session-S3.env`, key `rootfs_after_close`, line 26.\n2. **Point 2:** TOOLS/TREE are 1fd9792/14f89c4, DRIVERS_SHA is 2c209b09… and RUNBOOK_SHA is 31716593…. A new `COLLECTOR_SHA=9e678b02…` is checked by `want_sha` in `verify_candidate`, at open and before the row. The state directory is `$EXEC/g3-t6-s4`. I reproduced every value from git blobs, read-only.\n3. **Point 3:** the S3b exception is gone: base lines 3–5, 92–94, 115 and 1010–1030, plus its mention in the workload text. A non-zero preflight is now `open_halt \"preflight.sh exited $rc\"`, the same form as S3's first opening.\n4. **Point 4:** `row_harness_id t6` gives `controller_restart-r04`.\n5. **Point 5:** `T6_ADMITTED` is S2's attempt01, and `fresh_row` admits it only in the WSL attempts directory and `output_test/runs/2026-10-03/`. The new attempt must be named `_g3-qualification-t6_attempt02`, or the row halts before any step.\n6. **Point 6:** the gate image check now runs before row t6. I confirmed that S3's gate record (a713c8ba…) equals S2's in the three compared fields and equals the script's constant.\n7. **Point 7:** the authority text in the workload field is the brief's text, key `battery` kept.\n8. **Point 8:** the t6 path needed no fix; I only added a comment. The harness rewrites the plan status itself (`run.py update_plan_status`), and the before/after snapshots capture that.\n9. **Point 9:** the t8/t9 code is untouched and unreachable. term, take_turn, keepalive, environment copy, close_rows, on_signal and run_step are byte-identical to the base.\n10. **Point 10:** the script contains no start, restart or signal command.\n\n**Other files**\n- The README and operator procedure are rewritten for S4. The procedure says where each quantity is read and lists the configuration-identity values to compare with packet section 1.\n- operator-notes.md gives line numbers for all ten points and the evidence on lines 1425/1427 in a step shell.\n- Lines 1425/1427 need nothing extra from the script, and I found nothing in them that misbehaves in a step shell. They use no process substitution and read no stdin; `local_export` runs the step with stdin closed. Neither line holds the password text, so `set -v` cannot print it. Empty `DRAIN_*` values fall back to 130/5/900, which S2's sealed hook transcript shows.\n\n**Bench**\n- `operator-record/bs4_op.sh` covers eight scenarios on the final bytes (7a63b361…): labels, pass, preflight3, collector, rootfs, fresh, suffix and gate. All 109 checks passed.\n- In the pass scenario the stub ssh log holds exactly one controller restart, from the row's own step. The bench uses a stand-in t6.sh; the runbook's real block was not run.\n- I also checked ROWS' `P/rows` read-only against the script's MANIFEST_PY: verify exited 0 (`t6.sh` ec8ac010…, manifest 7d2a0f0d…), and the workload field built correctly.",
+          "open_issues": [
+            "Which per_run.csv column is 'recovery within 120 s' is not stated in the request. The packet's T6 row of 2026-10-01 names the endpoint recovery (restart_metrics_endpoint_recovery_s), while analyze.py calls restart_functional_recovery_s 'the readiness gate'. The procedure reads both and leaves a split verdict to Rui; a PM or Rui clarification would remove the ambiguity.",
+            "The harness rewrites the plan entry's status during the run (running, then completed or failed, with result_dir, finished_utc and validity), so the plan's sha256 will no longer be 61d55940… after S4. Nothing after S4 should expect that value.",
+            "HOST stream: ops/g3_go.sh and ops/g3_wait.sh must use the state directory ~/egw-exec/g3-t6-s4 and 'row t6'. I did not check that stream's files.",
+            "ROWS stream: the script needs rows/rows.manifest.json with session 'S4', row 't6', steps ['t6.sh'] and step_order 1. It was compatible when checked at 18:55Z (manifest 7d2a0f0d…, t6.sh ec8ac010…); any later regeneration should be re-verified, since the script halts on a mismatch.",
+            "Not exercised: the runbook's real block in a step shell (the harness, hooks, delta, acceptance --exactly-once and analyze all need the guest), and 'term t6' arriving during the harness (the battery's design: TERM to the whole group, then harness_cmd's own trap and cleanup).",
+            "local_export numbers attempts by searching output_test/runs and incomplete at any depth, while fresh_row checks only one level deep. A nested copy named …_g3-qualification-t6_attemptNN would shift the number, and the name check would then halt the row before any step (as designed). Today S2's attempt01 is the only t6 attempt anywhere under output_test and in ~/egw-exec/attempts."
+          ],
+          "deviations_from_brief": [
+            "I wrote files under P/operator-record/ (the bench script bs4_op.sh, eight scenario consoles and static.console.txt), which the brief does not list for this stream. S3's operator stream kept the same kind of record in its operator-record/, so I followed that precedent.",
+            "In WSL I created /tmp/g3-s4-op-src (the merged tree extracted read-only with git archive 1fd9792), /tmp/g3-s4-op/<scenario> and /tmp/g3-s4-op.run1 (the first bench run, moved aside rather than deleted). All match the brief's /tmp/g3-s4-* allowance.",
+            "The result-note name '<date>_g3-t6-results.md' in the close's final message and the README is my choice: the request (section 6) only says 'a result note in output_test/decisions/'.",
+            "Beyond the strict list in point 1, user-visible texts that named S3 (halt-refusal text, gate NOTE, classify's invalid-instrumentation halt, close's final message, rootfs_after_close comment) now name S4. Each is marked with an 'S4 (point 1)' comment."
+          ]
+        }
+      },
+      {
+        "stream": "HOST",
+        "result": {
+          "files": [
+            {
+              "path": "<S>/g3/t6prep/g3_hostprep.sh",
+              "sha256": "ad214aeba54f6ede31dc3bbb8272cc55ff3e3645583e062ca0277a20292845ec"
+            },
+            {
+              "path": "<S>/g3/t6prep/seal_prep.sh",
+              "sha256": "8ea6f7040c6e492bb5aaec4f7a9bb025adf5058b537d932384214075801a3fff"
+            },
+            {
+              "path": "<S>/g3/t6prep/ops/seal_ops.sh",
+              "sha256": "d8b3de3cff5bfc210f64b4f0eb91d630812194f6e63875d4bf1a8048d4d72044"
+            },
+            {
+              "path": "<S>/g3/t6prep/ops/seal_ops_finish.sh",
+              "sha256": "97f50ceb4ae8e0319e34b6d7c064b88dc40f54b591032ae9083c5edf3b99b51b"
+            },
+            {
+              "path": "<S>/g3/t6prep/ops/g3_go.sh",
+              "sha256": "cb77af8965ba00d844c40328944f3a16d4b5a9ba07b953368bf663f2cfe10625"
+            },
+            {
+              "path": "<S>/g3/t6prep/ops/g3_wait.sh",
+              "sha256": "28dc98ce620b80f677b3e13e20a0292b62419f1a711c5810bebeb290f8ee2415"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-notes.md",
+              "sha256": "ee83942911c5f0e71e2daaa63e14fdd1e96c29c357d2967c067631d359b533f8"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/ro_look.console.txt",
+              "sha256": "4c7645bdcc4f72c2fc6ede2aee2ee3bb37e26339ac5ed3d701489f4d7e933d92"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/plan_check_bench.sh",
+              "sha256": "db5be657bf1399a69dd5486ff3de7b38b387b339c7719c930fca752bc61ac523"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/plan_check_bench.console.txt",
+              "sha256": "b430ca492289e44d161d458fb6fc66c989f3a17eef488726e85ee5d61971c101"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/static_values.sh",
+              "sha256": "a9f3b5488aa0f88e13f9dcac0a41e50996ea4b65ab2909fc03ce6d6279c82f42"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/static_values.console.txt",
+              "sha256": "f68a946967a7f8464b1164a60bf0067d0c42187c7b359907b1d5636205983477"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/static_syntax.sh",
+              "sha256": "c0a3e27e72214e084adb35afae414cd2312cf6e790638e763ea416be67421fbd"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/static_syntax.console.txt",
+              "sha256": "ad34977a36dd943671b21a48991f67f30cf879206a501ee9d02f11c8442cd348"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/seal_bench.sh",
+              "sha256": "c016a38c8e0dddaa433e598d5d1595d92f8bce73f9460d5bad77db61eeb02c28"
+            },
+            {
+              "path": "<S>/g3/t6prep/host-record/seal_bench.console.txt",
+              "sha256": "5cdf170ceed7bfa3d029e9fe232f0a82a93ad9c1f37be47ef53bb5a9e5810104"
+            }
+          ],
+          "summary": "Stream HOST is done for S4. I did not run g3_hostprep.sh. All six scripts pass bash -n, contain no CR bytes or byte-order mark and are ASCII only. host-notes.md is UTF-8 without a byte-order mark.\n\nWhat g3_hostprep.sh now does, in order:\n- Admits the clone only at 8e49261 (S3's commit) or 1fd9792. Local changes or any other HEAD stop it before anything is fetched or changed.\n- Fetches origin's refs/remotes/origin/dev. 1fd9792 must exist and be an ancestor of the tip, or the tip itself. The clone is checked out detached at 1fd9792, never at the tip. It then requires tree 14f89c4, a clean status, unchanged branches and the reviewed head e375026 with the same tree.\n- The 41 files that differ from 8e49261 are listed but no longer judged.\n- No-rebuild check against 489bc9e: eight paths must be identical. src/deployment must differ by exactly README.md and scripts/collect-resources.sh.\n- The venv must import egw_experiments from the clone, and g3-t6 must be a defined supplement.\n- Identities are compared against the merged values: runbook 31716593 with 1,624 lines, rule source b63ef7d8, collector 9e678b02, deployment trees 573e902b and e056d389 differing in exactly two names, drivers_sha256 2c209b09 (read through the clone's repo_identity), root file system 6fce1688.\n- The helper is regenerated as before.\n- controller_restart-r04 must be unused on the host: the listed paths, plus a search by name under the attempts directory, output_test, itest, itest-replay and pilot/results.\n- Only S2's t6 attempt01 is admitted, and only at its two kept paths, so the new attempt will be attempt02.\n- The guest root file system is listed offline with debugfs -c, requiring '.' and '..', and hashed before and after.\n- The data disk's size (34,359,738,368 B) and its ext4 header are read, never hashed.\n- Last comes the plan entry. If the plan is at c195bd3f, the predecessor is kept in the record and the merged plan-supplement is run. If it is already at 61d55940 (a re-run), nothing is run. Any other value stops with nothing run.\n- The plan check then requires sha256 61d55940 and the same top-level names in ~/egw-tcg/pilot. It proves the first 95 entries unchanged twice: by bytes (the plan without its last entry is the predecessor, sha256 c195bd3f) and by JSON comparison. The r04 entry must equal the request's entry exactly.\n- It finally re-checks that the clone is still clean at 1fd9792.\n\nThe sealing and operator scripts:\n- seal_prep.sh, seal_ops.sh and seal_ops_finish.sh now use the S4 package names, label S4 and state directory g3-t6-s4.\n- seal_prep.sh seals the S4 file set, including bench-brief.md, runbook.1fd9792.md and a diff of the operator procedure.\n- When a package name already exists, the refusal now prints the next free -attemptNN name.\n- The secret sweep is unchanged and still does not match its own pattern.\n- g3_go.sh and g3_wait.sh now name S4 and t6.\n\nChecks that ran:\n- static_values: 61 same, 0 different, against git objects of 1fd9792, S3's sealed records and today's host.\n- Plan bench on copies in /tmp/g3-s4-host-plan: 17 PASS, 0 FAIL. The merged plan-supplement turned a copy of today's plan into 61d55940.\n- Seal bench with a fake HOME and a fake .env: 83 PASS, 0 FAIL.\n- shellcheck: the only findings beyond the base copies' are two intended notes in g3_hostprep.sh.\n- A read-only look at the real host found: no QEMU or session, clone at 8e49261 and clean, plan c195bd3f, r04 absent everywhere, root file system 6fce1688, data disk at the expected size.\n\n/tmp/g3-s4-host-plan and /tmp/g3-s4-host-sc are still in WSL. host-notes.md gives the operator's exact command lines for the host preparation, the row checks and the sealing.",
+          "open_issues": [
+            "The plan step is first run against the real ~/egw-tcg/pilot/campaign_plan.json during the host preparation itself; on a copy the merged plan-supplement gave 61d55940. If plan-supplement ends 0 but a later check in the step stops, the plan stays as plan-supplement wrote it; its predecessor is in record/campaign_plan.predecessor.json and Rui decides what follows.",
+            "The data disk's ext4 header is recorded, not judged (today 'clean'); only the size is a stop.",
+            "The name search for controller_restart-r04 covers all of output_test (6,266 entries today, none matching). Anything another stream seals into output_test under such a name before the host preparation would stop it; a sealed HIST_*-g3-t6-host-preparation* package is skipped.",
+            "seal_prep.sh requires by name: rows-notes.md, operator-notes.md, host-notes.md, bench-notes.md, bench/record/, rows/rows.manifest.json, rows-record/, host-record/, bench-brief.md, runbook.1fd9792.md and the base/ copies. A stream that delivers under another name will make sealing refuse (exit 2, nothing created). Stream OPERATOR's operator-record/ is copied as a *-record folder.",
+            "g3_battery.README.md and operator-procedure.md (stream OPERATOR) should carry the sealing command lines from host-notes.md section 6: seal_ops.sh takes four arguments and label S4, and the preparation package by its full name, including any -attemptNN.",
+            "The real .env was not read, so it is unknown whether a secret-named value also appears innocently in a record.",
+            "Observation only, nothing changed: src/Dockerfile copies egw_experiments/ into the controller image, and egw_experiments differs from 489bc9e in 9 files. The controller imports none of it, and the no-rebuild list (unchanged since S3) does not include it.",
+            "The row-checker and dry-run command lines in host-notes.md are in S3's form; their final argument lists should be taken from stream ROWS's rows-notes.md."
+          ],
+          "deviations_from_brief": [
+            "The outcome line keeps S3's form 'outcome=prepared (at ...)' instead of the brief's 'outcome: prepared'. Primary source: S3's sealed record HIST_2026-10-05-g3-t8t9-host-preparation/part1-record/console.txt (last line), and seal_prep.sh, which parses '^outcome='.",
+            "Added a folder P/host-record/ that the brief does not list. It holds this stream's check and bench scripts and their consoles, as S3's stream HOST had.",
+            "Ran a read-only look at the real host (ro_look.console.txt) as inline commands, not as a script of P/. It wrote nothing under HOME or output_test; its one write was a copy of the plan into /tmp/g3-s4-host-plan.",
+            "Executed one fragment of g3_hostprep.sh: the plan step's content check, cut out of the script and run on copies in /tmp. This goes beyond 'bash -n and static checks only'; g3_hostprep.sh itself was not run.",
+            "g3_hostprep.sh checks more than the brief lists, each a stop on mismatch: the venv's module path and its g3-t6 supplement, the clone still clean at the end, the top-level listing of ~/egw-tcg/pilot before and after, a name search in itest, itest-replay and pilot/results, a prefix rule on the guest listing, the image commit's deployment tree, and the admitted t6 attempt found at least once.",
+            "S2's t6 attempt is admitted by exact path (attempts directory and output_test/runs/2026-10-03/), not by name anywhere as S3 admitted its t8 attempt. Primary source: g3_battery.sh fresh_row, which admits the earlier attempt only in the attempts directory and under output_test/runs/2026-10-03/ (base line 791; the brief's stream OPERATOR point 5 keeps this for t6). A copy elsewhere would halt the row, so the preparation stops on it first.",
+            "S3's stop on any file under tools/ or under src/ outside src/tests that differs from the previous commit is now recorded, not judged. S4's tools changed by design; the hash checks cover what changed.",
+            "Renamed the variable BATTERY to PREVIOUS, although rule 7 allows no renaming beyond what is listed. Its value is now S3's commit, and the old name would have printed 'the battery's commit' for it.",
+            "No automatic -attemptNN name. S3's rule stays (the operator gives the name, and an existing name is refused); the refusal now prints the next free name. The operator-records seal refers to the preparation package by its path, so the operator must choose the name.",
+            "seal_prep.sh also requires bench-brief.md, which appeared in P during this work, copies it as prep_bench_brief.md, and adds a diff of the operator procedure against base/."
+          ]
+        }
+      }
+    ],
+    "checks": [
+      {
+        "lens": "operator-flow",
+        "result": {
+          "findings": [
+            {
+              "id": "OP-1",
+              "file": "<S>/g3/t6prep/operator-procedure.md",
+              "line": 73,
+              "severity": "material",
+              "defect": "The procedure says the request does not define which recovery figure decides 'recovery within 120 s'. It reads both `restart_metrics_endpoint_recovery_s` and `restart_functional_recovery_s` and, when they fall on different sides of 120 s, says 'the class is Rui's decision, not the operator's'. The specification does define it. The request's section 6 is 'The packet's T6 row, read under the amended criterion (no class added)', and that row names the endpoint recovery. The merged runbook's test 6 Expected paragraph, which the decision record names as where the amended criterion is written, also defines the bound as controller-metrics samples resuming within 120 s. analyze.py maps that to `restart_metrics_endpoint_recovery_s`. With the procedure's rule, a run with endpoint recovery above 120 s and functional recovery within it (a valid failure under the request) could be passed by Rui's decision. In the opposite split, a pass becomes undecided. Line 45 also lists both columns without saying which one decides.",
+              "evidence": "operator-procedure.md 73-76: \"The request does not say which of the two recovery columns is \"recovery within 120 s\": the packet's T6 row of 2026-10-01 names the endpoint recovery, and `analyze.py` calls the functional one \"the readiness gate\". Both are read ... if they fall on different sides of 120 s, the class is Rui's decision, not the operator's.\"\n\nrequest-draft.md section 6: \"The packet's T6 row, read under the amended criterion (no class added)\".\n\nS/g3/battery/packet.md line 102 (T6 row): \"endpoint recovery ≤ 120 s\".\n\nrunbook.1fd9792.md line 1433: \"samples resuming within 120 s (`RESTART_RECOVERY_MAX_S`, protocol.py)\" and \"together with the recovery bound above (samples resuming within 120 s, `RESTART_RECOVERY_MAX_S`)\".\n\nanalyze.py 260-273: \"(b) ENDPOINT recovery — the first controller-metrics sample after the restart finished lands within RESTART_RECOVERY_MAX_S ... the per-run column is restart_metrics_endpoint_recovery_s\".\n\noperator-notes.md section 5 repeats the claim: \"the request does not say which per_run.csv column decides it\".",
+              "proposed_fix": "In operator-procedure.md, replace lines 73-76 with: \"Recovery within 120 s is read on `restart_metrics_endpoint_recovery_s` ≤ 120 (the packet's T6 row, 'endpoint recovery ≤ 120 s'; runbook line 1433, 'samples resuming within 120 s'). `restart_functional_recovery_s` and its source are reported beside the result and decide nothing.\" In the line 45 row, mark `restart_metrics_endpoint_recovery_s` as the deciding column. Correct the matching paragraph of operator-notes.md section 5. If the operator and Rui intend a different reading, it needs Rui's decision before S4, not during classification."
+            },
+            {
+              "id": "OP-2",
+              "file": "<S>/g3/t6prep/g3_battery.README.md",
+              "line": 152,
+              "severity": "minor",
+              "defect": "The README and the procedure give contradicting classes for a halt after the attempt exists but before the step runs. The README directs `invalid/unknown` for the attempt-fields, copy, source-registration, guest-state-before and snapshot-before halts. The procedure says any attempt left by a halt before the step is classified not started (`not-applicable/not-run`). It also says a snapshot failure is instrumentation, so for a snapshot-before failure the procedure contradicts itself. Its parenthetical example 'the gate's image record' creates no attempt at all (`cmd_row` halts before `new_attempt`). The operator could record a different class from the same evidence. The session ends either way.",
+              "evidence": "g3_battery.README.md 152: \"| `row`, attempt created | `the attempt fields could not be recorded`; `… could not be copied into the attempt`; `a source could not be registered`; `the guest state before the row was not recorded`; `the plan and processed/ could not be copied before the harness` | no step of the row was run | classify by cause (instrumentation: `invalid/unknown`); ...\"\n\noperator-procedure.md 66-68: \"a step status 97 or 74, or a snapshot, transcript or export failure, is instrumentation (request, section 5 item 2); a halt before the step (the gate's image record, the attempt's name) ran nothing, and an attempt that exists is classified not started.\"\n\ng3_battery.sh 1798-1803 (gate record halt) runs before 1807 (`new_attempt`).",
+              "proposed_fix": "Make the two documents agree and name each case. For example, in the procedure: \"the gate's image record halt creates no attempt (nothing to classify); the attempt-name halt is classified `not-applicable/not-run`; the halts after the attempt exists and before the step (attempt fields, copies, sources, snapshot-before) are instrumentation, `invalid/unknown`; guest-state-before 97 (the guest did not answer) is stop condition 5, classified by its cause as written in the README\". Use the same wording in README line 152."
+            },
+            {
+              "id": "OP-3",
+              "file": "<S>/g3/t6prep/g3_battery.README.md",
+              "line": 159,
+              "severity": "minor",
+              "defect": "The halt row for an active unit at `close` gives a single cause (`harness_cmd`'s recorder cleanup failed) and a single remedy (`events_capture.sh cleanup controller_restart-r04`). The unit check that raises this halt (`units_script`, used by `close`) reports any active `egw-events-*` OR `egw-resources-*` unit. `events_capture.sh cleanup` handles only the recorder unit `egw-events-<run id>`. An active collector unit, or a unit left by an interrupted preflight with another run id, would get three useless cleanup tries under a wrong stated cause.",
+              "evidence": "README 159: \"| `close` | `a recorder or collector unit is active (exit 3): nothing was stopped` | `harness_cmd`'s cleanup failed (its `STOP` and `T6=incomplete` say so) | the runbook's own cleanup (`bash $EGW_CLONE/tools/session/events_capture.sh cleanup controller_restart-r04`) ...\"\n\ng3_battery.sh 282: `systemctl list-units ... 'egw-events-*' 'egw-resources-*'`.\n\nevents_capture.sh header: \"the lifecycle of one run's continuous Docker events recorder on the guest (proof_events_recorder.sh, the unit egw-events-RUN_ID)\".",
+              "proposed_fix": "In README 159, tell the operator to read the unit name printed in the `g3-close-units` console. The `events_capture.sh cleanup` remedy applies only to `egw-events-controller_restart-r04` after `T6=incomplete`. For any other active unit (an `egw-resources-*` one, or another run id) there is no prescribed cleanup in S4: record it, stop nothing by hand, and hand back to Rui."
+            },
+            {
+              "id": "OP-4",
+              "file": "<S>/g3/t6prep/operator-procedure.md",
+              "line": 40,
+              "severity": "minor",
+              "defect": "The 'Where' table's `T6` row omits two console lines that decide the class. (1) The else-branch STOP of line 1425 is the evidence for the request's 'Not started' class: r04 refused by F6, no seed, not ready, not drained or no configuration identity, the harness not started. (2) The STOP for harness exit 0 with a drain outcome other than quiet or gave-up. Separately, the `delta` and exactly-once rows describe their STOP lines only as following a non-zero exit. When `T6` is not `ok`, lines 1426 and 1427 print those same STOP lines without the tool running (the text shows `T6='gaveup'` etc.). That can be misread as delta or acceptance exit 1/2, which is invalid instrumentation.",
+              "evidence": "t6.sh (runbook 1425) else-branch: `stop \"test 6: $RID refused as already used (F6='$F6'), no seed, not ready, not drained or no configuration identity - the harness run was NOT started\"`; and `*) stop \"test 6: the harness exited 0 but the manifest's drain outcome is '$DO' - do not continue\"`.\n\noperator-procedure.md 40 lists the `ok`, gave-up, INCOMPLETE, 'answered 2' and 'not sealed' lines only.\n\nLines 43-44: \"any non-zero is followed by `STOP: test 6: delta NOT run … or it exited non-zero`\".\n\nRequest section 6: \"Not started | r04 refused (`F6`), harness exit 2, a precondition\".",
+              "proposed_fix": "Add both STOP texts to the `T6` row: the line-1425 else-branch → Not started (`not-applicable/not-run`); 'harness exited 0 but drain outcome' → classify by the manifest. Add to the `delta` and exactly-once rows: \"with `T6` not `ok` the STOP shows `(T6='<value>')` and the tool did not run: it adds nothing to the class `T6` already gives\"."
+            },
+            {
+              "id": "OP-5",
+              "file": "<S>/g3/t6prep/operator-procedure.md",
+              "line": 46,
+              "severity": "wording",
+              "defect": "The configuration-identity row lists the six broker values as if they were top-level keys of `configuration_identity.json`. In the file they are nested under `broker_conf_values`, as S2's sealed copy and run.py's field list show. Text only: the values themselves are correct.",
+              "evidence": "operator-procedure.md 46: \"`broker_conf_sha256` `ea37827c…`; `max_inflight_messages` 4999, `max_queued_messages` 1000, ...\".\n\nOT/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01/raw/controller_restart-r03/configuration_identity.json: `\"broker_conf_values\": {\"max_inflight_messages\": 4999, ...}`.\n\nrun.py 3414-3423 (`CONFIG_IDENTITY_FIELDS` holds `broker_conf_values`).",
+              "proposed_fix": "Write \"`broker_conf_values`: `max_inflight_messages` 4999, `max_inflight_bytes` 0, `max_queued_messages` 1000, `max_queued_bytes` 0, `persistent_client_expiration` `1h`, `sys_interval` 10\"."
+            }
+          ],
+          "checked": [
+            "Full diff of P/g3_battery.sh against P/base/g3_battery.sh (230 lines): every changed hunk read. LF only, no BOM, 0 CR; bash -n clean in WSL.",
+            "Constants reproduced read-only from the merged worktree. TOOLS 1fd9792 with tree 14f89c4 (git rev-parse). Runbook blob sha256 31716593... Collector blob 9e678b02... drivers_sha256 2c209b09... over 38 files (drivers_hash.sh, C collation). EXPORT_TOOL, HELPER, TUNNEL and CA unchanged.",
+            "ROOTFS_BEFORE_S4 6fce1688... equals `rootfs_after_close` in the sealed S3b `session-S3.env` (line 26).",
+            "GATE_IDENTITIES_S2 against S3's gate record (output_test/runs/2026-10-05/20261005T115022Z_g2-gate-preconditions_attempt07/environment/container_identities.txt, sha256 a713c8ba...): six identity lines, cut and sorted, byte-equal to the constant.",
+            "Labels: `open S4` only, S1/S2/S3 refused with 'authority is consumed'. ROWS_S4=t6; session_rows, row_session, the order check and the usage follow.",
+            "Preconditions at open: no current_session, no session-S4.env, no QEMU process, rootfs HALT.",
+            "Preflight: non-zero exit is open_halt, same form as S/g3/s3prep/g3_battery.sh line 1002. No EXCEPTION_SHA, EXCEPTION_PY, s3b_preflight_exception.py or `excepted` is left in the script or in P/.",
+            "verify_candidate: the collector want_sha is placed after the runbook check and runs at open (995) and before the row (1758).",
+            "fresh_plan and plan_entry are unchanged: r04 'planned', no raw directory, no $P/r04, no $P/r04.*.",
+            "fresh_row admits S2's attempt only at the two exact paths. The suffix check `_g3-qualification-t6_attempt02` runs before any step.",
+            "local_export new_attempt numbering (rglob over the attempts root, output_test/runs and output_test/incomplete; scenario slug g3-qualification-t6) confirms attempt02. Read-only finds show S2's attempt01 is the only t6-named path in ~/egw-exec/attempts and in output_test, and no attempt-named path sits inside a HIST package.",
+            "gate_images_check runs before row t6, after fresh_row and before new_attempt. Authority text at line 435 matches the brief byte for byte.",
+            "Recorded-halt refusal in cmd_row; the 3 h cut-off; WSL boot, QEMU and tunnel checks before the row; keepalive need 47*60+1800 = 4620 s.",
+            "t6 path unchanged from the base: register_sources (raw dir, $P/r04.config_identity.json with siblings glob r04.*), snapshot before/after both, run_step via hx with STEP_PRE (carriers unset, set -v), gate_after with --expect-restarted egw-controller-1 (guest_state_delta.py supports it), gate units, tunnel note.",
+            "No compose up/start/restart or docker start issued by the script; only `stack-stop-130` and `kill -TERM -- -pgid` in term, which is guarded against QEMU and the keepalive in the group.",
+            "rows/t6.sh equals runbook lines 1421-1428 with 'host$ ' removed (cmp). The manifest's rows/files entries fit MANIFEST_PY verify (session S4, steps [t6.sh], step_order 1, sha256_after ec8ac010...).",
+            "Merged flags exist only at 1fd9792: --exactly-once 0→6, --restart-transition-rule 0→2.",
+            "run.py update_plan_status rewrites the plan (running, then completed/failed), so the operator notes' point 8 holds.",
+            "Procedure classification table matches the request's section 6 verbatim. Column names checked against analyze.py PER_RUN_COLUMNS: lost, late_confirmations, double_accepted, restart_metrics_endpoint_recovery_s, restart_functional_recovery_s, restart_functional_recovery_source, confirmation_deadline_source, validity.",
+            "acceptance/delta output strings and exit codes in itest_reconcile.py; the stop() helper's 'STOP:' prefix and '[harness] INVALID:' in run.py.",
+            "S2's sealed t6 attempt: console layout, carriers line, hook-drain transcript 130/5/900. The configuration identity's field layout.",
+            "README subcommand table, halt table, launch lines and state files against the script. ops/g3_go.sh and ops/g3_wait.sh paths, state directory and row t6.",
+            "Operator-notes line-number claims spot-checked (points 1-8 and the removed base lines): accurate."
+          ],
+          "not_checked": [
+            "Did not run the operator bench (operator-record/bs4_op.sh) myself; read its pass console only.",
+            "The runbook block itself (harness, hooks, delta, acceptance --exactly-once, analyze) on a guest or stub. `harness_cmd` forwarding --restart-transition-rule to the harness (helper heredoc unchanged; not traced).",
+            "`term t6` during the harness, and harness_cmd's trap and cleanup.",
+            "local_export finish's accepted status/validity/outcome combinations for each class pair.",
+            "The host stream's g3_hostprep.sh, seal_prep.sh, ops/seal_ops*.sh and the rows stream's scripts, beyond what the operator flow uses. P/bench does not exist yet. If the bench stream's sealed `bench/` folder ever held a directory named `*_g3-qualification-t6_attemptNN` with NN ≥ 2, the export tool's rglob numbering would skip attempt02, and the suffix guard would halt row t6 before any step.",
+            "The frozen preflight's and gate_health's behaviour on the guest after the collector install (deployed tree against the clone)."
+          ]
+        }
+      },
+      {
+        "lens": "rows-host-seal",
+        "result": {
+          "findings": [
+            {
+              "id": "F1",
+              "file": "<S>/g3/t6prep/seal_prep.sh",
+              "line": 68,
+              "severity": "minor",
+              "defect": "seal_prep.sh copies part1-record, bench/ and every *-record/ folder into output_test/runs/<date>/HIST_...-g3-t6-host-preparation as they are. It never refuses a name that the export tool counts as an attempt. If such a name were sealed, S4's attempt would be numbered attempt03, and the steps script would then halt row t6 before any step.",
+              "evidence": "seal_prep.sh lines 66-72: `cp -r \"$REC\" \"$PKG/part1-record\"`, `cp -r \"$SRC/bench\" \"$PKG/bench\"`, `for d in \"$SRC\"/*-record; do ... cp -r`. The merged local_export.py, line 581 (`_existing_numbers`), runs `for p in root.rglob(f\"*_{slug}_attempt*\")` over the attempts directory, output_test/runs and output_test/incomplete at any depth, and counts every name that fully matches `_RUN_ID`. g3_hostprep.sh's attempt scan (line 215) runs before the seal, so it never sees the sealed package. Today no such name exists: a find over P for `*_attempt*` returned nothing, and nothing nested under output_test/runs is attempt-shaped. bench/ has not been delivered yet, and bench-brief scenario 3(g) plants exactly such a name (the brief keeps it under /tmp). No effect today; this is a guard that is missing.",
+              "proposed_fix": "Before `mkdir -p \"$PKG\"`, add: `bad=$(find \"$REC\" \"$SRC/rows\" \"$SRC/bench\" \"$SRC\"/*-record -regextype posix-extended -regex '.*/[0-9]{8}T[0-9]{6}Z_[A-Za-z0-9-]+(_[A-Za-z0-9-]+)*_attempt[0-9]{2,}' -print 2>&1); [ -z \"$bad\" ] || refuse \"the preparation holds names the export tool numbers attempts by: $bad\"`. Put it under an S4 comment."
+            },
+            {
+              "id": "F2",
+              "file": "<S>/g3/t6prep/host-notes.md",
+              "line": 281,
+              "severity": "minor",
+              "defect": "In the operator's sealing command lines, the verification subshell runs whatever the sealing script's exit code was. After a refusal (exit 2, the name already exists) it verifies the OLDER package of that name and prints 'verified'.",
+              "evidence": "Line 281: `bash \"$P/seal_prep.sh\" ... \"$OT/runs/$D/HIST_$D-g3-t6-host-preparation\"; echo \"exit=$?\"; (cd \"$OT/runs/$D/HIST_$D-g3-t6-host-preparation\" && sha256sum -c --quiet SHA256SUMS && echo verified)`. Line 302 has the same form for seal_ops.sh. In the documented flow (line 286: seal the FAILED record first, then re-run and seal under -attempt02), forgetting the suffix gives `exit=2` followed by `verified` for the failed record's package.",
+              "proposed_fix": "Condition the check on the exit code. Line 281: `...; rc=$?; echo \"exit=$rc\"; { [ $rc -eq 0 ] || [ $rc -eq 3 ]; } && (cd ... && sha256sum -c --quiet SHA256SUMS && echo verified)`. Line 302: the same with `[ $rc -eq 0 ]`."
+            },
+            {
+              "id": "F3",
+              "file": "<S>/g3/t6prep/g3_hostprep.sh",
+              "line": 120,
+              "severity": "minor",
+              "defect": "Two checks inherited from S3 pass when git fails or reads nothing. The 'no rebuild' loop treats an empty `git diff --stat` output as 'identical to the image commit', and an empty output also comes from a failed git or a path that names nothing at either commit. The branch comparison pipes `git for-each-ref` into tee, so git's exit status is lost: two empty listings compare equal and print 'every branch unchanged'.",
+              "evidence": "Line 120: `[ -z \"$(git -C \"$C\" diff --stat \"$IMAGE\" \"$TOOLS\" -- \"$d\")\" ] || fail \"$d differs from the image commit $IMAGE\"`. Line 79: `git -C \"$C\" for-each-ref ... refs/heads | tee \"$PKG/branches-before.txt\"`, then line 103 `cmp` against the after listing. Checked today: all eight paths exist at both 489bc9e and 1fd9792, and every diff is empty. No effect today.",
+              "proposed_fix": "Line 120: `out=$(git -C \"$C\" diff --stat \"$IMAGE\" \"$TOOLS\" -- \"$d\") || fail \"git diff failed for $d\"; git -C \"$C\" cat-file -e \"$TOOLS:$d\" && git -C \"$C\" cat-file -e \"$IMAGE:$d\" || fail \"$d is not in both commits\"; [ -z \"$out\" ] || fail ...`. Line 79: write the listing with `> \"$PKG/branches-before.txt\" || fail`, add `[ -s \"$PKG/branches-before.txt\" ] || fail`, then print it."
+            },
+            {
+              "id": "F4",
+              "file": "<S>/g3/t6prep/bench-brief.md",
+              "line": 52,
+              "severity": "minor",
+              "defect": "The bench brief expects the exactly-once check NOT to run after `delta` exits 4. Test 6's merged line 7 (runbook line 1427) reads only T6, and the delta line never changes T6, so with T6=ok the check runs. This file is outside the review lens, but it will be sealed as prep_bench_brief.md, and the bench stream is still working to it.",
+              "evidence": "bench-brief.md line 52: \"`delta` 4 → its STOP line and `--exactly-once` not run\". t6.sh line 6: `[ \"$T6\" = ok ] && $REC delta ... || stop \"...\"` (assigns no T6). t6.sh line 7: `[ \"$T6\" = ok ] && $REC acceptance $RAW6/logs/simulator/$RID --events $RAW6/events.post-drain.jsonl --exactly-once || stop ...`. The rows dry run, case 10 (delta 4: acceptance called once), and rows-notes.md section 7 ('Line 7 runs after a failed delta') both show it runs. A bench that follows the brief would report the runbook's own behaviour as a FAIL, or invite a change to g3_battery.sh, which cannot alter it.",
+              "proposed_fix": "Correct scenario 6 of the bench brief before bench-notes.md is written and sealed: \"`delta` 4 → its STOP line; `--exactly-once` still runs (line 7 reads T6 only)\". Tell the bench stream."
+            },
+            {
+              "id": "F5",
+              "file": "<S>/g3/t6prep/seal_prep.sh",
+              "line": 164,
+              "severity": "wording",
+              "defect": "The README's sentence on files not copied describes every left-out entry other than base/ as a copy of a repository file. Today the left-out list also holds `check` (the reviewers' scratch folder). After a re-run into another record folder it would also hold the first `record`. Neither is a repository copy.",
+              "evidence": "Lines 163-165: `echo \"... not copied: ${LEFT:-nothing} (base/ holds the copies the diffs were made against; the other files are copies of the repository's files at 1fd9792 given to the preparation for reading).\"`. The LEFT loop (lines 54-61) skips only *.md, *-record, rows, bench, ops, seal_prep.sh, the scripts and the record in use. P/check exists today.",
+              "proposed_fix": "Name the two repository copies explicitly, e.g. \"preflight.1fd9792.sh and test_runbook_itest_helpers.1fd9792.py are copies of the repository's files at 1fd9792 given for reading; any other entry named is not part of the preparation\". Alternatively, refuse to seal while an unexpected entry is left."
+            }
+          ],
+          "checked": [
+            "rows/t6.sh vs runbook.1fd9792.md lines 1421-1428 with 'host$ ' removed, checked with my own Python slicing of the blob bytes: IDENTICAL (sha256 ec8ac010...6377, 12,167 B, 8 lines, 0 CR). Line 1420 is ```bash, line 1429 is ```, line 1416 is '### Test 6 —' and line 1437 is '### Test 7 —'. The runbook blob is sha256 31716593... with 1,624 lines. rows/t6.sh.diff is empty.",
+            "diff of the battery's t6.sh (ebc9700c..., 7 lines) against S4's t6.sh: hunks exactly 1c1, 5c5, 6a7",
+            "g3_extract_rows.py --check, with the P copy of the rule source (b63ef7d8...): 3 compared, 0 differ, exit 0. The manifest's generator_sha256 equals the script's (e3aa669d...).",
+            "g3_check_rows.sh in blob mode, HOME redirected under /tmp/g3-s4-check-*: 22 ok, 0 FAIL, exit 0",
+            "g3_hostprep.sh fixed values, read from git blobs at 1fd9792 in S/t6m (read-only): TOOLS/TREE; REVIEWED = HEAD^2, tree 14f89c4; 8e49261 is an ancestor; runbook, rule source, local_export, fetch_started_at, images.lock.env, compose.yaml, mosquitto.conf, CONTRACTS and collector hashes; deployment trees 573e902b/e056d389 differ in exactly README.md and scripts/collect-resources.sh; src/schemas tree 1d5284cf; under src/deployment, 489bc9e and 1fd9792 differ in exactly the two names; the eight no-rebuild paths exist at both commits and have empty diffs",
+            "drivers_sha256 reproduced with S/g3/battery/drivers_hash.sh on 1fd9792 (C collation): 38 files, 2c209b09...",
+            "ROOTFS_SHA 6fce1688... equals rootfs_after_close in OT HIST_2026-10-05-g3-t8t9-s3-operator-records-attempt02/state/session-S3.env, line 26",
+            "common.sh at 1fd9792 (unchanged since 8e49261) sets no hostprep variable or function name (it sets DRIVERS REPO EXEC VENV PY ATTEMPTS OUT SECRETS_ENV LE EXIT_*) and has no set -e or pipefail. regen_helpers.py keeps an existing predecessor and never overwrites it. proof_helpers_check.py only reads. guest_common.sh's DATA_DISK path equals the hostprep's.",
+            "plan step: the merged plan-supplement (git archive of 1fd9792) on a /tmp copy of the real plan (c195bd3f) gave 61d55940, 96 entries, no other file in the folder; a second run left it unchanged. The PLAN_CHECK heredoc, cut out of g3_hostprep.sh, passes with and without the predecessor. The top-level keys put 'runs' last, so the TAIL/SEP byte rule holds.",
+            "debugfs rule (lines 242-250) on throw-away ext4 images: fresh case passes; r04 and r04.old are refused; a missing events directory gives rc 0, empty stdout, and is refused by the . / .. rule",
+            "real guest rootfs, read-only debugfs -c listing with no QEMU running: hashed 6fce1688 before and after; data/events holds controller_restart-r01..r03 and no r04",
+            "host today, read-only: clone at 8e49261, 0 porcelain lines, two branches; the Windows repository's refs/remotes/origin/dev is 1fd9792; no r04 path or name under attempts, output_test, itest, itest-replay or pilot/results; the t6 attempts are exactly the two admitted paths; OT/incomplete exists; no g3-t6-s4 state directory; plan still c195bd3f and clone still 8e49261 after my checks",
+            "g3_hostprep.sh writes, reviewed line by line: the fetch, the checkout only after the clean and HEAD gate, the helper rewrite (predecessor kept), the plan only from c195bd3f (copied to the record first, ls -A1 of pilot/ before and after), the record directory (console never overwritten). No write under output_test. Every outcome=prepared path is reached only without fail().",
+            "seal_prep.sh, seal_ops.sh, seal_ops_finish.sh: package-name patterns, the refusal of an existing name, next_free; PAT does not match its own line or the diff lines (grep over P: no file matches the private-key header regex; seal_bench.sh builds its header in two pieces); preview of the .env value sweep over today's file set (values through an fd, names only): 4 swept, 0 hits; state file names (S4-g3_battery.sh, S4-rows.manifest.json, g3-t6-s4) equal the steps script's",
+            "base/ copies byte-equal to the sealed S3 packages (prep: hostprep, seal_prep, the three row scripts; attempt02: g3_battery.sh, README, procedure, four ops scripts); the diff stats in the notes match git diff --numstat",
+            "bash -n on all lens scripts and on t6.sh; shellcheck -S warning (only SC2034 for common.sh's variables and SC2115 in the dry run)",
+            "ops/g3_go.sh and ops/g3_wait.sh: S4 usage, state directory g3-t6-s4, launcher and waiter otherwise unchanged from S3"
+          ],
+          "not_checked": [
+            "g3_hostprep.sh was not executed. The fetch, checkout, venv import after the move, helper regeneration and plan step on the real host remain unexercised; only fragments were checked, on copies or throw-away images.",
+            "g3_rows_dryrun.sh was not re-run: it writes /tmp/g3-s4-dry-rows.*, outside my permitted scratch area. Its outcome is taken from rows-record/rows-dryrun.console.txt.",
+            "the checker's clone mode against the execution clone: it cannot pass before the clone is at 1fd9792",
+            "P/bench/ and P/bench-notes.md do not exist yet: their content was not swept for secrets or private-key headers, nor checked for attempt-shaped names (see F1)",
+            "g3_battery.sh, g3_battery.README.md and operator-procedure.md: outside the lens, apart from the state-directory and file names the seal scripts depend on, and its plan and helper expectations",
+            "the sealing scripts were not run against the real output_test or the real .env (only a names-only preview of the value sweep)",
+            "whether the Windows repository's origin/dev matches GitHub's dev today",
+            "shellcheck at info level; the seal_bench and plan_check_bench scripts were not re-run (their consoles were read)"
+          ]
+        }
+      }
+    ]
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Build"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Check"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "build:ROWS",
+      "phaseIndex": 1,
+      "phaseTitle": "Build",
+      "agentId": "aa7a76c180cfec89e",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791224813486,
+      "queuedAt": 1791224813470,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "I finished stream ROWS for S4 (test 6 only). The three scri…",
+      "promptPreview": "You are working on the preparation of a bounded guest session (S4, test 6 only) of an MSc project. Read <S>/g3/t6prep/brief.md first (the brief: hard rules, fixed values, your stream's section) and C:/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M…",
+      "promptFramed": true,
+      "lastProgressAt": 1791226082425,
+      "tokens": 369062,
+      "toolCalls": 93,
+      "durationMs": 1268933,
+      "resultPreview": "{\"files\":[{\"path\":\"<S>/g3/t6prep/g3_extract_rows.py\",\"sha256\":\"e3aa669d38c6320db1bfa853fd25834ac4d848e6fb04c6e9f341fbfd39c23050\"},{\"path\":\"<S>/g3/…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "build:OPERATOR",
+      "phaseIndex": 1,
+      "phaseTitle": "Build",
+      "agentId": "aa3589abce5bc8745",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791224813490,
+      "queuedAt": 1791224813470,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "I finished Stream OPERATOR for S4 (test 6 only). Everything…",
+      "promptPreview": "You are working on the preparation of a bounded guest session (S4, test 6 only) of an MSc project. Read <S>/g3/t6prep/brief.md first (the brief: hard rules, fixed values, your stream's section) and C:/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M…",
+      "promptFramed": true,
+      "lastProgressAt": 1791226614231,
+      "tokens": 533190,
+      "toolCalls": 170,
+      "durationMs": 1799762,
+      "resultPreview": "{\"files\":[{\"path\":\"<S>/g3/t6prep/g3_battery.sh\",\"sha256\":\"7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c\"},{\"path\":\"<S>/g3/t6pre…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "build:HOST",
+      "phaseIndex": 1,
+      "phaseTitle": "Build",
+      "agentId": "a0dcea078584ff7dd",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791224813491,
+      "queuedAt": 1791224813471,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Stream HOST is done for S4. I did not run g3_hostprep.sh. A…",
+      "promptPreview": "You are working on the preparation of a bounded guest session (S4, test 6 only) of an MSc project. Read <S>/g3/t6prep/brief.md first (the brief: hard rules, fixed values, your stream's section) and C:/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M…",
+      "promptFramed": true,
+      "lastProgressAt": 1791226482759,
+      "tokens": 413062,
+      "toolCalls": 101,
+      "durationMs": 1668290,
+      "resultPreview": "{\"files\":[{\"path\":\"<S>/g3/t6prep/g3_hostprep.sh\",\"sha256\":\"ad214aeba54f6ede31dc3bbb8272cc55ff3e3645583e062ca0277a20292845ec\"},{\"path\":\"<S>/g3/t6pr…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "check:operator-flow",
+      "phaseIndex": 2,
+      "phaseTitle": "Check",
+      "agentId": "a427bf401fee40d5f",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791226614252,
+      "queuedAt": 1791226614235,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent reviewer (read-only: do not modify any file under <S>/g3/t6prep; you may write scratch files only under <S>/g3/t6prep/check…",
+      "promptFramed": true,
+      "lastProgressAt": 1791227304533,
+      "tokens": 294227,
+      "toolCalls": 66,
+      "durationMs": 690279,
+      "resultPreview": "{\"findings\":[{\"id\":\"OP-1\",\"file\":\"<S>/g3/t6prep/operator-procedure.md\",\"line\":73,\"severity\":\"material\",\"defect\":\"The procedure says the request does not define which recovery figure decides 'recovery within 120 s'. It reads both `restart_metrics_endpoint_recovery_s` and `r…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "check:rows-host-seal",
+      "phaseIndex": 2,
+      "phaseTitle": "Check",
+      "agentId": "a0e981794f24a9aef",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791226614254,
+      "queuedAt": 1791226614235,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are an independent reviewer (read-only: do not modify any file under <S>/g3/t6prep; you may write scratch files only under <S>/g3/t6prep/check…",
+      "promptFramed": true,
+      "lastProgressAt": 1791227580334,
+      "tokens": 315428,
+      "toolCalls": 68,
+      "durationMs": 964660,
+      "resultPreview": "{\"findings\":[{\"id\":\"F1\",\"file\":\"<S>/g3/t6prep/seal_prep.sh\",\"line\":68,\"severity\":\"minor\",\"defect\":\"seal_prep.sh copies part1-record, bench/ and every *-record/ folder into output_test/runs/<date>/HIST_...-g3-t6-host-preparation as they are. It never refuses a name that the…"
+    }
+  ],
+  "totalTokens": 1924969,
+  "totalToolCalls": 498
+}

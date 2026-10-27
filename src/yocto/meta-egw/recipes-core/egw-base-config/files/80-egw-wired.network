@@ -1,0 +1,13 @@
+# EGW default wired network configuration (systemd-networkd).
+# DHCP on common wired interface names; in QEMU (qemuarm64 + slirp) the
+# virtio NIC shows up as eth0/enp* and receives a 10.0.2.x lease including
+# DNS, which exercises the full networkd path required by gate G1.
+# The !nfsroot guard mirrors oe-core practice: never reconfigure the NIC
+# that carries an NFS root filesystem.
+
+[Match]
+Name=en* eth*
+KernelCommandLine=!nfsroot
+
+[Network]
+DHCP=yes

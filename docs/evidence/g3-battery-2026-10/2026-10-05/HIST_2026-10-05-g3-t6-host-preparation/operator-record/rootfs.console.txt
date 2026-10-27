@@ -1,0 +1,30 @@
+
+=== bench rootfs: script under test 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c (g3_battery.sh of the preparation, run in place)
+drivers of the copy before the stubs: 2c209b09faf58bb4986cf39b7bb1f13936fae8e94c3b5eb3faf84f722bfe44ed
+helpers e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb, tunnel.sh 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (from the runbook blob 317165936abe...)
+
+=== g3_battery.sh open S4
+-> exit 1
+## 2026-10-05T18:52:01Z up=2012 open S4: steps script <S>/g3/t6prep/g3_battery.sh sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+## 2026-10-05T18:52:01Z up=2012 candidate identities
+runbook: 317165936abed4f3823f53b67b7ac76bafa442cfa1820d4b96479392b280cf0f  <bench>/repo/docs/setup/qemu_integrated_gateway.md
+collector: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  <bench>/repo/src/deployment/scripts/collect-resources.sh
+## 2026-10-05T18:52:02Z up=2012 row files of S4 against <bench>/rows/rows.manifest.json
+row file t6.sh: sha256 18fb4c6bc2338183fb1aa0e3c1d45dc1cc60f6f4a4af4e9db6e8af70dfe7a563 = sha256_after of the manifest (row t6, step 1, 1417 bytes)
+rows.manifest.json sha256: b8eea704a6303f348ef13352114f08fc7126e54835d0c7d6f77ace94d7f98c0f
+## 2026-10-05T18:52:02Z up=2012 run ids of S4 unused on the host
+plan entry controller_restart-r04: status=planned seed=1715385812 condition=controller_restart duration_s=600 warmup_s=0
+fresh on the host: controller_restart-r04 (planned, no raw directory, no <bench>/home/egw-tcg/itest/controller_restart-r04.*)
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): <bench>/egw-exec/attempts/20261003T132936Z_g3-qualification-t6_attempt01
+admitted: the one earlier attempt of row t6 (S2's invalid one, plan entry controller_restart-r03, kept as sealed): <bench>/out/runs/2026-10-03/20261003T132936Z_g3-qualification-t6_attempt01
+## 2026-10-05T18:52:02Z up=2012 guest root file system before the boot
+rootfs ext4: 1111111111111111111111111111111111111111111111111111111111111111  <bench>/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4 (the value the close of S3's second opening recorded)
+HALT: the guest root file system is not the expected one, or the expected value is not recorded (packet section 4, halt 6); nothing was started
+CHECK ok: exit status 1: open S4 halts
+CHECK ok: HALT: the root file system is not the expected one
+CHECK ok: expected value printed: 6fce1688... (S3's second opening)
+CHECK ok: nothing was started
+
+=== bench rootfs: 4 checks, 0 failed
+RESULT rootfs: PASS

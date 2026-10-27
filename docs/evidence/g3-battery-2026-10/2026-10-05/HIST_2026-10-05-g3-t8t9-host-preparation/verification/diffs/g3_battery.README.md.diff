@@ -1,0 +1,439 @@
+--- base/g3_battery.README.md
++++ g3_battery.README.md
+@@ -1,38 +1,51 @@
+-# g3_battery.sh — the operator's steps script of the G3 qualifying battery
++# g3_battery.sh — the operator's steps script of session S3 (test 8 and test 9 only)
+ 
+-Authority: Rui's authorisation of 2026-10-02 under the decision packet of 2026-10-01 (revision 2) and the operator
+-procedure. The candidate is frozen at `80e833f` (tree `dad725d`); the script edits nothing of it and records only
+-through the frozen `common.sh` / `guest_common.sh` functions and `local_export`. It kills no QEMU, deletes nothing,
+-repeats no row, retries no step, and never uses `ACCEPT_UNACCOUNTED`, `--force` or `local_export set run_id=…`.
++Authority: the request of 2026-10-04 and its decision summary
++(`output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md`: four choices, two conditions). The session itself
++starts only on Rui's explicit authorisation and his go in the attended window («estou presente»), after the sealed
++preparation package has been delivered. The authority of 2026-10-02 (S1, S2, the `-q1` identifiers) is consumed:
++`open` accepts `S3` only. Procedure and tools: the merged commit `8e49261` (tree `2f05148`); the candidate (controller
++image, pinned images, deployment, guest OS) is unchanged, and the script edits nothing of it. It records only through
++the frozen `common.sh` / `guest_common.sh` functions and `local_export`. It kills no QEMU, deletes nothing, repeats no
++row, retries no step, and never uses `ACCEPT_UNACCOUNTED`, `--force` or `local_export set run_id=…`. G3 stays
++`Not decided` whatever S3 shows.
++
++**What the script never does (decision summary, condition B).** It never runs `compose up`, `start` or `restart`, nor
++`docker start`; it never re-launches QEMU and never signals it. The one stack start of S3 is the frozen preflight
++driver's, at `open`: that is the prescribed one. After the reboot of test 8 nothing on the guest is started, restarted
++or recreated by hand, by the script or by the operator: between the reboot and line c it would make the containers'
++return an aided one, which line c cannot detect and test 8 does not accept, and after a failed row it would be a
++recovery that lets the row go on. Line d's tunnel step (`tunnel_down && tunnel_up`, on the host) and the safe-close
++operations (the recorded `compose stop -t 130`, then the close driver's own stop and power-off) stay; none of them is
++ever presented as unaided recovery of the containers.
+ 
+ ## Launch (one subcommand per `wsl.exe` invocation)
+ 
+-`P` is the WSL path of this folder (`/mnt/c/Users/ruimf/AppData/Local/Temp/claude/…/scratchpad/g3/battery/prep`).
++`<P>` is the WSL path of the folder that holds this script (the preparation folder, `…/scratchpad/g3/s3prep`).
+ 
+ ```bash
+ # short subcommands (status, classify, term), in the foreground:
+ MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc 'EGW_EXEC_REPO=$HOME/egw-exec/repo bash "<P>/g3_battery.sh" status'
+ # long subcommands (open, row, close), detached from the client that starts them:
+-MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc 'EGW_EXEC_REPO=$HOME/egw-exec/repo setsid bash "<P>/g3_battery.sh" row t1-smokes > /dev/null 2>&1 < /dev/null & sleep 2'
++MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc 'EGW_EXEC_REPO=$HOME/egw-exec/repo setsid bash "<P>/g3_battery.sh" row t8 > /dev/null 2>&1 < /dev/null & sleep 2'
+ ```
+ 
+ - `MSYS_NO_PATHCONV=1` always (Git Bash rewrites `/home/…` otherwise); `bash -lc` (login shell).
+ - A detached run prints nothing to the caller: its whole console is `<state>/console/NNN-<subcommand>-<arg>.txt`
+   (`status` names the latest). Follow it with `tail`, and wait for `status` to show the row
+-  `awaiting-classification`. A row started as a plain background task also works, but the tool's own time limit
+-  (2 h at most) would then hang it up before T8's 135 min ceiling.
++  `awaiting-classification`. `ops/g3_go.sh` and `ops/g3_wait.sh` wrap this launch and this wait. A row
++  started as a plain background task would be hung up by the tool's own time limit (2 h at most) before T8's
++  135 min ceiling.
+ - One subcommand per invocation: a row's process group must be its own (`term` signals that group).
+ - **One changing subcommand at a time.** `open`, `row`, `classify` and `close` each take the turn
+-  (`<state>/turn.env`: the pid, its start instant and the WSL boot of the holder, written under a short `flock`) and
+-  are refused (`REFUSED: another invocation of this script is still running: …`, exit 2, nothing started or changed)
+-  while another of them is still running. A launch line issued twice therefore runs the row once, and a `close`
+-  cannot take the guest away under a running `open`. `status` and `term` take no turn. A turn whose holder ended is
+-  simply taken; nothing is deleted.
++  (`<state>/turn.env`, written under a short `flock`) and are refused (`REFUSED: another invocation of this script is
++  still running: …`, exit 2, nothing started or changed) while another of them is still running. `status` and `term`
++  take no turn. A turn whose holder ended is simply taken; nothing is deleted.
+ - **Keepalive:** before `open`, start a dedicated client and leave it running until after `close`:
+-  `MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc 'exec sleep 43200'` (a background task). `open` wants
+-  6 h left on it, each `row` its ceiling plus 30 min and `close` 30 min; the script checks the `sleep` and its WSL
+-  relay parent. The `~/egw-exec/stop-keepalive` sentinel is not touched. Without a client the distro stops, and
+-  QEMU with it.
++  `MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc 'exec sleep 43200'` (a background task), and a second one as
++  the request asks. `open` wants 6 h left on one of them, `row t8` 2 h 45 min (its ceiling plus 30 min), `row t9`
++  55 min and `close` 30 min; the script checks the `sleep` and its WSL relay parent. Without a client the distro
++  stops, and QEMU with it.
+ - **Keep-awake:** Windows must not sleep or hibernate for the whole session. It cannot be seen from WSL: it is the
+   operator's own check before `open` and before every `row`. No other load on the host (no build, no pytest).
+ - Never edit the script, the row files or the manifest while a session is open: a `row` refuses a changed script.
+@@ -41,169 +54,210 @@
+ 
+ | Subcommand | What it does | Refuses (exit 2) when |
+ |---|---|---|
+-| `open S1\|S2` | Checks: clone `80e833f`/`dad725d` clean, `drivers_sha256`, export tool, runbook, helper file (`e5eba37e…`, 545 lines), `tunnel.sh`, `ca.crt`, the guest-state command against `nominal.sh`; the session's row files against `rows.manifest.json`; every id of the session unused on the host; the root file system hash (S1: `c49500a9…`; S2: S1's post-close value); the keepalive. Records `UP0`. Then the frozen drivers `guest_session_open.sh`, `preflight.sh`, the environment copy of PM condition 2, `gate_health.sh`, and one read-only listing of the guest's event directories (ids unused there too). | a session is open; the session's state file exists; a QEMU process runs; the keepalive is missing; for S2, S1 did not end without a halt (unless `EGW_G3_RUI_GO`) |
+-| `row <slug>` | One attempt (`G3 qualification <slug>`, purpose `official`): identities and a `workload` field, the step files and manifest entries copied to `environment/`, the sources registered, the gate's read before, each step as one `hx` shell that sources its file (`set -v`, carriers unset and printed), the gate after. Leaves the attempt OPEN. | the session is not open; the previous row is not classified; the row was already started; the script or manifest changed; the session has a recorded halt (unless `EGW_G3_RUI_GO`); the keepalive is short |
+-| `classify <slug> <finished\|failed> <validity> <outcome> <reason> <next-action>` | `local_export finish`, a headline, the export (`driver_code`: prints `DRIVER RESULT`), the row marked classified. Pairs of packet §5 only: `valid/pass`, `valid/fail`, `invalid/unknown`, `valid/inconclusive`, `unknown/inconclusive`, `not-applicable/not-run`. A reason or next action given as `@FILE` is read from that file. | the row does not await classification; the pair is not one of §5 |
+-| `term <slug>` | TERM, never KILL, to the row's recorded process group, after listing it (command lines cut at 90 columns, the value after every `--password` hidden). The row's trap finishes the attempt `interrupted` and exports it (after letting the group's own traps end, 180 s at most, and one guest-state read). If a QEMU process or the keepalive client is in that group it prints `HALT:` (exit 1, recorded in the session's and the row's state files) and signals nothing. | no process of the row is left; the recorded group is the caller's own |
+-| `close` | No unit `egw-events-*` / `egw-resources-*` active (read-only); the recorded `compose stop -t 130` with both env files, as step `stack-stop-130` of the session attempt; then the frozen `guest_session_close.sh`. Records the post-close root file system hash and lists the data disk's ext4 header (read-only, only with no QEMU process left). With **no QEMU process left** (the guest was lost; T8 re-launches nothing) there is nothing to read or stop: it records a HALT, skips the unit check and the stop, and runs the frozen close driver, which finishes and exports the session attempt as it stands. | another changing subcommand is running; a row is running or awaits classification; a process is left in a row's group; a row's process died and its attempt is still open (the refusal prints the frozen `local_export recover … --interrupt <run id>` line); the keepalive has less than 30 min left; no session is open (see "A session closed outside the script") |
+-| `status` | The sessions, elapsed host uptime against the 3 h cutoff, each row's state, gate, class and export, a running row's minutes against its ceiling, every recorded halt. Read-only. | — |
+-
+-`row` never judges: a step's exit status is the status of its last line. The row's ceilings (minutes: T1 smokes 105,
+-harness 35, T2 36, T3 37, T4 replay 67, reset 35, T5 38, T6 47, each T7 41, T8 135, T9 25) are recorded and shown by
+-`status`; the operator enforces them with `term`.
+-
+-Row specifics. *t1-harness:* the plan and `processed/` are copied into `other/` before the harness, the plan after
+-it, then the analyze step (only if the harness step printed no `STOP:`), then both again. *t6:* the same copies
+-before and after its one step. *t6, t7-mongo, t7-ditto:* the gate expects the controller, MongoDB or `ditto-things`
+-restarted in place (`--expect-restarted`). *t8* (procedure corrected after S2 of 2026-10-03: the launcher runs QEMU
+-**without `-no-reboot`**, so `sudo systemctl reboot` reboots the guest INSIDE the same `qemu-system-aarch64`
+-process, which never exits and is never re-launched): the QEMU process is recorded before step a (`t8-qemu-before`:
+-pid, start instant, the `file=` of its `-drive`s); step a (pre-reboot snapshot, boot id and container set saved,
+-`sudo systemctl reboot`); then a **read-only wait** of the script's own, at most 900 s (`T8_SSH_WAIT_S`), polling `cat /proc/sys/kernel/random/boot_id`
+-on the guest every 10 s through `gx` (each poll a recorded step `t8-wait-ssh`) until the guest answers with a boot
+-id other than the saved one (an answer with the saved id is printed and the wait goes on; QEMU is never signalled;
+-nothing is re-launched); then `t8-qemu-after`, which must show the SAME process and disks (a QEMU exit, another
+-process or none is a HALT: a re-launch through 3.3 is a recorded operator decision, never automatic); then steps b
+-(`REBOOT SHOWN`), c (`CONTAINERS RETURNED UNAIDED`: the same six container objects running again, observed BEFORE
+-any `compose up`/`start`, which this script never runs), d (the tunnel line, followed by the `t8-tunnel-check` step
+-without the `hx` preamble), e (readiness, post-reboot snapshot, `same`, the controller's new process) and f (the
+-fresh timed smoke), each an `hx` step run only if the one before printed no `STOP:` and showed its marker; a
+-`STOP:` in b, c, d or e is a HALT (T9 is not started); the status of f is the operator's classification. The
+-runbook's carrier `T8` (a leaves `rebooting`, b `rebooted`, c `returned`, d `reconnected`, e `ok`; each line reads
+-the value of the one before) does not cross `hx` shells, so the steps script sets it, for each step, to the value
+-the step before left — only when that step printed no `STOP:` and showed its marker — and prints that it did. The previous boot's
+-journal and OOM lines (evidence) are read once the guest answered; no guest-state comparison. This copy opens no
+-session as it stands: `row_files` names six t8 row files (`t8-a-reboot.sh` … `t8-f-smoke.sh`) that the sealed
+-`rows/` and manifest do not hold (they hold the four of the old flow), and `verify_candidate` still pins the
+-80e833f runbook's sha256, which the corrected runbook no longer matches, so `open` would halt on a packet §1
+-identity by design. Before a T8/T9 completion session the next preparation re-extracts the six t8 row files and
+-the manifest from the merged runbook, revises the packet §1 identities (`RUNBOOK_SHA`, `TOOLS`/`TREE`) and the
+-`-q1` identities, and seals a new package. *t9:* a, b, c, d+e and
+-the exposure step, each only if the one before printed no `STOP:` (so after a STOP of d+e the three read-only
+-exposure reads are not in the package); its sources are registered after the row (what exists: a refusal leaves no
+-directory).
+-
+-*t8, step d, a tunnel signature to know.* Runbook line `tunnel_down && tunnel_up` was written for a master the
+-reboot had killed. Under `hx` the preamble of step b or c has already reopened the tunnel, so step d closes a LIVE
+-master and reopens it a few milliseconds later. If the old master has not finished exiting, `tunnel_up` can print
+-`MASTER ANSWERS … nothing was reopened` (status 0, and the tunnel is then down) or `STOP: host port busy`. Neither
+-is silent: the `t8-tunnel-check` step after step d then halts the row ("step e and step f were NOT run"). Classify
+-that as a tunnel event of the host (invalid instrumentation), not as an observation of the SUT. Not reproduced on a
+-real ssh master.
+-
+-## State files (`${EGW_G3_STATE:-~/egw-exec/g3-battery}`; `key=value` lines, never sourced)
+-
+-- `session-<S1|S2>.env`: label, `state` (opening, open, halted, closed, close-failed), `up0`, the WSL boot id, the
+-  session and preflight attempts, each driver's exit, the environment copy's hashes, `rootfs_before_boot`,
+-  `rootfs_after_close`, every `row_clock=` reading and every `halt=` line.
+-- `row-<slug>.env`: the attempt, `start_up`, `ceiling_min`, `pid`/`pgid` with their start instants, `state`
+-  (preparing, running, gate, awaiting-classification, classified, interrupted), the current `step`, every
+-  `step_done=`, the `gate`, the class, the driver code and the export receipt; for t8 also `t8_run`,
+-  `t8_qemu_before`, `t8_ssh_answered`, `t8_qemu_after` and `t8_reached_smoke`.
+-- `turn.env` and the empty `turn.lock`: who holds, or last held, the turn of the changing subcommands.
+-- `row-<slug>.group-after-signal.txt`: the last reading of an interrupted row's process group (passwords hidden).
+-- `console/NNN-….txt` (one per invocation), `<label>-<driver>.console.txt`, `<label>-environment-copy.txt`,
+-  copies of the script and manifest as opened. Together with the classification notes these are the operator
+-  records to seal as `HIST_<date>-g3-battery-operator-records`.
+-
+-No process listing reaches these files, or the caller's terminal, with a password: the simulator, the replay, the
+-harness and T9's probes carry it on their argv after `--password`, and every listing (`term`, `status`, `close`,
+-the reading after a signal) is passed through a mask; all but the reading after a signal are also cut at 90 columns. The frozen export's secret scan reads
+-attempts only, never the state directory.
+-
+-## What a `HALT:` line means
+-
+-A halt condition of packet §4: the script stops there, closes nothing (except at `close` with the guest gone,
+-below), and records the line in the session's state file once the session is in use. The HALTs of `open`'s checks
+-before anything was started are printed only: nothing ran, no state file exists, and `open` is run again once the
+-cause is corrected. No further row starts in that session (and S2 does not open) until Rui directs otherwise; with
+-his explicit go, the next `row` or `open S2` is run with `EGW_G3_RUI_GO="<his words>"`, which is recorded. After a
+-HALT: classify the row if it awaits classification, then `close`, then hand back.
+-
+-- Before anything started (`open`'s checks): an identity, a row file or an id differs — nothing ran.
+-- `open`: a driver exited non-zero or the environment copy failed — the guest may be UP: `status`, then `close`.
+-- `row`: step status 97 (preamble or tunnel not loaded) or 74 (console capture lost); the gate did not pass (OOM
+-  kill, unexpected restart, a service not healthy within 900 s, a unit active, tunnel); T8: no single QEMU process
+-  before step a, the guest not answering with a new boot id within the script's 900 s wait after step a (line b's own bound is 90 reads 10 s apart, each with ConnectTimeout 10), a QEMU process after the
+-  wait that is not the one recorded (exited, another, several), a `STOP:` in step a, b (no `REBOOT SHOWN`), c (no
+-  `CONTAINERS RETURNED UNAIDED`), d or e, or the tunnel not up after step d; `NOT STARTED: the 3 h cutoff`; guest,
+-  tunnel or WSL lost; an interrupt.
+-- `classify`: the export failed, or the class is "not started". Its last line says `Next: 'close', then hand back
+-  to Rui` whenever the session holds a halt or the row's gate did not pass.
+-- `term`: a QEMU process or the keepalive client is in the row's process group — nothing was signalled.
+-- `close`:
+-  - a unit is active (exit 3): the runbook's cleanup first (below), then `close` again;
+-  - the guest did not answer (exit 97) although a QEMU process runs: nothing was stopped, and `close` answers the
+-    same for as long as the guest does not answer — hand back to Rui (QEMU is never killed without his decision);
+-  - `HALT: stop failed` — the close driver was NOT run and QEMU is never forced off;
+-  - no QEMU process is left: the HALT is recorded, the unit check and the stop are not run (there is nothing to
+-    read or stop) and the frozen close driver finishes and exports the session attempt as it stands (expect its
+-    exit 5); the session is then recorded `closed` with that halt, and S2 opens only on Rui's go;
+-  - a row's process had died and its attempt was finished outside the script: recorded `interrupted`, with a halt;
+-  - the close driver ended non-zero.
+-
+-`REFUSED:` (exit 2) is not a halt: nothing was started or recorded; fix the cause and run the same line again.
+-One exception: a `close` refused for a short keepalive may already have recorded a dead, recovered row as
+-`interrupted` with its halt (that check runs first); nothing was stopped.
+-The script records only the halts it detects. A halt the operator reads from a console (for example invalid
++| `open S3` | Checks, each a HALT with nothing started when it fails: the clone at `8e49261`/`2f05148` and clean, `drivers_sha256`, the export tool, the runbook (`4acf8de6…`), the helper file (`e5eba37e…`, 545 lines), `tunnel.sh`, `ca.crt`, **the kernel, `qemuboot.conf`, the QEMU binary and the Yocto checkout (`489bc9e`, clean)**, the guest-state command against `nominal.sh`; the row files of t8 and t9 against `rows.manifest.json`; the five `-q2` identifiers unused on the host and no earlier attempt of either row except S2's one t8 attempt; the root file system at `22e9da85…` (the value S2's close recorded). Then the keepalive, `UP0`, and the frozen drivers `guest_session_open.sh`, `preflight.sh`, the environment copy of PM condition 2, `gate_health.sh` (its attempt is named in the state file), and one read-only listing of the guest's event directories (identifiers unused there too). | the label is not `S3` (`S1` and `S2`: "… whose authority is consumed"); a session is open; `session-S3.env` exists; a QEMU process runs or that could not be determined; the keepalive is missing |
++| `row t8`, then `row t9` | One attempt (`G3 qualification <slug>`, purpose `official`): identities and a `workload` field that names the authority of S3, the step files and manifest entries copied to `environment/`, the sources registered, the gate's read before, each step as one `hx` shell that sources its file (`set -v`, carriers unset and printed), the gate after. Leaves the attempt OPEN. | the row is not t8 or t9; the session is not open; t9 before t8 is classified; the row was already started; the script or manifest changed; the session has a recorded halt (in S3 without exception); the keepalive is short |
++| `classify <slug> <finished\|failed> <validity> <outcome> <reason> <next-action>` | `local_export finish`, a headline, the export (`driver_code`: prints `DRIVER RESULT`), the row marked classified. Pairs of packet §5 only: `valid/pass`, `valid/fail`, `invalid/unknown`, `valid/inconclusive`, `unknown/inconclusive`, `not-applicable/not-run`. A reason or next action given as `@FILE` is read from that file. | the row does not await classification; the pair is not one of the six |
++| `term <slug>` | TERM, never KILL, to the row's recorded process group, after listing it (command lines cut at 90 columns, the value after every `--password` hidden). The row's trap finishes the attempt `interrupted` and exports it (after letting the group end by itself, 180 s at most, and one guest-state read). If a QEMU process or the keepalive client is in that group it prints `HALT:` and signals nothing. | no process of the row is left; the recorded group is the caller's own |
++| `close` | No unit `egw-events-*` / `egw-resources-*` active (read-only); the recorded `docker compose --env-file .env --env-file images.lock.env stop -t 130` as step `stack-stop-130` of the session attempt; then the frozen `guest_session_close.sh`. Records the post-close root file system hash and lists the data disk's ext4 header (read-only, only with no QEMU process left). With **no QEMU process left** there is nothing to read or stop: it records a HALT, skips the unit check and the stop, and runs the frozen close driver, which finishes and exports the session attempt as it stands. | another changing subcommand is running; a row is running or awaits classification; a process is left in a row's group; a row's process died and its attempt is still open; the keepalive has less than 30 min left; no session is open |
++| `status` | The session, elapsed host uptime against the 3 h cut-off, each row's state, gate, class and export, a running row's minutes against its ceiling, every recorded halt. Read-only. | — |
++
++`row` never judges: a step's exit status is the status of its last line. The battery's rows t1 to t7 are not rows of
++this script (`REFUSED: unknown row`); their entries in the script's tables are left as they were and reached by nothing.
++
++**The ceilings (135 min for t8, 25 min for t9) are counted from the row's start** — the instant recorded as `start_up`
++when `row` begins, before the attempt exists — and are shared by everything the row does: for t8 the preamble, step a,
++the wait, steps b to f, the evidence reads and the gate. Nothing in the script resets `start_up` or `ceiling_min`; the
++wait's 900 s are inside the 135 min, not added to them. The ceilings are recorded and shown by `status`
++(`PAST ITS CEILING`); no timer enforces them: the operator does, with `term`. No row starts at or after 3 h
++(`CUTOFF_S=10800`) of host uptime counted from `UP0`.
++
++## The S3 flow, step by step
++
++1. **Before.** The preparation package sealed and delivered; Rui's authorisation of S3 and his «estou presente»; two
++   keepalive clients; Windows kept awake; no other load; no QEMU process and no open session.
++2. **`open S3`** (about 7 min in S1 and S2). Ends `session S3 is open` and `Next: 'row t8'`.
++3. **`row t8`.** Before the attempt, each a HALT with no attempt created: the identities again, the row files, the
++   WSL boot, the cut-off, a QEMU process, the tunnel, the identifiers, and **the gate package's record of the running
++   images against S2's** (`environment/container_identities.txt` of the gate attempt of this `open`: for each of the
++   six containers the image reference, the image id and the repo digest must equal S2's; container ids and start
++   instants are not compared). Then the attempt, which must be named `…_g3-qualification-t8_attempt02`
++   (attempt01 is S2's halted one, the one earlier attempt admitted, in the WSL attempts directory and under
++   `output_test/runs/2026-10-03/`); under another name the row halts before any step. Then:
++   - `t8-qemu-before`: the one QEMU process recorded (pid, start instant, the `file=` of its `-drive`s) and its
++     command line read for `-no-reboot` (also `--no-reboot` and `-action … reboot=shutdown`, the same setting):
++     found, the row halts and **line a is not run**;
++   - **step a** (`t8-a-reboot.sh`): readiness, quiet window, pre-reboot `/metrics` reading and twin snapshot, the boot
++     id, the six container ids, the event directory names and the mount source saved, `sudo systemctl reboot`;
++   - **the wait** (`t8-wait-ssh`, the script's own; next section);
++   - `t8-qemu-after`: the SAME process and disks, or a HALT;
++   - **step b** (`REBOOT SHOWN`), **step c** (`CONTAINERS RETURNED UNAIDED` **and** `PERSISTENCE SHOWN`), **step d**
++     (the tunnel line, then `t8-tunnel-check` without the `hx` preamble), **step e** (readiness within 3,600 s,
++     post-reboot reading and snapshot, `same`, `CONTROLLER PROCESS NEW`), **step f** (the fresh timed smoke
++     `itest-post-reboot-01-q2`), each an `hx` step run only if the one before printed no `STOP:` and showed its
++     marker. The runbook's carrier `T8` does not cross `hx` shells, so the script sets it for each step to the value
++     the step before left (`rebooting`, `rebooted`, `returned`, `reconnected`, `ok`) and prints that it did;
++   - after step f: a HALT unless the smoke's console shows, at the start of a line, the helper's
++     `TEST STATUS itest-post-reboot-01-q2: … -> PROCEDURE COMPLETE` and no `STOP:`. With that line and no `STOP:`
++     the script records **no** halt, whatever `lost` and `late_confirmations` read: a value above 0 is a failure of
++     T8 that the operator classifies, and T9 may then run;
++   - the previous boot's journal and its kernel OOM lines (evidence, read once the rebooted guest answered); the gate
++     after the row: the guest state recorded and **not compared** across the reboot, six services healthy within
++     900 s, no recorder or collector unit active, the tunnel.
++4. **The operator reads** the consoles, the prefix files `itest-reboot-q2.*`, the smoke's files, the state recorded
++   after T8 and the previous boot's OOM lines, then **`classify t8 …`** with the class of `operator-procedure.md`.
++   An OOM kill found in either reading, or a restart after the reboot, is a halt of the operator's own: T9 is not run.
++5. **`row t9`**, only with t8 classified, no recorded halt and T8's gate passed: its attempt must be named
++   `…_g3-qualification-t9_attempt01`; steps (a), (b), (c), (d)+(e), each only if the one before printed no `STOP:`,
++   then the three read-only exposure checks only if (d)+(e) printed none; its sources are registered after the row
++   (a refusal leaves no directory); the gate with the guest-state comparison. An inconclusive probe is **not**
++   repeated with a new tag. Then **`classify t9 …`**.
++6. **`close`.** Then: every export verified (the export tool's own verification, then `sha256sum -c` in each
++   package), the operator records sealed as `HIST_<UTC date>-g3-t8t9-s3-operator-records`, the result note
++   `output_test/decisions/<date>_g3-t8-t9-results.md`, keepalive and keep-awake released.
++
++### The wait before line b (decision summary, condition A)
++
++- Budget: 900 s (`T8_SSH_WAIT_S`) on `/proc/uptime`, whole seconds, counted from the instant step a ended; one poll
++  every 10 s (`T8_SSH_POLL_S`).
++- Every poll is one recorded step `t8-wait-ssh` of the row's attempt and is run by the host's `timeout` for
++  min(20 s, what is left of the budget): never 0, never without `timeout`. With less than 1 s left there is no
++  further poll. The poll's command is the one `gx` records (`env E=<session> bash -c '<load the session's ssh helpers;
++  gssh "$1">' _ 'cat /proc/sys/kernel/random/boot_id'`) with `timeout <seconds>` in front of it: `gx` itself is a shell
++  function and cannot be run by `timeout`.
++- A poll counts only when it ended with exit status 0 **and** its whole answer is one boot id of the kernel's form
++  **and** that id is not the saved one (`~/egw-tcg/itest/itest-reboot-q2.boot_id.pre`). A poll that printed such an id
++  and then ended 124 (its timeout), 255 (ssh) or any other non-zero status is said `NOT counted`, its console stays in
++  the attempt, and the wait goes on. An answer with the saved id is printed and the wait goes on.
++- Expiry is the HALT `reboot not shown within the wait: …`: an operational cut-off (inconclusive / not demonstrated),
++  not by itself a failure of the system; line b is not run. A poll whose console capture was lost (74) is a HALT of
++  its own, at once.
++- Under `timeout` a poll runs in a process group of its own (coreutils `timeout` makes itself a group leader), so a
++  `term t8` during the wait does not reach a poll in flight: it ends by itself within its bound (20 s at most).
++- `QEMU` is never signalled and nothing is re-launched or started, whatever the wait answers; the reading
++  `t8-qemu-after` is recorded in every case.
++
++### The known host tunnel case at line d
++
++Runbook line d (`tunnel_down && tunnel_up`) was written for a master the reboot had killed. Under `hx` the preamble
++of step b or c (`tunnel_check || tunnel_up`) has already reopened the tunnel, so step d closes a LIVE master and
++reopens it a few milliseconds later. If the old master has not finished exiting, `tunnel_up` can print `MASTER ANSWERS
++… nothing was reopened` (status 0, and the tunnel is then down) or `STOP: host port busy`. Neither is silent: a `STOP:`
++halts at step d, and the `t8-tunnel-check` step after it halts the row otherwise ("step e … and step f were NOT run").
++Classify that as a tunnel event of the host (invalid instrumentation), not as an observation of the SUT. Nothing is
++restored by hand to let the row go on. Not reproduced on a real ssh master.
++
++## State files (`${EGW_G3_STATE:-~/egw-exec/g3-t8t9-s3}`; `key=value` lines, never sourced)
++
++The battery's state directory `~/egw-exec/g3-battery` is never written.
++
++- `session-S3.env`: label, `state` (opening, open, halted, closed, close-failed), `up0`, the WSL boot id, the session,
++  preflight and gate attempts (`gate_attempt`), each driver's exit, the environment copy's hashes,
++  `rootfs_before_boot`, `rootfs_after_close`, every `row_clock=` reading and every `halt=` line.
++- `row-<slug>.env`: the attempt and its name (`attempt_name`), `start_up`, `ceiling_min`, `pid`/`pgid` with their
++  start instants, `state` (preparing, running, gate, awaiting-classification, classified, interrupted), the current
++  `step`, every `step_done=`, the `gate`, the class, the driver code and the export receipt; for t8 also `t8_run`,
++  `t8_qemu_before`, `t8_wait`, `t8_ssh_answered`, `t8_qemu_after`, `t8_reached_smoke` (step f was reached) and
++  `t8_smoke` (what the rule after step f found).
++- `turn.env` and the empty `turn.lock`; `row-<slug>.group-after-signal.txt` (passwords hidden);
++  `console/NNN-….txt` (one per invocation), `S3-<driver>.console.txt`, `S3-environment-copy.txt`, copies of the script
++  and manifest as opened. Together with the classification notes these are the operator records.
++
++No process listing reaches these files, or the caller's terminal, with a password: every listing is passed through a
++mask and cut at 90 columns. The frozen export's secret scan reads attempts only, never the state directory.
++
++## Every `HALT:` and what the operator does next
++
++A halt before a row's steps ends the invocation there. A halt inside the steps ends the row's steps, but the
++evidence reads and the gate still run, after which the row awaits classification. Nothing is closed, except at
++`close` with the guest gone. Every halt is recorded in the session's state file once the session is in use. **No
++further row of S3 starts after a halt** (no variable lifts this; `EGW_G3_RUI_GO` is read only by `close` for a
++session closed outside the script). A tunnel that the preamble of `hx` reopens after line d (steps e and f, every
++step of T9, the gate after a row) is a restoration and a halt. A row classified invalid instrumentation records a
++halt too. **After any halt: classify the row if it awaits classification (class by
++its cause, `operator-procedure.md`), then `close`, then hand back to Rui. Nothing is repeated and nothing is fixed.**
++`REFUSED:` (exit 2) is not a halt: nothing was started or recorded.
++
++| Where | The text begins | What it means | Next |
++|---|---|---|---|
++| `open`, checks | `HALT: <identity> … is …, the recorded identity is …`; `the clone … is not at …`; `… is not clean`; `the Yocto checkout … is at …`; `… (packet section 4, halt 6); nothing was started` | an identity of the request's section 2 differs | nothing ran and no state file exists; report to Rui; `open S3` is run again only on his direction |
++| `open`, checks | `HALT: the row files of <slug> are not the manifest's` | a step file or the manifest changed | the same |
++| `open`, checks | `HALT: an id of S3 is not fresh on the host` (the `NOT FRESH:` lines above it name the file or the attempt) | an identifier has a host artefact, or an earlier attempt that is not the admitted one exists | the same |
++| `open`, checks | `HALT: the guest root file system is not the expected one` | the `.ext4` is not at `22e9da85…` | the same |
++| `open`, drivers | `guest_session_open.sh exited N`; `preflight.sh exited N`; `the preflight's attempt could not be named`; `the environment copy … failed`; `gate_health.sh exited N`; `the guest's event directories could not be listed`; `an id of S3 has an event directory on the guest`; `open S3 was interrupted by a signal` | the session is used and recorded `halted` | `status`; if `current_session` exists the guest is UP: `close`; hand back |
++| `row`, before the attempt | `<identity>: row <slug> was NOT started and no attempt was created`; `the row files of …`; `WSL was restarted since …`; `NOT STARTED: the 3 h cutoff`; `no qemu-system-aarch64 process could be shown`; `tunnel_check failed before row`; `an id of row … is not fresh on the host, or an earlier attempt …` | section 5, items 1, 7 or 8 of the request | `close`; hand back |
++| `row t8`, before the attempt | `the gate package's record of the running images … differs from S2's …` or `… could not be read …: row t8 was NOT started` | the images the gate found running are not S2's, or the record is not there | `close`; hand back |
++| `row`, attempt created | `the new attempt is named …, which does not end '_g3-qualification-t8_attempt02'` (`…t9_attempt01`) `… No step of the row was run` | an attempt of the row exists that was not accounted for | classify `not-applicable/not-run`; `close`; hand back |
++| `row`, attempt created | `the attempt fields could not be recorded`; `… could not be copied into the attempt`; `a source could not be registered`; `the guest state before the row was not recorded` | no step of the row was run | classify by cause; `close`; hand back |
++| any step | `step <step> answered 97` (the preamble of runbook 6.1 or the tunnel did not load: the step never ran); `step <step> answered 74` (its console capture was lost) | instrumentation | classify `invalid/unknown`; `close`; hand back |
++| t8, before a | `the session's boot records are not those of a boot still running`; `the host's 'timeout' is not on PATH`; `-no-reboot (or its equivalent) is on the command line of the running QEMU process … Step a was NOT run`; `one qemu-system-aarch64 process could not be recorded before step a, or its command line could not be read` | the reboot was NOT issued | class "not started"; `close`; hand back |
++| t8, a | `step a printed STOP: … the guest was NOT rebooted` | a precondition of line a | by its `STOP:` text: "not started" (not six running containers, no event directory, no mount source, the stack not ready or not quiet) or invalid instrumentation (the boot id unreadable, the reading or the snapshot failed); `close`; hand back |
++| t8, the wait | `reboot not shown within the wait: …` | the guest did not answer with another boot id in 900 s | class "inconclusive / not demonstrated" (a hang is reported as an observation of the SUT). If the guest does not answer and QEMU runs: **signal nothing, power nothing off, ask Rui** (below) |
++| t8, the wait | `poll N of the wait answered 74 …`; `the boot id step a saved … is not a boot id of the kernel's form` | instrumentation; line b not run | classify `invalid/unknown`; `close` if the guest answers; hand back |
++| t8, after the wait | `the qemu-system-aarch64 process after the wait is not the one recorded before step a, or none could be shown` | QEMU exited, another launcher ran, or several processes | class "inconclusive / not demonstrated"; nothing is re-launched; `close` (with no QEMU left: its own path); hand back |
++| t8, b | `step b does not show REBOOT SHOWN with no STOP:` | line b's own bound passed, or the answer was not a boot id | by its `STOP:` text: reboot not shown (inconclusive), or the boot id unreadable or not saved (invalid instrumentation) |
++| t8, c | `step c does not show both CONTAINERS RETURNED UNAIDED and PERSISTENCE SHOWN with no STOP: - <what is missing>` | the set did not return, an event directory or the mount source is not as before, or a judged read did not end 0 | by its `STOP:` text (the table of `operator-procedure.md`); nothing is started by hand |
++| t8, d | `step d printed STOP: (tunnel NOT reopened …)`; `the tunnel is not up after step d` | the host tunnel (the case above) | invalid instrumentation; `close`; hand back |
++| t8, e | `step e printed STOP: …` | readiness within 3,600 s, the snapshot, `same` or `started_at` | by its `STOP:` text |
++| t8, f | `step f, the post-reboot smoke …, printed STOP:`; `step f printed no STOP: but its console does not show the line 'TEST STATUS … PROCEDURE COMPLETE'` | the smoke did not complete its procedure | by cause (request, section 5 item 5); T9 is not run |
++| any row | `the gate did NOT pass: …` | a service not healthy within 900 s, a unit active, the tunnel, the guest state not recorded; in T9 also an OOM kill, a restart or a replaced container | classify; `close`; hand back |
++| any row | `row <slug> was interrupted by a signal` | `term`, or a lost terminal: the attempt is finished `interrupted` and exported; it is not classified again | `status`; `close`; hand back |
++| `classify` | `the export FAILED`; `row <slug> is classified not started`; `row <slug> is classified invalid instrumentation` | the attempt is kept in WSL for `local_export recover`; a row not started is not attempted again; an instrumentation failure does not permit continuation (decision summary, choice 2) | `close`; hand back |
++| `term` | `a qemu-system-aarch64 process is in the row's process group`; `the keepalive client … is in the row's process group` | nothing was signalled | hand back |
++| `close` | `a recorder or collector unit is active (exit 3): nothing was stopped` | not expected in S3 (no row of S3 starts one) | report; the runbook's own cleanup is a restoration and a halt of its own |
++| `close` | `the guest did not answer (exit 97) although a qemu-system-aarch64 process is running: … nothing was stopped` | the guest cannot be closed safely | **preserve the state, signal nothing, claim no controlled close, ask Rui** |
++| `close` | `stop failed (stack-stop-130 exit N): the close driver was NOT run and QEMU is NOT forced off` | the recorded stop did not end 0 | hand back; never a forced power-off |
++| `close` | `no qemu-system-aarch64 process is left …` | the guest was lost before the close: the frozen close driver alone finishes and exports the session attempt (expect its exit 5) | hand back; nothing is re-launched |
++| `close` | `guest_session_close.sh exited N …`; `… current_session is kept: the session is NOT closed`; `row <slug>: its process died without its trap …`; `session S3 was not closed by this script …` | the close driver's own result, or a record made on Rui's direction | read the driver's console; hand back |
++
++The script records only the halts it detects. A halt the operator reads from a console or from the evidence (an OOM
++kill in the state after T8 or in the previous boot's kernel lines, a restart after the reboot, invalid
+ instrumentation of the shared chain) is honoured by not starting the next row and is written in the result note.
+ 
++### A guest that does not answer while QEMU runs
++
++During the wait of test 8, at a gate, or at `close` (exit 97 with a QEMU process running): nothing is stopped or
++powered off from the host. QEMU is left running and is not signalled, the session stays open, no controlled close is
++claimed, and what is done with QEMU is Rui's decision in the window (the data disk is at stake). `close` answers the
++same for as long as the guest does not answer.
++
+ ### A row whose process died without its trap
+ 
+-Its state file still says `running` (or `preparing`, `gate`), `status` says `its process … is GONE`, and its attempt
+-is still open in WSL. `close` refuses on it (packet §4: the open attempt is finished and exported BEFORE the stop)
+-and prints the frozen line, with this host's paths, that marks and exports it:
+-`(cd ~/egw-exec/repo/src && ~/egw-exec/venv/bin/python -m egw_experiments.local_export recover --attempts-root
+-~/egw-exec/attempts --dest-root "<output_test>" --secrets-env ~/egw-tcg/.env --interrupt <run id>)`. First fetch what
+-the row left on the guest (restorations below: the guest's `/tmp` is lost at power-off). Then `close` again: it
+-finds the attempt finished and exported, records the row `interrupted` with a halt, and goes on.
++Its state file still says `running` (or `preparing`, `gate`), `status` says `its process … is GONE`, and its attempt is
++still open in WSL. `close` refuses on it and prints the frozen line that marks and exports it
++(`local_export recover … --interrupt <run id>`, with this host's paths). First fetch what the row left on the guest
++(the guest's `/tmp` is lost at power-off). Then `close` again: it finds the attempt finished and exported, records the
++row `interrupted` with a halt, and goes on.
+ 
+ ### A session closed outside the script
+ 
+-If the frozen `guest_session_close.sh` was run by hand (or an `open` halted before any session existed), no session
+-is open and the state file still says `open` or `halted`: `close` then answers `REFUSED: no open session … recorded
+-'open'`, and `open S2` refuses on that record. Only on Rui's explicit direction:
+-`EGW_G3_RUI_GO="<his words>" … g3_battery.sh close` records the session `closed` with a halt (his words recorded),
+-and only if no `current_session` exists, no QEMU process runs and no row is running or unfinished. The post-close
+-root file system hash is taken from the session attempt's own record; without it S2 does not open.
++If the frozen `guest_session_close.sh` was run by hand (or an `open` halted before any session existed), no session is
++open and the state file still says `open` or `halted`: `close` answers `REFUSED: no open session … recorded 'open'`.
++Only on Rui's explicit direction: `EGW_G3_RUI_GO="<his words>" … g3_battery.sh close` records the session `closed`
++with a halt (his words recorded), and only if no `current_session` exists, no QEMU process runs and no row is running
++or unfinished.
+ 
+ ### Restorations
+ 
+-Only the runbook's own, run by hand and recorded with the frozen `hx` on the row's attempt while it is open (state
+-`awaiting-classification`; `status` prints its path), on the session attempt (`cat ~/egw-exec/current_session`)
+-once the row's attempt is finished. In a WSL login shell:
+-
+-```bash
+-export EGW_EXEC_REPO=$HOME/egw-exec/repo
+-. "$EGW_EXEC_REPO/tools/session/common.sh"; . "$EGW_EXEC_REPO/tools/session/guest_common.sh"
+-A=<the attempt directory>
+-# 1. a recorder unit egw-events-<id> left active - until it ends 0, three tries at most (packet §4, halt 3).
+-#    The second argument makes the cleanup KEEP what the recorder captured (events-partial/); a bare
+-#    'events_capture.sh cleanup <id>' stops the unit and copies nothing, and the guest's /tmp is lost at power-off.
+-hx "$A" restore-events-<id> 'events_cleanup <id> "$P/<id>.sut"'                                  # itest ids (T7)
+-hx "$A" restore-events-<id> 'events_cleanup <id> ~/egw-tcg/pilot/results/raw/<id>/logs/sut'      # plan entries (T1 harness, T6)
+-# 2. a service left stopped (T7's own STOP names this line; services: mongodb, ditto-things, controller)
+-hx "$A" restore-start-<service> 'ssh egw-tcg "cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env start <service>"'
+-# 3. the harness's collector egw-resources-<plan entry> left active (the harness's own stop command)
+-hx "$A" restore-collector-<id> "ssh egw-tcg 'sudo systemctl stop egw-resources-<id>'"
+-# 4. the tunnel
+-hx "$A" restore-tunnel 'tunnel_down && tunnel_up'
+-```
+-
+-The texts are in single quotes on purpose: `events_cleanup`, `$P` and `$EGW_CLONE` exist only inside `hx`'s shell
+-(the helpers are loaded there), and the `$DC` of the operator's shell is `guest_common.sh`'s, without the
+-`cd /opt/egw/deployment` — so the compose line is written out in full. Any restoration is itself a halt (packet §4,
+-halt 4): restore, record, `close`, hand back. A TERM also ends `local_export exec`, so a trap that prints to the
+-step's console may die before it restores (after a `term` on t1-harness, t6, t7-mongo or t7-ditto no `events_stop`
+-ran): after any `term`, check the services and the units before `close`.
+-
+-## The operator's sequence
+-
+-**S1** (rows 1–7): keepalive and keep-awake on → `open S1` → for each of `t1-smokes`, `t1-harness`, `t2`, `t3`,
+-`t4-replay`, `t4-reset`, `t5`: `row <slug>` → read `<attempt>/console/` and the files → `classify <slug> …`
+-(packet §5) → next row only if the gate passed and no halt condition holds → `close` → seal the operator records,
+-write `output_test/decisions/<date>_g3-battery-s1-results.md`, release keepalive and keep-awake.
+-
+-**S2** (rows 8–12), only if S1 reached its planned end without a halt: the same with `open S2` and `t6`, `t7-mongo`,
+-`t7-ditto`, `t8`, `t9`. T6: compare the printed configuration identity with packet §1 by hand (a difference is
+-halt 6). T9 runs only if T8 reached its smoke line (step f): any earlier `STOP:` of T8 is a halt of the battery.
++None is expected in S3, and any restoration is itself a halt (request, section 5 item 9): record, halt, hand back.
++Only the runbook's own exist — a capture cleanup, `tunnel_down && tunnel_up` outside line d — and each is run by hand
++through the frozen `hx` on the attempt that is open, never to let a failed row go on. **No service is started,
++restarted or recreated on the guest at any point of S3** (`compose up`, `start`, `restart`, `docker start`): the
++battery's restoration line for a service left stopped does not apply to S3.
++
++## What is unverified
++
++- **On the guest, nothing of the S3 changes has run.** The changed functions were exercised one at a time against
++  stubs (`operator-notes.md`, `operator-record/`) and the whole flow in the benches (`bench-notes.md`, `bench/`), with
++  stub `ssh`, `curl` and guest tools. Never run for real: the wait through the session's ssh
++  under `timeout` against a rebooting guest (how ssh ends when `timeout` sends TERM to its group; how long a read
++  against a guest that is going down takes); the reading of the real QEMU's command line; `git status` in the Yocto
++  checkout at `open` and before each row (its duration is not measured; the frozen open driver runs the same command
++  once per open); the form of the gate's record on S3's boot (S1's and S2's records have the same form).
++- The `-no-reboot` reading knows three spellings of the one setting. Another way of making QEMU exit at a guest
++  reboot is not looked for; `t8-qemu-after` then halts the row after the wait.
++- Line c cannot tell a `docker start` of the same container objects from their own return: that nothing is started by
++  hand between the reboot and line c is the operator's rule, not something the script detects.
++- The tunnel case at line d is reasoned, not reproduced on a real ssh master.
++- The merged lines' own assumptions (runbook Appendix B item 25): the output form of `docker ps` on the guest, the
++  bounded ssh against a booting guest, the exit statuses the lines rely on, `wait_ready 3600` after a reboot.
++- A hung `open` or `close` holds the turn until it ends; the script offers no way to end one (`term` is for rows).

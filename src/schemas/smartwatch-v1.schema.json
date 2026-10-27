@@ -1,0 +1,30 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://c2dta.org/egw/schemas/smartwatch-v1.schema.json",
+  "title": "EGW smartwatch telemetry v1",
+  "description": "Smartwatch event: heart rate + geolocation at 1 Hz nominal (paper-replica profile).",
+  "type": "object",
+  "allOf": [
+    { "$ref": "https://c2dta.org/egw/schemas/telemetry-envelope-v1.schema.json" }
+  ],
+  "properties": {
+    "device_type": { "const": "smartwatch" },
+    "heart_rate_bpm": {
+      "type": "integer",
+      "minimum": 25,
+      "maximum": 250
+    },
+    "lat": {
+      "type": "number",
+      "minimum": -90,
+      "maximum": 90
+    },
+    "lon": {
+      "type": "number",
+      "minimum": -180,
+      "maximum": 180
+    }
+  },
+  "required": ["device_type", "heart_rate_bpm", "lat", "lon"],
+  "unevaluatedProperties": false
+}

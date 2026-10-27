@@ -1,0 +1,39 @@
+{
+  "label": "before",
+  "seed": 2189910495,
+  "devices": {
+    "1bde193c-cd41-4b8b-88da-f58d9e39d677": {
+      "device_type": "smartwatch",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    },
+    "ed57e265-500f-4c90-aa83-95dec01a54b5": {
+      "device_type": "smart_ring",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    },
+    "4b733039-455b-46c4-bd7d-6875e1ce4a63": {
+      "device_type": "smart_clothing",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    }
+  }
+}

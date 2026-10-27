@@ -1,0 +1,21 @@
+python 3.12.3; repository source /home/ruisth/egw-exec/repo/src
+[D control valid] delivered=1 lines=1 outcomes=['accepted'] received=1 processing_errors=0 in_progress=0 queue_depth=0 patches=1
+[D control malformed JSON] delivered=1 lines=1 outcomes=['rejected'] received=1 processing_errors=0 in_progress=0 queue_depth=0 patches=0
+[A1 deep nesting] delivered=1 lines=0 outcomes=[] received=1 processing_errors=1 in_progress=0 queue_depth=0 patches=0
+[A2 5000-digit integer] delivered=1 lines=0 outcomes=[] received=1 processing_errors=1 in_progress=0 queue_depth=0 patches=0
+[A3 device_type is a list] delivered=1 lines=0 outcomes=[] received=1 processing_errors=1 in_progress=0 queue_depth=0 patches=0
+[A4 poison then valid] delivered=2 lines=1 outcomes=['accepted'] received=2 processing_errors=1 in_progress=0 queue_depth=0 patches=1
+[B1 GET twin 200 non-JSON body] delivered=1 lines=0 outcomes=[] received=1 processing_errors=1 in_progress=0 queue_depth=0 patches=None
+[B2 GET twin 200 JSON list] delivered=1 lines=0 outcomes=[] received=1 processing_errors=1 in_progress=0 queue_depth=0 patches=None
+[C event log unwritable] delivered=1 lines=n/a outcomes=n/a received=1 processing_errors=1 in_progress=0 queue_depth=0 patches=1
+[G marker-order] lines=0 received=1 queue_depth_after_consumer_ended=1
+[F json.loads deep nesting] RecursionError; is JSONDecodeError=False; is ValueError=False
+[F json.loads 5000-digit integer] ValueError; is JSONDecodeError=False; is ValueError=True
+[E] first flush raised OSError errno=28
+[E] raw contents after a later successful flush: b'line-1\nline-2\n'
+[H] paho-mqtt version 2.1.0
+[H] manual_ack=False: ack(7,1) rc=0 queued_packets=0
+[H] manual_ack=True, never connected: ack(7,1) rc=4 queued_packets=1 packet=40020007
+[H] manual_ack=True: ack(8,0) rc=0 queued_packets=1
+[H] default clean_session for MQTT 3.1.1: True; suppress_exceptions default: False
+[H] on_message with invalid UTF-8 topic: UnicodeDecodeError propagates out of _handle_on_message

@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1325-1337 (prompt removed)
++++ b/rows/t2.sh
+@@ -1 +1 @@
+-R=itest-3dev-01; run_test $R 7 --scenario smoke --duration 60; RT=$?
++R=itest-3dev-01-q1; run_test $R 7 --scenario smoke --duration 60; RT=$?

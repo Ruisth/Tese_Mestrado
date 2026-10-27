@@ -1,0 +1,76 @@
+
+==============================================================================
+0. Platform and anchors (sut_environment.json, loadgen_environment.json, manifest.json)
+==============================================================================
+SUT: Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap); 6.6.142-yocto-standard; nproc 4; mem_total_kb 8204356; machine aarch64
+load generator host: x86_64, cpu_count 16, kernel 6.6.87.2-microsoft-standard-WSL2
+end marker: monotonic_ns 2331405170833, polled_utc 2026-09-19T20:12:45.750Z, lag_s 0.018718
+measured duration (harness monotonic): 600.106644 s; window start (controller) 1731298526660 ns; validity valid, deviations []
+
+==============================================================================
+A. Deadline and identities
+==============================================================================
+controller end marker (ns)            : 2331405170833
+confirmation_deadline_monotonic_ns    : 2391405170833
+deadline - end marker                 : 60.000000000 s (confirmation_window_s = 60)
+published records / valid / unique ids: 6720 / 6720 / 6720
+distinct device_uuid: 3; largest single twin: 6000 of 6720 = 89.2857 % (smart_clothing)
+publish records with a null puback_monotonic_ns: 736 (a simulator capture field; not used to define any population below)
+
+==============================================================================
+B. The sealed fetch is a prefix of the post-drain file
+==============================================================================
+sealed lines 3879, post-drain lines 6720, first 3879 lines byte-identical: True (3879)
+
+==============================================================================
+C. Population counts at each collection point
+==============================================================================
+(1) sealed harness fetch : records 3879, unique ids 3879, outcomes {'accepted': 3879}
+    in time 3794, late 85, no outcome 2841
+      smart_clothing  {'in_time': 3387, 'no_outcome': 2538, 'late': 75}
+      smart_ring      {'in_time': 68, 'no_outcome': 50, 'late': 2}
+      smartwatch      {'no_outcome': 253, 'in_time': 339, 'late': 8}
+(2) post-drain observation: records 6720, unique ids 6720, outcomes {'accepted': 6720}
+    in time 3794, late 2926, no outcome 0
+      smart_clothing  {'in_time': 3387, 'late': 2613}
+      smart_ring      {'in_time': 68, 'late': 52}
+      smartwatch      {'late': 261, 'in_time': 339}
+accounting.json harness_row: delivered_unique 3794, lost 2926, late_confirmations 85
+accounting.json at_harness_fetch {'accepted_in_time': 3794, 'accepted_late': 85, 'no_outcome': 2841}, after_drain {'accepted_in_time': 3794, 'accepted_late': 2926}
+transitions fetch -> post-drain: {('in_time', 'in_time'): 3794, ('no_outcome', 'late'): 2841, ('late', 'late'): 85}
+shares of 6,720: in time 56.46 %, not in time 43.54 %
+
+==============================================================================
+D. Collection instants
+==============================================================================
+harness wall at the marker (polled_utc)      : 2026-09-19T20:12:45.750Z
+deadline mapped to harness wall              : 2026-09-19T20:13:45.750Z
+(1) sealed fetch: scp started (manifest)     : 2026-09-19T20:13:57.289Z
+    harness-run command ended (commands.jsonl seq 4): 2026-09-19T20:13:58.569705Z
+    latest ack in the sealed file            : deadline +12.659 s -> harness wall 2026-09-19T20:13:58.409Z
+    scp start - deadline (harness wall)      : 11.539 s
+    harness command end - deadline           : 12.820 s
+    post-drain scp start - sealed scp start  : 466.238 s
+    the 85 late at the fetch: acks from deadline +0.012 s to +12.659 s
+(2) post-drain: 'drained' (seq 5) 2026-09-19T20:13:58.613400Z -> 2026-09-19T20:21:43.487986Z
+    console/003-pre.stdout.txt: drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 2026-09-19T19:37:18.802Z 60 0 0 0 0) - an observation, not proof that processing has finished
+    console/005-post-drain.stdout.txt: drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 2026-09-19T19:37:18.802Z 8124 0 0 0 0) - an observation, not proof that processing has finished
+    fetch scp (seq 6) 2026-09-19T20:21:43.526684Z -> 2026-09-19T20:21:44.589239Z
+    latest ack in the post-drain file        : deadline +345.362 s -> harness wall 2026-09-19T20:19:31.111Z
+    /metrics after snapshot 2026-09-19T20:21:45.640Z: accepted 8124, received 8124, queue_depth 0, in_progress 0, dropped 0, processing_errors 0
+    snapshot monotonic - latest ack          : 134.402 s
+    before snapshot accepted 60; 60 + 1,344 + 6,720 = 8124
+    the 2841 with no outcome at the fetch: eventual acks from deadline +12.891 s to +345.362 s
+    measured identities received after the deadline: 0
+    received <= deadline and acked after it  : 2926 (the same predicate as 'late' once every identity has arrived: not an independent figure)
+
+==============================================================================
+E. Latency (s) per population - each tied to its collection point
+==============================================================================
+(1) in time, sealed fetch  [harness row population]        n= 3794  mean  254.169  p50  264.430  p95  321.070  p99  322.713  max  323.248
+(1) late at the sealed fetch                               n=   85  mean  322.905  p50  322.282  p95  325.907  p99  326.303  max  326.483
+(1) every record in the sealed fetch                       n= 3879  mean  255.675  p50  267.031  p95  321.356  p99  323.161  max  326.483
+(2) late, post-drain                                       n= 2926  mean  371.312  p50  374.706  p95  404.244  p99  405.047  max  405.470
+(2) every record, post-drain                               n= 6720  mean  305.175  p50  320.275  p95  402.699  p99  404.444  max  405.470
+harness_row: p50 264.429926  p95 321.069848  max 323.248067 s
+reproduced to the microsecond: p50 True, p95 True, max True

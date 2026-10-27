@@ -1,0 +1,176 @@
+
+######## scenario kernel (/tmp/g3-s3-op-n3-kernel)
+script under test: <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+
+=== g3_battery.sh open S3
+-> exit 1
+kernel: 0000000000000000000000000000000000000000000000000000000000000000  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+HALT: kernel (yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin) is 0000000000000000000000000000000000000000000000000000000000000000, the recorded identity is 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037 (packet section 4, halt 6); nothing was started
+--- state directory: 
+--- g3-qualification attempts created: 
+--- reboot issued by the fake line a (its pre-reboot file exists): no
+--- the fake process that stands for QEMU: not running
+
+######## scenario gate (/tmp/g3-s3-op-n3-gate)
+script under test: <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+
+=== g3_battery.sh open S3
+-> exit 0
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+row file t9-a.sh: sha256 34fcbc12d6feb4b76a730664dbd47693120d455bea1dc787e3e0a13be4c36d26 = sha256_after of the manifest (row t9, step 1, 40 bytes)
+row file t9-b.sh: sha256 01274bf148695759a7c2408e22ab2405317cd2cfeec62042f6508a592ab0448b = sha256_after of the manifest (row t9, step 2, 40 bytes)
+row file t9-c.sh: sha256 ffe6f929da135c75afdc68111f6d2b66e6c6bf4812355b9c11e4b902e6b0bbd8 = sha256_after of the manifest (row t9, step 3, 40 bytes)
+row file t9-de.sh: sha256 8cbb90980d6627a34037ee9aeb6b5e46b553a6bdeb06096a0ba18c3950d3633b = sha256_after of the manifest (row t9, step 4, 153 bytes)
+row file t9-exposure.sh: sha256 d3a49efcb08261936c190b4a470523c1edd81a925f26e394c6de0007b6405961 = sha256_after of the manifest (row t9, step 5, 41 bytes)
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T21:44:26Z up=2845 session S3 is open: egw-exec/attempts/20261004T214425Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+
+=== g3_battery.sh row t8
+-> exit 1
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+gate record: egw-exec/attempts/20261004T214425Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 2769465862d3576b1b0e979f4938f2c30a6c938b0dc74e0ebf23ce4d895d5e00)
+  now: identity egw-controller-1 image=egw-controller:0.1.0 image_id=sha256:0a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 repo_digest=none
+  S2:  identity egw-controller-1 image=egw-controller:0.1.0 image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 repo_digest=none
+HALT: the gate package's record of the running images (egw-exec/attempts/20261004T214425Z_g2-gate-preconditions_attempt01/environment/container_identities.txt: 6 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form: row t8 was NOT started and no attempt was created (packet section 4
+
+=== g3_battery.sh row t9
+-> exit 2
+REFUSED: the previous row t8 is 'not started', not classified: the next row starts only when this one is classified and its gate passed
+--- state directory: session-S3.env 
+--- g3-qualification attempts created: 
+--- reboot issued by the fake line a (its pre-reboot file exists): no
+--- the fake process that stands for QEMU: pid 87793 still running (not signalled by the script); ended now by the bench itself
+
+######## scenario noreboot (/tmp/g3-s3-op-n3-noreboot)
+script under test: <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+
+=== g3_battery.sh open S3
+-> exit 0
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+row file t9-a.sh: sha256 34fcbc12d6feb4b76a730664dbd47693120d455bea1dc787e3e0a13be4c36d26 = sha256_after of the manifest (row t9, step 1, 40 bytes)
+row file t9-b.sh: sha256 01274bf148695759a7c2408e22ab2405317cd2cfeec62042f6508a592ab0448b = sha256_after of the manifest (row t9, step 2, 40 bytes)
+row file t9-c.sh: sha256 ffe6f929da135c75afdc68111f6d2b66e6c6bf4812355b9c11e4b902e6b0bbd8 = sha256_after of the manifest (row t9, step 3, 40 bytes)
+row file t9-de.sh: sha256 8cbb90980d6627a34037ee9aeb6b5e46b553a6bdeb06096a0ba18c3950d3633b = sha256_after of the manifest (row t9, step 4, 153 bytes)
+row file t9-exposure.sh: sha256 d3a49efcb08261936c190b4a470523c1edd81a925f26e394c6de0007b6405961 = sha256_after of the manifest (row t9, step 5, 41 bytes)
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T21:44:28Z up=2848 session S3 is open: egw-exec/attempts/20261004T214427Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+(bench: the fake process was replaced by one whose argv carries -no-reboot)
+
+=== g3_battery.sh row t8
+-> exit 1
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+gate record: egw-exec/attempts/20261004T214428Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+  now: identity egw-controller-1 image=egw-controller:0.1.0 image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 repo_digest=none
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-04T21:44:29Z up=2849 row t8: attempt egw-exec/attempts/20261004T214429Z_g3-qualification-t8_attempt02 (ceiling 135 min, counted from the row's start at up=2849 and shared by everything the row does: the operator enforces it with 'term t8')
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+## 2026-10-04T21:44:29Z up=2849 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+QEMU PROCESS: pid=88779 start=284865 disks=file=rootfs.ext4;file=data.img
+STOP: -no-reboot (or its equivalent) is on the command line of the QEMU process 88779, as argument number:text 15:-no-reboot: this QEMU exits at a guest reboot instead of rebooting inside the same process - the reboot is NOT issued, and nothing was signalled
+HALT: row t8: -no-reboot (or its equivalent) is on the command line of the running QEMU process (step t8-qemu-before): with it QEMU exits at a guest reboot instead of rebooting inside the same process, which is not the procedure of test 8. Step a was NOT run: the reboot was NOT issued (class: not started; request of 2026-10-04, section 5 item 4). Nothing was
+## 2026-10-04T21:44:30Z up=2850 row t8 ended after 1 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S3: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+
+=== g3_battery.sh classify t8 failed not-applicable not-run bench: -no-reboot found, the reboot was not issued bench: none
+-> exit 1
+row t8: classified 'not started'; driver code 2; export: verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 2 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this package -> out/runs/2026-10-04/20261004T214429Z_g3-qualification-t8_a
+HALT: row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+
+=== g3_battery.sh row t9
+-> exit 2
+REFUSED: NOT STARTED: session S3 has a recorded halt (up=2850 row=t8 row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval). A halt cancels further progress until Rui directs otherwise; with his explicit go, set EGW_G3_RUI_GO to his words (they are recorded)
+--- state directory: row-t8.env session-S3.env 
+--- g3-qualification attempts created: 20261004T214429Z_g3-qualification-t8_attempt02 
+--- the t8 attempt's steps, in order: 001-guest-state-before 002-t8-qemu-before 003-guest-state-after 004-gate-healthy 005-gate-units 006-gate-tunnel-check 
+--- reboot issued by the fake line a (its pre-reboot file exists): no
+--- the fake process that stands for QEMU: pid 88779 still running (not signalled by the script); ended now by the bench itself
+
+######## scenario name (/tmp/g3-s3-op-n3-name)
+script under test: <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+
+=== g3_battery.sh open S3
+-> exit 0
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+row file t9-a.sh: sha256 34fcbc12d6feb4b76a730664dbd47693120d455bea1dc787e3e0a13be4c36d26 = sha256_after of the manifest (row t9, step 1, 40 bytes)
+row file t9-b.sh: sha256 01274bf148695759a7c2408e22ab2405317cd2cfeec62042f6508a592ab0448b = sha256_after of the manifest (row t9, step 2, 40 bytes)
+row file t9-c.sh: sha256 ffe6f929da135c75afdc68111f6d2b66e6c6bf4812355b9c11e4b902e6b0bbd8 = sha256_after of the manifest (row t9, step 3, 40 bytes)
+row file t9-de.sh: sha256 8cbb90980d6627a34037ee9aeb6b5e46b553a6bdeb06096a0ba18c3950d3633b = sha256_after of the manifest (row t9, step 4, 153 bytes)
+row file t9-exposure.sh: sha256 d3a49efcb08261936c190b4a470523c1edd81a925f26e394c6de0007b6405961 = sha256_after of the manifest (row t9, step 5, 41 bytes)
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T21:44:32Z up=2852 session S3 is open: egw-exec/attempts/20261004T214431Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+(bench: the admitted attempt01 was removed from the bench's output root after the open)
+
+=== g3_battery.sh row t8
+-> exit 1
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+row file t8-a-reboot.sh: sha256 db0647db4568ae89992e675c054dce71a71f8aa14f539fd2026886c37038052c = sha256_after of the manifest (row t8, step 1, 446 bytes)
+row file t8-b-wait-boot-id.sh: sha256 97dfd00808c77a257c45f7f6408b5ed9f837009380a68c957a56d709ff459639 = sha256_after of the manifest (row t8, step 2, 266 bytes)
+row file t8-c-unaided.sh: sha256 ceaf8fe4628c53f9f27e3442277872f9fe3a3afb7f7201d6fa0830d80111ab49 = sha256_after of the manifest (row t8, step 3, 225 bytes)
+row file t8-d-tunnel.sh: sha256 c7a415ff026ee054832be55ca68ca30112a88e51fc83839288bbe3553d163774 = sha256_after of the manifest (row t8, step 4, 128 bytes)
+row file t8-e-state.sh: sha256 b1dd24c989c49a1f35a726366574364d1d128e8dae8560053a14de49b81f2281 = sha256_after of the manifest (row t8, step 5, 172 bytes)
+row file t8-f-smoke.sh: sha256 a228f1d91b2bfba6f7fc7512cacec8b26aabad9c02560e954af3df1a1e1c7832 = sha256_after of the manifest (row t8, step 6, 350 bytes)
+gate record: egw-exec/attempts/20261004T214432Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+  now: identity egw-controller-1 image=egw-controller:0.1.0 image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 repo_digest=none
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-04T21:44:33Z up=2852 row t8: attempt egw-exec/attempts/20261004T214432Z_g3-qualification-t8_attempt01 (ceiling 135 min, counted from the row's start at up=2852 and shared by everything the row does: the operator enforces it with 'term t8')
+HALT: row t8: the new attempt is named 20261004T214432Z_g3-qualification-t8_attempt01, which does not end '_g3-qualification-t8_attempt02' (the name the request of 2026-10-04, section 3, expects): an attempt of this row exists that was not accounted for, or the admitted one is not where it is kept. No step of the row was run
+## 2026-10-04T21:44:33Z up=2852 row t8 ended after 0 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S3: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+
+=== g3_battery.sh classify t8 failed not-applicable not-run bench: the attempt has an unexpected name, nothing was run bench: none
+-> exit 1
+row t8: classified 'not started'; driver code 2; export: verified -> out/runs/2026-10-04/20261004T214432Z_g3-qualification-t8_attempt01
+HALT: row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+
+=== g3_battery.sh row t9
+-> exit 2
+REFUSED: NOT STARTED: session S3 has a recorded halt (up=2853 row=t8 row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval). A halt cancels further progress until Rui directs otherwise; with his explicit go, set EGW_G3_RUI_GO to his words (they are recorded)
+--- state directory: row-t8.env session-S3.env 
+--- g3-qualification attempts created: 20261004T214432Z_g3-qualification-t8_attempt01 
+--- the t8 attempt's steps, in order: 
+--- reboot issued by the fake line a (its pre-reboot file exists): no
+--- the fake process that stands for QEMU: pid 89840 still running (not signalled by the script); ended now by the bench itself
+
+## 2026-10-04T21:44:33Z ended; processes of the benches left: 0

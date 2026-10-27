@@ -1,0 +1,1 @@
+row t7-mongo (the row's gate passed and no halt condition of packet section 4 holds; T6 stays invalid)

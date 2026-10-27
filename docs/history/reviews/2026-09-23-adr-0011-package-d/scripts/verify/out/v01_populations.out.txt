@@ -1,0 +1,67 @@
+
+##############################################################################
+# 0. Platform and anchors
+##############################################################################
+sut_environment.json: {"role": "sut", "captured_utc": "2026-09-19T00:06:48Z", "node": "egw-qemu-integrated", "uname_a": "Linux egw-qemu-integrated 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux", "os_pretty_name": "Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap)", "nproc": 4, "cpu_model": "0xd0b", "mem_total_kb": 8204356, "docker_version": "Docker version 25.0.9, build 43987fca48", "docker_compose_version": "Docker Compose version v2.26.0", "provider": "", "region": "", "instance_type": "", "shared_vcpu_note": ""}
+loadgen_environment.json: {"captured_utc": "2026-09-19T20:00:43.784Z", "cpu_count": 16, "docker_client_version": null, "docker_server_version": null, "kernel_release": "6.6.87.2-microsoft-standard-WSL2", "kernel_version": "#1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025", "machine": "x86_64", "node": "Ruisth-Desktop", "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39", "processor": "x86_64", "python_implementation": "CPython", "python_version": "3.12.3", "role": "loadgen", "system": "Linux"}
+marker monotonic_ns 2331405170833 == controller_monotonic_at_run_end_ns 2331405170833
+marker polled_utc 2026-09-19T20:12:45.750Z lag_s 0.018718 wall_utc (controller/guest) 2026-09-19T20:12:45.876Z
+measured duration harness monotonic: 600.106644 s
+validity valid deviations [] warnings []
+window start, controller clock ns: 1731298526660
+
+##############################################################################
+# A. Deadline
+##############################################################################
+deadline 2391405170833 deadline - marker = 60.000000000 s confirmation_window_s 60
+deadline mapped to harness wall via marker: 2026-09-19T20:13:45.750Z
+
+##############################################################################
+# B. Prefix property of the two copies
+##############################################################################
+sealed lines 3879 post lines 6720 identical leading lines 3879 all sealed lines are the leading lines of post: True
+
+##############################################################################
+# C. Populations by identity
+##############################################################################
+sent records 6720 unique ids 6720 intended_invalid true 0
+sent records with null puback_monotonic_ns 736
+sealed outcomes {'accepted': 3879} classes Counter({'in': 3794, 'none': 2841, 'late': 85})
+post outcomes {'accepted': 6720} classes Counter({'in': 3794, 'late': 2926})
+ids in sealed not in sent: 0 ; ids in post not in sent: 0
+repeated accepted ids sealed/post: 0 0
+transitions sealed->post {('in', 'in'): 3794, ('late', 'late'): 85, ('none', 'late'): 2841}
+  per device at the fetch smart_clothing {'in': 3387, 'late': 75, 'none': 2538}
+  per device at the fetch smart_ring {'in': 68, 'late': 2, 'none': 50}
+  per device at the fetch smartwatch {'in': 339, 'late': 8, 'none': 253}
+accounting.json at_harness_fetch_per_device {"smartwatch": {"accepted_in_time": 339, "accepted_late": 8, "no_outcome": 253}, "smart_ring": {"accepted_in_time": 68, "accepted_late": 2, "no_outcome": 50}, "smart_clothing": {"accepted_in_time": 3387, "accepted_late": 75, "no_outcome": 2538}}
+in time share 56.4583 % ; not in time 43.5417 %
+
+##############################################################################
+# D. Collection instants
+##############################################################################
+sealed scp start 2026-09-19T20:13:57.289Z -> deadline + 11.539 s
+cmd seq4 harness-run ended 2026-09-19T20:13:58.569705Z -> deadline + 12.820 s
+newest ack in sealed: deadline + 12.659 s ; harness wall 2026-09-19T20:13:58.409Z
+P2 (late at fetch) ack range after deadline: 0.012 .. 12.659 s
+cmd seq5 drained 2026-09-19T20:13:58.613400Z -> 2026-09-19T20:21:43.487986Z duration 464.875
+cmd seq6 scp 2026-09-19T20:21:43.526684Z -> 2026-09-19T20:21:44.589239Z
+post scp start - sealed scp start = 466.238 s
+console/005: drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 2026-09-19T19:37:18.802Z 8124 0 0 0 0) - an observation, not proof that processing has finished
+newest ack in post: deadline + 345.362 s ; harness wall 2026-09-19T20:19:31.111Z ; window end + 405.362 s
+after snapshot (controller wall_utc, guest clock): 2026-09-19T20:21:45.640Z {'accepted': 8124, 'received': 8124, 'queue_depth': 0, 'in_progress': 0, 'dropped': 0, 'processing_errors': 0}
+after snapshot monotonic - newest ack: 134.402 s
+before snapshot 2026-09-19T20:00:42.825Z {'accepted': 60, 'received': 60, 'queue_depth': 0, 'in_progress': 0}
+P3: received before deadline 2841 of 2841 ; acked after deadline 12.891 .. 345.362 s
+P3: received before the WINDOW END (controller marker) 2841
+measured identities received after deadline: 0
+
+##############################################################################
+# E. Latency (s) by population, harness percentile convention
+##############################################################################
+P1 in time (sealed)                    n= 3794 mean 254.169 p50 264.430 p95 321.070 p99 322.713 max 323.248
+P2 late at fetch (sealed)              n=   85 mean 322.905 p50 322.282 p95 325.907 p99 326.303 max 326.483
+P2' late (post)                        n= 2926 mean 371.312 p50 374.706 p95 404.244 p99 405.047 max 405.470
+all 6720 (post)                        n= 6720 mean 305.175 p50 320.275 p95 402.699 p99 404.444 max 405.470
+accounting harness_row p50/p95/max ms: 264429.92631400004 321069.84816404997 323248.067316
+P1 p50/p95/max ms, recomputed: 264429.926314 321069.848164 323248.067316

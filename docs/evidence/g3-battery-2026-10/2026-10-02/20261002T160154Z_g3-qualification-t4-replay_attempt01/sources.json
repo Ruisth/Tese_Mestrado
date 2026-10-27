@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-02T16:01:54.281427Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-dup-01-q1",
+      "role": "itest run itest-dup-01-q1: the simulator's directory with the fetched events.jsonl, and every itest-dup-01-q1.* sibling the helpers write (transcript, marker, metrics, twins, reconcile, copies, .sut/)",
+      "siblings_glob": "itest-dup-01-q1.*"
+    },
+    {
+      "added_utc": "2026-10-02T16:01:54.315839Z",
+      "kind": "other",
+      "path": "/home/ruisth/egw-tcg/itest-replay/itest-dup-01-q1",
+      "role": "the replay's own output directory (sent_events.jsonl, manifest.json): replay-check reads it, no helper copies it",
+      "siblings_glob": null
+    }
+  ]
+}

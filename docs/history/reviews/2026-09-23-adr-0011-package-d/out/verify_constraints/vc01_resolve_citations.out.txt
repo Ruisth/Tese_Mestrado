@@ -1,0 +1,603 @@
+== repository and commit
+repo: /home/ruisth/egw-exec/repo
+b7e0c83c3277f7469c05336f91949e7d1b89489a
+b7e0c83c3277f7469c05336f91949e7d1b89489a | 2026-09-21 00:17:23 +0100 | feat(tools): the two drivers the G2 demonstration needs
+object 35fe8bb: ABSENT from this clone
+object 3549d46: ABSENT from this clone
+object 8e88670: commit
+object fe954a9: commit
+object ccd5fd6: commit
+object b7e0c83: commit
+
+######## backlog_diagnosis.md
+--- src/egw_experiments/analyze.py:499-516
+  499  def percentile(values: list[float], p: float) -> float | None:
+  500      """Percentile with linear interpolation between closest ranks.
+  501  
+  502      rank = (n-1) * p/100 on the sorted sample (numpy's default convention).
+  503      Returns None for an empty sample.
+  504      """
+  505      if not values:
+  506          return None
+  507      s = sorted(values)
+  508      if len(s) == 1:
+  509          return float(s[0])
+  510      rank = (len(s) - 1) * (p / 100.0)
+  511      lo = math.floor(rank)
+  512      hi = math.ceil(rank)
+  513      if lo == hi:
+  514          return float(s[lo])
+  515      return float(s[lo] + (s[hi] - s[lo]) * (rank - lo))
+  516  
+--- src/egw_controller/service.py:39
+   39  DEFAULT_QUEUE_MAXSIZE = 10000
+--- src/egw_controller/service.py:150-152
+  150          self._queue: asyncio.Queue[InboundMessage | None] = asyncio.Queue(
+  151              maxsize=queue_maxsize
+  152          )
+--- src/egw_controller/mqtt.py:187-189
+  187      def _on_message(self, client: Client, userdata: Any, message: Any) -> None:
+  188          # Latency measurement starts here, on the network thread, at arrival.
+  189          received_monotonic_ns = self._monotonic_ns()
+--- src/egw_controller/mqtt.py:199
+  199          loop.call_soon_threadsafe(self._submit, inbound)
+--- src/egw_controller/service.py:171-173
+  171      def queue_depth(self) -> int:
+  172          """Current number of queued inbound messages (for ``GET /metrics``)."""
+  173          return self._queue.qsize()
+--- src/egw_controller/service.py:175-197
+  175      async def run(self) -> None:
+  176          """Drain the queue until :meth:`stop` enqueues the shutdown sentinel.
+  177  
+  178          A taken message is ``in_progress`` until its processing ends, however
+  179          it ends; one that ends without an outcome counter having moved is a
+  180          ``processing_errors`` (CONTRACTS 5).
+  181          """
+  182          while True:
+  183              message = await self._queue.get()
+  184              if message is None:
+  185                  break
+  186              # Before the try, with no await since the removal from the queue:
+  187              # the finally below runs if and only if this call ran.
+  188              self._metrics.processing_started()
+  189              try:
+  190                  await self.process(message)
+  191              except Exception:  # noqa: BLE001 - keep the pipeline alive
+  192                  logger.exception(
+  193                      "unhandled error while processing message",
+  194                      extra={"context": {"topic": message.topic}},
+  195                  )
+  196              finally:
+  197                  self._metrics.processing_finished()
+--- src/egw_controller/service.py:320
+  320              attempts = await self._ditto.patch_thing(device_uuid, patch)
+--- src/egw_controller/service.py:331
+  331          ack = self._monotonic_ns()
+--- src/egw_controller/service.py:342
+  342              latency_ms=(ack - received) / 1e6,
+--- src/egw_controller/service.py:414
+  414          self._events.log(event)
+--- src/egw_controller/events.py:112-119
+  112      def log(self, event: ControllerEvent) -> None:
+  113          """Append one event line and flush it immediately."""
+  114          self._validate(event)
+  115          line = json.dumps(event.to_dict(), ensure_ascii=False, separators=(",", ":"))
+  116          with self._lock:
+  117              fh = self._open(self._bucket(event.run_id))
+  118              fh.write(line + "\n")
+  119              fh.flush()
+--- src/deployment/scripts/collect-resources.sh:60-67
+   60  #   cpu_pct   100 * delta(cpu.stat usage_usec) / delta(elapsed time), i.e.
+   61  #             docker's single-CPU basis (can exceed 100 for a
+   62  #             multi-threaded container); the harness analysis normalizes
+   63  #             it by nproc from sut_environment.json (audit 9.7). Elapsed
+   64  #             time comes from /proc/uptime, kept exactly as read (never
+   65  #             re-rounded), which no clock step moves. The figure is the CPU
+   66  #             time the GUEST accounts to the container; it is not the host
+   67  #             QEMU process's CPU and not native performance.
+--- src/egw_simulator/cli.py:79-87
+   79      run_p.add_argument(
+   80          "--rate",
+   81          type=float,
+   82          default=None,
+   83          help=(
+   84              "aggregate message rate in msg/s, split 1:0.2:10 across "
+   85              "smartwatch:smart_ring:smart_clothing (default: scenario "
+   86              "default; required for load-sweep)"
+   87          ),
+--- docs/setup/qemu_integrated_gateway.md:651
+  651  # the per-phase sum is 40 s per attempt, 482.4 s for a first-contact message - export DRAIN_QUIET_S=490 to cover it.
+--- docs/setup/qemu_integrated_gateway.md:653-654
+  653  drained() {
+  654    local quiet=${DRAIN_QUIET_S:-130} step=${DRAIN_STEP_S:-5} limit=${DRAIN_LIMIT_S:-900}
+--- docs/setup/qemu_integrated_gateway.md:1004
+ 1004  What the procedure still **cannot** see (`UNVERIFIED:`, Appendix B item 21): (a) a message delivered to the controller during the last seconds of the window and still in progress at its last reading —
+--- src/egw_simulator/scenarios.py: load-sweep
+4:section 4.3: smoke, nominal, load-sweep, dropout-reconnect, invalid-payload
+71:    ``--rate`` (load-sweep). ``invalid_ratio`` of 0 disables injection.
+98:            "load-sweep",
+
+######## adr-0011-controller-restart-recovery.md
+--- docs/evidence/integrated-qemu/2026-09-18-mongodb7-isolated/README.md:72
+   72  (`docs/adr/0009-mongodb-8-evaluation.md`, proposed, separate decision).
+--- docs/reviews/2026-09-17-egw-image-audit.md:615
+  615  6. **MongoDB 8.0.** The life-cycle dates, the ARMv8.2-A requirement, the Transparent Huge Pages recommendation for 8.0 and Ditto 3.9.4's statement of MongoDB 8.0 support were verified; `docs/adr/0009-
+--- docs/adr/0010-controller-progress-counters.md:10
+   10  (pull request #30) and 0009 is kept for other open work; numbers are never
+--- src/Dockerfile:48
+   48  RUN pip install .
+--- src/pyproject.toml:11
+   11      "paho-mqtt>=2.1,<3",
+--- src/egw_experiments/controller_metrics.py:53-64
+   53  CSV_HEADER = [
+   54      "ts_utc",
+   55      "accepted",
+   56      "rejected",
+   57      "duplicate",
+   58      "failed",
+   59      "dropped",
+   60      "queue_depth",
+   61  ]
+   62  
+   63  #: Counter fields copied from the /metrics JSON snapshot, in column order.
+   64  METRIC_FIELDS = ("accepted", "rejected", "duplicate", "failed", "dropped", "queue_depth")
+--- src/egw_controller/mqtt.py:73-76
+   73          client = Client(
+   74              callback_api_version=CallbackAPIVersion.VERSION2,
+   75              client_id=f"egw-controller-{settings.egw_id}",
+   76          )
+--- src/egw_controller/mqtt.py:103
+  103          result, mid = client.subscribe(self._settings.mqtt_topic_filter, qos=1)
+--- src/egw_controller/mqtt.py:149-152
+  149          if value in _GRANTED_QOS:
+  150              self._connected.set()
+  151              logger.info(
+  152                  "MQTT subscription granted; bridge ready",
+--- src/egw_controller/mqtt.py:182-183
+  182          logger.warning(
+  183              "MQTT disconnected",
+--- src/egw_controller/mqtt.py:190-199
+  190          loop = self._loop
+  191          if loop is None or loop.is_closed():
+  192              logger.warning("message received before bridge start; dropping")
+  193              return
+  194          inbound = InboundMessage(
+  195              topic=message.topic,
+  196              payload=bytes(message.payload),
+  197              received_monotonic_ns=received_monotonic_ns,
+  198          )
+  199          loop.call_soon_threadsafe(self._submit, inbound)
+--- src/egw_controller/mqtt.py:211-217
+  211      def stop(self) -> None:
+  212          try:
+  213              self._client.disconnect()
+  214          finally:
+  215              self._client.loop_stop()
+  216              self._connected.clear()
+  217              self._sub_mid = None
+--- src/egw_controller/service.py:81-87
+   81  @dataclass(frozen=True, slots=True)
+   82  class InboundMessage:
+   83      """One raw MQTT message bridged into the asyncio pipeline."""
+   84  
+   85      topic: str
+   86      payload: bytes
+   87      received_monotonic_ns: int
+--- src/egw_controller/service.py:161-169
+  161          self._metrics.increment_received()
+  162          try:
+  163              self._queue.put_nowait(message)
+  164          except asyncio.QueueFull:
+  165              self._metrics.increment_dropped()
+  166              logger.warning(
+  167                  "inbound queue full; dropping message",
+  168                  extra={"context": {"topic": message.topic}},
+  169              )
+--- src/egw_controller/service.py:182-201
+  182          while True:
+  183              message = await self._queue.get()
+  184              if message is None:
+  185                  break
+  186              # Before the try, with no await since the removal from the queue:
+  187              # the finally below runs if and only if this call ran.
+  188              self._metrics.processing_started()
+  189              try:
+  190                  await self.process(message)
+  191              except Exception:  # noqa: BLE001 - keep the pipeline alive
+  192                  logger.exception(
+  193                      "unhandled error while processing message",
+  194                      extra={"context": {"topic": message.topic}},
+  195                  )
+  196              finally:
+  197                  self._metrics.processing_finished()
+  198  
+  199      async def stop(self) -> None:
+  200          """Request shutdown after the already-queued backlog is drained."""
+  201          await self._queue.put(None)
+--- src/egw_controller/service.py:212-214
+  212          try:
+  213              decoded: Any = json.loads(
+  214                  message.payload.decode("utf-8"),
+--- src/egw_controller/service.py:283-292
+  283                  error=forgery,
+  284              )
+  285              return
+  286  
+  287          # First event for this device since startup: rebuild the dedupe state
+  288          # from the twin's ingestion feature (CONTRACTS.md section 4), creating
+  289          # policy + thing on true first contact.
+  290          if not self._dedupe.known_device(device_uuid):
+  291              try:
+  292                  await self._seed_device(device_uuid, payload)
+--- src/egw_controller/service.py:293-301
+  293              except DittoError as exc:
+  294                  self._emit(
+  295                      identity=identity,
+  296                      received=received,
+  297                      outcome="failed",
+  298                      attempts=exc.attempts,
+  299                      error=str(exc),
+  300                  )
+  301                  return
+--- src/egw_controller/service.py:303-314
+  303          reason = self._dedupe.check(
+  304              device_uuid, payload["message_id"], payload["seq"], payload["run_id"]
+  305          )
+  306          if reason is not None:
+  307              self._emit(
+  308                  identity=identity,
+  309                  received=received,
+  310                  outcome="duplicate",
+  311                  attempts=0,
+  312                  error=reason,
+  313              )
+  314              return
+--- src/egw_controller/service.py:318-334
+  318          )
+  319          try:
+  320              attempts = await self._ditto.patch_thing(device_uuid, patch)
+  321          except DittoError as exc:
+  322              self._emit(
+  323                  identity=identity,
+  324                  received=received,
+  325                  outcome="failed",
+  326                  attempts=exc.attempts,
+  327                  error=str(exc),
+  328              )
+  329              return
+  330  
+  331          ack = self._monotonic_ns()
+  332          self._dedupe.record(
+  333              device_uuid, payload["message_id"], payload["seq"], payload["run_id"]
+  334          )
+--- src/egw_controller/service.py:390-392
+  390      def _emit(
+  391          self,
+  392          *,
+--- src/egw_controller/service.py:410-415
+  410              outcome=outcome,
+  411              attempts=attempts,
+  412              error=error,
+  413          )
+  414          self._events.log(event)
+  415          self._metrics.increment(outcome)
+--- src/egw_controller/app.py:144-150
+  144      service = ControllerService(
+  145          repository=repository,
+  146          dedupe=dedupe,
+  147          ditto=ditto,
+  148          events=events,
+  149          metrics=metrics,
+  150      )
+--- src/egw_controller/app.py:159-164
+  159          finally:
+  160              bridge.stop()
+  161              await service.stop()
+  162              await pipeline_task
+  163              await ditto.aclose()
+  164              events.close()
+--- src/egw_controller/config.py:59
+   59      egw_id: str = "egw-01"
+--- src/egw_controller/config.py:104
+  104              egw_id=_get_str(e, "EGW_ID", "egw-01"),
+--- src/egw_controller/ditto.py:70-74
+   70              "last_message_id": payload["message_id"],
+   71              "last_seq": payload["seq"],
+   72              "last_run_id": payload["run_id"],
+   73              "last_ts": payload["ts"],
+   74              "accepted_count": accepted_count,
+--- src/egw_controller/dedupe.py:52-54
+   52      def seed_from_twin(
+   53          self, device_uuid: str, twin: Mapping[str, Any] | None
+   54      ) -> None:
+--- src/egw_controller/dedupe.py:78-81
+   78              accepted_count = properties.get("accepted_count")
+   79              if _is_int(accepted_count) and accepted_count >= 0:
+   80                  state.accepted_count = accepted_count
+   81          self._devices[device_uuid] = state
+--- src/egw_controller/dedupe.py:91-113
+   91      def check(
+   92          self, device_uuid: str, message_id: str, seq: int, run_id: str
+   93      ) -> str | None:
+   94          """Return a duplicate reason string, or ``None`` if the message is fresh.
+   95  
+   96          The ``message_id`` LRU applies across runs; the ``seq <= last_seq``
+   97          rule applies only when ``run_id`` equals the device's ``last_run_id``
+   98          (CONTRACTS.md section 4, v1.1 run scoping).
+   99          """
+  100          state = self._state(device_uuid)
+  101          if message_id in state.message_ids:
+  102              return f"duplicate message_id {message_id}"
+  103          if (
+  104              state.last_run_id is not None
+  105              and run_id == state.last_run_id
+  106              and state.last_seq is not None
+  107              and seq <= state.last_seq
+  108          ):
+  109              return (
+  110                  f"seq {seq} <= last_seq {state.last_seq} "
+  111                  f"within run_id {run_id}"
+  112              )
+  113          return None
+--- src/egw_controller/metrics.py:162-181
+  162      def snapshot(self) -> dict[str, Any]:
+  163          with self._lock:
+  164              counts = dict(self._counts)
+  165              dropped = self._dropped
+  166              received = self._received
+  167              in_progress = self._in_progress
+  168              processing_errors = self._processing_errors
+  169          started_at = self._started_at.isoformat(timespec="milliseconds")
+  170          # Confirmation marker: both clocks read at snapshot time, i.e. while
+  171          # the /metrics request is handled (see module docstring).
+  172          marker_ns = int(self._monotonic_ns())
+  173          marker_wall = self._now().isoformat(timespec="milliseconds")
+  174          return {
+  175              **counts,
+  176              "dropped": dropped,
+  177              "received": received,
+  178              "in_progress": in_progress,
+  179              "processing_errors": processing_errors,
+  180              "started_at": started_at.replace("+00:00", "Z"),
+  181              "uptime_s": self._monotonic() - self._started_monotonic,
+--- src/CONTRACTS.md:5-9
+    5  > Derived from archived plan v1.0 §5; under plan v1.1/v1.2 §1 and the adopted
+    6  > plan v2.0 section 1 this file is
+    7  > itself the authoritative record for public implementation interfaces. Any
+    8  > change here requires a coordinated update of the simulator, controller,
+    9  > schemas, TDs, deployment, harness and tests, and an entry in the LOG.
+--- src/CONTRACTS.md:11-25
+   11  ## 1. MQTT
+   12  
+   13  | Item | Value |
+   14  |---|---|
+   15  | Port | `8883` (TLS) |
+   16  | QoS | 1 |
+   17  | Authentication | username/password (Mosquitto `password_file`) + TLS server-auth |
+   18  | Telemetry topic | `c2dt/{egw_id}/{device_uuid}/telemetry` |
+   19  | Controller filter | `c2dt/+/+/telemetry` |
+   20  | Anonymous access | forbidden |
+   21  | Local dev/tests | `--no-tls` profile permitted only on `localhost` and never in benchmarks |
+   22  
+   23  Dev users (generated by script, never committed): `egw-controller`,
+   24  `egw-simulator`. ACL: the simulator only publishes to `c2dt/#`; the controller
+   25  only subscribes.
+--- src/CONTRACTS.md:98-100
+   98  ## 5. Controller (MQTT→Ditto bridge)
+   99  
+  100  - Asynchronous MQTT subscription (QoS 1); JSON Schema validation **before** any
+--- src/CONTRACTS.md:125-127
+  125      (integers) are additive (2026-09-18) and change no existing field; they
+  126      are defined in the sub-section on progress counters below.
+  127  
+--- src/CONTRACTS.md:186-195
+  186  - **`processing_errors`** (cumulative): the number of messages removed from
+  187    the inbound queue whose processing ended **without any outcome counter
+  188    having been incremented** — an exception that escaped the pipeline (a
+  189    failed write of the event record included) or cancellation of the consumer.
+  190    It means **"no outcome was recorded"**, not "not applied": the twin may
+  191    already have been updated, because the Ditto update precedes the event
+  192    record. No record exists in `events.jsonl` for such a message. For an
+  193    escaping exception the traceback and the topic, not the message identity,
+  194    are in the controller's error log; cancellation of the consumer leaves no
+  195    log record. A message whose outcome was counted is never also counted
+--- src/CONTRACTS.md:275-287
+  275  **Shutdown.** To stop, the controller places one internal marker in the
+  276  inbound queue; the marker is not a message. During shutdown `queue_depth`
+  277  may therefore include that one marker, and the right-hand side of the
+  278  identity may exceed `received` by exactly one. The meaning of `queue_depth`
+  279  is not changed to hide it. While it is queued the marker occupies one queue
+  280  slot, so a message that arrives then may be counted as `dropped` one slot
+  281  before the configured capacity is reached; this is the existing shutdown
+  282  behaviour, not a change. A message enqueued behind the marker is counted
+  283  in `received` and stays in `queue_depth`. With a sentinel shutdown the
+  284  message in progress finishes normally and the backlog ahead of the marker is
+  285  drained; if the consumer is cancelled instead, a message in progress is
+  286  counted in `processing_errors` and the backlog stays in `queue_depth`. A
+  287  process that is killed runs no code: the restart rules above apply.
+--- src/CONTRACTS.md:304-306
+  304  - `received_monotonic_ns`: `time.monotonic_ns()` in the MQTT callback;
+  305  - `ditto_ack_monotonic_ns`: after a 2xx response from Ditto;
+  306  - `latency_ms = (ditto_ack - received)/1e6`, computed in the same process;
+--- src/CONTRACTS.md:348-351
+  348  - Capture of `puback_monotonic_ns` is *best-effort*: the wait for the PUBACK is
+  349    limited to the free time until the next scheduled event (it never blocks the
+  350    publication pace); `null` when the PUBACK was not observed in time. The
+  351    primary metrics (plan §7.3) never depend on this field.
+--- src/CONTRACTS.md:369-374
+  369  `sent` = handed to the MQTT publish; `received` = controller callback;
+  370  `duplicate` = `message_id` already processed; `rejected` = validation failure;
+  371  `confirmed` = 2xx from Ditto; `lost` = valid message sent without a unique
+  372  confirmation within 60 s after the end of the run. Delivery rate = unique
+  373  confirmations / valid messages sent. Statistical unit = the run, never the
+  374  message. Primary latency = the controller's `latency_ms` (p50/p95/p99).
+--- src/deployment/compose.yaml:87
+   87            memory: 128M
+--- src/deployment/compose.yaml:243-243
+  243    controller:
+--- src/deployment/compose.yaml:251-252
+  251      # docker.io/library/egw-controller. Identity = image id + source commit
+  252      # (scripts/verify-controller-image.sh).
+--- src/deployment/compose.yaml:256
+  256      restart: unless-stopped
+--- src/deployment/compose.yaml:290
+  290        - ./data/events:/data/events
+--- src/deployment/compose.yaml:313-314
+  313      logging: *default-logging
+  314  
+--- src/deployment/mosquitto/config/mosquitto.conf:30-35
+   30  # Persistence: QoS 1 in-flight/queued state survives broker restarts
+   31  # (dropout-reconnect scenario). Backed by the mosquitto-data named volume.
+   32  # ---------------------------------------------------------------------------
+   33  persistence true
+   34  persistence_location /mosquitto/data/
+   35  autosave_interval 60
+--- src/deployment/mosquitto/config/mosquitto.conf:47-56
+   47  log_dest stdout
+   48  log_type error
+   49  log_type warning
+   50  log_type notice
+   51  log_type information
+   52  log_type subscribe
+   53  log_type unsubscribe
+   54  connection_messages true
+   55  log_timestamp true
+   56  log_timestamp_format %Y-%m-%dT%H:%M:%S
+--- src/deployment/images.lock.env:39
+   39  IMAGE_MOSQUITTO=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+--- src/egw_experiments/analyze.py:1766
+ 1766          if outcome == "accepted":
+--- src/egw_experiments/analyze.py:1808
+ 1808      delivered_unique = len(confirmed_in_window & valid_ids)
+--- src/egw_experiments/analyze.py:1821
+ 1821      lost = sent_valid - delivered_unique
+--- src/egw_experiments/analyze.py:1780-1787
+ 1780              if mid in confirmed_in_window:
+ 1781                  # The twin was patched more than once for the same message:
+ 1782                  # the exact defect the controller_restart acceptance (claim
+ 1783                  # C12) must rule out. Broker-level QoS 1 redeliveries that
+ 1784                  # the controller correctly deduplicates appear as outcome
+ 1785                  # 'duplicate', never here.
+ 1786                  double_accepted += 1
+ 1787                  warnings.append(f"repeated accepted event for message_id {mid}")
+--- src/egw_experiments/protocol.py:112
+  112  MAX_SAMPLE_GAP_S = 5.0
+--- src/egw_experiments/run.py:2983
+ 2983          print(f"error: run_id {run_id!r} not found in {plan_path}", file=sys.stderr)
+--- src/egw_simulator/publisher.py:160-167
+  160      - QoS 1 by default; puback capture is best-effort: ``publish()`` waits
+  161        for the acknowledgement at most ``wait_budget_s`` (the caller's free
+  162        time until its next scheduled event), so publishing throughput is
+  163        never capped by the broker round-trip. Unacknowledged messages stay
+  164        in paho's outgoing queue and are retransmitted by the network thread.
+  165      - ``drain(timeout_s)`` waits (bounded) for the still-unacknowledged
+  166        in-flight messages at end of run; records written with a ``null``
+  167        puback are never revisited (CONTRACTS.md section 7).
+--- docs/setup/qemu_integrated_gateway.md:1112
+ 1112  Expected: stderr `dropout_disconnects = N` with N ≈ 3 (one window per minute, `dropout_windows`), `buffered_dropout > 0`; the manifest carries the `DROPOUT_SCOPE_NOTE`; the broker log shows N+1 connec
+--- docs/setup/qemu_integrated_gateway.md:1114
+ 1114  *Note (2026-09-19):* the one execution of 2026-09-18 (`itest-dropout-01`) **failed the deadline criterion above**: all 2,016 valid events were eventually accepted, but only 1,690 were confirmed within
+--- docs/setup/qemu_integrated_gateway.md:1116-1138
+ 1116  ### Test 6 — controller restart with recovery and traceability
+ 1117  
+ 1118  Use the harness hook so the restart instant is recorded in the manifest, with the pilot plan's first `controller_restart` run id:
+ 1119  
+ 1120  ```bash
+ 1121  host$ RID=controller_restart-r01    # deterministic (controller_restart-r01..r03); the condition is 600 s nominal, so --restart-at-s 300 is mid-run (protocol.py)
+ 1122  host$ SEED=$(python3 -c "import json;p=json.load(open('$HOME/egw-tcg/pilot/campaign_plan.json'));print(next(r['seed'] for r in p['runs'] if r['run_id']=='$RID'))")
+ 1123  host$ RESTART="ssh egw-tcg 'cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env restart controller'"
+ 1124  host$ T6=stop; if [ -n "$SEED" ] && wait_ready && drained && $REC snap --prefix $P/$RID --label before --seed $SEED; then harness_run $RID --restart-cmd "$RESTART" --restart-at-s 300 && T6=ok; else st
+ 1125  host$ [ "$T6" = ok ] && drained && $REC snap --prefix $P/$RID --label after && T6=captured || stop "test 6: harness run not complete (T6='$T6') or 'after' snapshot NOT taken - do not run delta"
+ 1126  host$ [ "$T6" = captured ] && $REC delta ~/egw-tcg/pilot/results/raw/$RID --prefix $P/$RID || stop "test 6: delta NOT run (T6='$T6') or it exited non-zero (4 = MISMATCH)"     # twins only: no /metrics
+ 1127  host$ python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json
+ 1128  ```
+ 1129  
+ 1130  (Manual equivalent without the harness: `run_test <id> 42 --scenario nominal --duration 600` and, 300 s after the simulator's first stderr line (not after the command was entered: `pre` first waits fo
+ 1131  
+ 1132  ```bash
+ 1133  host$ scp "egw-tcg:/opt/egw/deployment/data/events/$RID.warmup/events.jsonl" $P/$RID.warmup.events.jsonl && [ -s $P/$RID.warmup.events.jsonl ] && $REC delta ~/egw-tcg/pilot/results/raw/$RID --prefix $
+ 1134  ```
+ 1135  
+ 1136  Without `--also`, every device line of such a run is a `MISMATCH` by exactly the warm-up's accepted records.) `UNVERIFIED:` that the controller's `time.monotonic_ns()` continues across a *container* r
+ 1137  
+ 1138  *Note (2026-09-19):* the timed harness runs of this test, `controller_restart-r01` (2026-09-18) and `controller_restart-r02` (2026-09-19), are **invalid**, so neither the recovery nor the delivery of 
+--- docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:104
+  104    ARM64 deployment leaves mandatory scope and becomes documented, unverified
+--- docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:630-631
+  630  identified. *(Corrected 2026-09-19: this sentence previously excluded "an
+  631  unsealed or failing run" from every summary, acceptance and figure, which
+--- docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md:638-640
+  638  linked from `PROGRESS.md`, with an annotated tag and an immutable raw tree. After
+  639  G5 there is no feature work; missing evidence becomes an explicit limitation and
+  640  is never replaced by an inferred result.
+--- docs/claim_evidence_matrix.md:173
+  173  | C12 | Duplicate detection survives a controller restart because the state (`last_message_id`, `last_seq`) persists in the `ingestion` feature of the twin | 4 and 5 | RQ2 | `controller_restart` condi
+--- PROGRESS.md:509
+   RANGE BEYOND EOF (file has 471 lines)
+--- PROGRESS.md:180
+  180  |---|---|
+--- docs/governance/proposals/acceptance_protocol_update_2026-09-19.md present?
+present
+--- ADR files at HEAD
+docs/adr/0001-qemu-functional-vs-arm64-vm-performance.md
+docs/adr/0002-ssi-acapy-conditional-p1.md
+docs/adr/0003-flat-measurements-common-envelope-uuidv5.md
+docs/adr/0004-minimal-ditto-preauth.md
+docs/adr/0005-latency-measured-in-controller-monotonic.md
+docs/adr/0006-duplicate-state-in-twin-ingestion-feature.md
+docs/adr/0007-three-tier-platform-model.md
+docs/adr/0008-integrated-yocto-arm64-evaluation.md
+docs/adr/0010-controller-progress-counters.md
+docs/adr/README.md
+
+######## lines this verification relies on (not cited by the documents)
+--- src/egw_experiments/analyze.py:2704-2719
+ 2704          elif cid == "controller_restart":
+ 2705              # C12: the restart hook must actually have run (executed
+ 2706              # timestamps + exit 0 in the manifest record, work order P1b),
+ 2707              # delivery across the restart, zero double-accepted.
+ 2708              hook_ok = count_ok(lambda r: r.get("restart_hook_ok") is True)
+ 2709              observed = (
+ 2710                  f"{hook_ok}/{n_valid} run(s) with executed restart hook "
+ 2711                  "(timestamps + exit 0)"
+ 2712              )
+ 2713              passed, observed = gate(hook_ok == n_valid, observed)
+ 2714              add("restart_hook_executed_every_run", observed, passed)
+ 2715              lost = _total(valid, "lost")
+ 2716              double = _total(valid, "double_accepted")
+ 2717              passed, observed = gate(lost == 0, f"{lost} lost")
+ 2718              add("delivery_across_restart_zero_lost", observed, passed)
+ 2719              passed, observed = gate(double == 0, f"{double} double-accepted")
+--- src/egw_experiments/protocol.py:168
+  168  RESTART_RECOVERY_MAX_S = 120.0
+--- docs/setup/qemu_integrated_gateway.md:1183-1183
+ 1183  ### Test 8 — guest reboot: stack start-up and persistence
+--- runbook :1004, the drained blind spot and the clean session
+this is excluded only by the operator's rule that no simulator, harness run or probe is publishing while `drained` runs, together with the bridge not asking the broker for a persistent session (`mqtt.py` lines 73-76 pass no `clean_session`;
+--- which of the nine runbook tests call drained, run_test (-> pre -> drained), pre or harness_run
+test 1 (lines 1016-1041):       2 drained       2 harness_run       2 run_test 
+test 2 (lines 1041-1061):       2 run_test 
+test 3 (lines 1061-1079):       1 run_test 
+test 4 (lines 1079-1104):       4 drained       3 run_test 
+test 5 (lines 1104-1116):       1 run_test 
+test 6 (lines 1116-1140):       4 drained       1 harness_run       1 run_test 
+test 7 (lines 1140-1183):       2 pre $R 
+test 8 (lines 1183-1197):       1 drained       1 run_test 
+test 9 (lines 1197-1222):       2 drained 
+--- the ad-hoc test path: pre -> drained (host helper, outside the repository)
+173:pre() {
+179:  wait_ready "${READY_LIMIT_S:-60}" && drained && snap_pair "$1" before --seed "$2" ${3:+--devices "$3"} \
+
+######## what this clone knows of dev, and code identity at HEAD
+refs/remotes/origin/dev ccd5fd6
+refs/remotes/upstream/dev fb1690d
+fe954a9..HEAD -- src/egw_controller:
+(end)
+8e88670..HEAD -- controller, compose, mosquitto, Dockerfile, pyproject:
+(end)
+--- where the plan phrases the ADR cites sit at HEAD
+87:| Public implementation interfaces | [`src/CONTRACTS.md`](../../src/CONTRACTS.md) | Version 1.1 is frozen for this restructuring; material changes require an ADR and regression tests. |
+572:dropout and reconnection with no loss; controller restart with recovery inside
+581:than expected at the nominal rate is recorded as a sizing finding for the pilot,
+--- where the PROGRESS.md phrase the ADR cites sits at HEAD
+330:  image still installs its Python dependencies without a hashed lock.

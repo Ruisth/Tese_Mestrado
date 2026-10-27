@@ -1,0 +1,71 @@
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+
+# Secrets / local env
+.env
+*.key
+*.pem
+src/deployment/mosquitto/config/passwd
+src/deployment/mosquitto/config/certs/*
+!src/deployment/mosquitto/config/certs/README.md
+
+# Yocto build outputs (builds correm fora deste repo, em ext4)
+src/yocto/build/
+src/yocto/downloads/
+src/yocto/sstate-cache/
+
+# Experiment raw data: arquivado fora do histórico Git normal (ver plano §5.8)
+experiments/results/raw/*
+!experiments/results/raw/.gitkeep
+
+# LaTeX
+*.aux
+*.bbl
+*.bcf
+*.blg
+*.run.xml
+*.fdb_latexmk
+*.fls
+*.lof
+*.log
+# Archived evidence is the exception: SHA256SUMS in docs/evidence/ covers
+# console and build logs, so 'sha256sum -c' must succeed from a clean clone.
+!docs/evidence/**/*.log
+# The integrated QEMU capsules keep the original directory names of the
+# captured evidence, including a 'build/' directory of build records.
+!docs/evidence/integrated-qemu/**/build/
+*.lot
+*.out
+*.synctex.gz
+*.toc
+thesis/latex/main.pdf
+
+# Local backups (copy off Nextcloud manually; see docs/history/setup/git_backup_remote.md)
+backups/
+
+# OS
+Thumbs.db
+.DS_Store
+
+# local db/data
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Terraform (tools/compare): working files and state never enter the repository
+.terraform/
+terraform.tfstate.d/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan

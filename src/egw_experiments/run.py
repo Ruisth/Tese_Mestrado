@@ -1,0 +1,7231 @@
+"""Execute one planned run from the harness host, OFF the ARM VM
+(plan 5.1/5.8, CONTRACTS 5/7; audit 2026-08-08 section 9 corrections).
+
+Plan 5.1 requires the simulator to run off the ARM VM during benchmarks, so
+this harness (which drives the simulator as a subprocess) runs off the VM
+too: ``--broker`` is the VM's address and the connection uses port 8883
+with TLS (CONTRACTS 1).
+
+Evidence collection topology (audit 9.1-9.3):
+
+- The controller writes its per-run ``events.jsonl`` ON the VM (under its
+  ``EGW_EVENT_LOG_DIR``). After the 60 s confirmation window the runner
+  collects it AUTOMATICALLY via a configurable fetch command template
+  (``--fetch-events-cmd`` or env ``EGW_FETCH_EVENTS_CMD``) with
+  ``{run_id}`` and ``{dest}`` placeholders, executed with up to 3 attempts
+  and exponential backoff, e.g.::
+
+      --fetch-events-cmd "scp vm:/opt/egw/data/events/{run_id}/events.jsonl {dest}"
+
+  When no template is configured the runner falls back to the local
+  event-log directory lookup (dev only). If collection still fails the run
+  is recoverable with the ``collect`` subcommand (below) — SHA256SUMS is
+  only written after successful collection.
+- SUT resources are collected ON the VM by
+  ``src/deployment/scripts/collect-resources.sh`` (1 Hz docker stats CSV)
+  and ingested with ``--resources-from <fetched file>``. The LOCAL
+  ``ResourceSampler`` is opt-in via ``--local-resources`` and is for dev
+  only: it measures the load-generator host, NOT the SUT (audit 9.1). The
+  manifest records ``resource_source`` ('sut-collector' | 'local-dev' |
+  'none').
+- The SUT environment is captured ON the VM by
+  ``src/deployment/scripts/capture-sut-environment.sh`` and ingested with
+  ``--sut-env-from`` (or env ``EGW_SUT_ENV_FILE``); the harness host's own
+  capture is written as ``loadgen_environment.json`` (audit 9.2). The
+  manifest references BOTH files, and the hypervisor's record as well (G4
+  core provenance, below).
+- The controller's ``GET /metrics`` (CONTRACTS v1.1: includes ``dropped``
+  and ``queue_depth``) is sampled at 1 Hz into ``controller_metrics.csv``
+  when ``--controller-url`` is given (port 8000 is loopback-only on the
+  VM; use an SSH tunnel, see the deployment README). The finite proof's
+  harness command adds ``--metrics-fast-retry``: a failed poll is then
+  followed by the next one after 50 ms, within a 60 s cap per failure
+  episode, with every attempt in ``controller_metrics.attempts.csv``
+  (egw_experiments.controller_metrics); no other run uses it.
+
+Validity (audit: warning-only is NOT acceptable; hardened by work order
+P1): timed runs (every simulator-driven condition) REQUIRE
+
+- a usable ``sut_environment.json`` (present AND carrying the
+  REQUIRED_SUT_FIELDS of ``environment.py``: node/hostname, positive
+  ``nproc``, OS identification);
+- SUT resources with ``resource_source == 'sut-collector'`` — the
+  ``--local-resources`` dev sampler measures the load generator and makes
+  a timed run INVALID; the ingested CSV is content-validated (exact
+  6-column header with ``host`` provenance, >= MIN_RESOURCE_SAMPLES rows,
+  every ``host`` matching the SUT's node) or it is treated as missing;
+- a clean simulator exit (non-zero exit => invalid, no override);
+- a clean warm-up exit (non-zero => invalid unless
+  ``--allow-warmup-failure``, which records a protocol deviation);
+- the planned warm-up: ``--skip-warmup`` on nominal/load_sweep/soak =>
+  invalid unless ``--allow-protocol-deviation`` (deviation recorded).
+
+Otherwise the manifest is marked ``validity: 'invalid'`` with explicit
+reasons. The only overrides are the explicit ``--allow-missing-sut-env`` /
+``--allow-missing-resources`` / ``--allow-warmup-failure`` /
+``--allow-protocol-deviation`` flags; every override that takes effect is
+recorded in the manifest's ``deviations`` list ({kind, detail,
+authorized_by_flag}), alongside shortened confirmation windows or skipped
+cooldowns. The analysis surfaces the deviations per run and aggregates
+ONLY runs with ``validity == 'valid'``.
+
+Measured window (audit 9.4): the manifest records ``measured_window_utc``
+{start, end} — harness wall-clock stamps taken immediately around the
+measured simulator invocation — plus ``measured_started_monotonic_ns``.
+The wall-clock window assumes NTP-synchronized clocks between the harness
+host and the VM; that is acceptable for windowing 1 Hz resource/metrics
+samples (sub-second error against a >=300 s window) and is NEVER used for
+latency, which stays monotonic and single-host (CONTRACTS 5). The analysis
+filters ``resources.csv`` and ``controller_metrics.csv`` to this window;
+``events.jsonl`` needs no such filtering because the warm-up runs under a
+different ``run_id`` (``<run_id>.warmup``).
+
+External conditions (audit 9.6): ``cold_start``, ``twin_creation`` and
+``qemu_boot`` runs are ingested with ``--external-timings <timings.json>``
+(operator-produced: ``{run_id, condition, samples:[{label, started_utc,
+ended_utc, duration_s}], method, notes}``) plus optional ``--external-logs
+<dir>``, producing the standard manifest + SHA256SUMS so the single
+analysis script covers them (claim C15). The samples are validated before
+anything is written: each ``duration_s`` must be a real, finite,
+non-negative number (a bool is not a number and ``nan``/``inf`` are not
+measurements), and each sample of a FUNCTIONAL external condition
+(``qemu_boots``, which plan 5.1 keeps functional-only) must carry an
+``outcome`` of ``"pass"``/``"fail"`` — the boot result IS the measurement,
+so a sample without one seals no evidence.
+
+Controller restart hook (audit 9.5, claim C12): ``--restart-cmd`` is a
+command template (``{run_id}`` placeholder) executed exactly once,
+``--restart-at-s`` seconds into the measured run, via subprocess; the
+attempt is recorded in the manifest with timestamps and exit code.
+
+Restart evidence and SUT logs (ADR 0011 item 18): ``--fetch-broker-log-cmd``,
+``--fetch-controller-log-cmd`` and ``--fetch-docker-events-cmd`` are command
+templates run through the collector-hook machinery after the harness events
+fetch, each writing ``{dest}`` under ``logs/sut/``, so the broker's
+connection lines, the controller's log and the container's lifecycle are
+sealed with the run. For the ``controller_restart`` condition only,
+``--twin-snapshot-cmd`` writes ``{dest}`` = ``twins.before.json`` before the
+measured run and ``twins.after.json`` after the drain, ``--drain-cmd``
+blocks after the events fetch until the controller is quiet (the runbook's
+``drained`` helper), and ``--post-drain-fetch-cmd`` fetches a second copy
+of the events into ``events.post-drain.jsonl``, kept apart from the harness
+copy. ``--config-identity-from <file>`` is copied to
+``configuration_identity.json`` and embedded in the manifest
+(``configuration_identity``). Every record is in the manifest; a failed
+fetch or snapshot is a validity reason, as a failed collector hook is, and
+a ``controller_restart`` run without its configuration identity is invalid.
+
+The proved-down interval (decision 1a, adopted 2026-09-30, prospective):
+``--fetch-started-at-cmd``, opt-in, reads the restarted controller's id and
+``State.StartedAt`` on the guest (``tools/session/fetch_started_at.sh``) right
+after the docker-events fetch, into ``logs/sut/controller-started-at.txt``,
+recorded like the SUT fetches. On a ``controller_restart`` run given it, the
+interval from the controller's Docker ``die`` to its ``start`` is derived from
+the run directory (``egw_experiments.proved_down``: the complete capture, one
+die and one start of one container id, StartedAt within 1 s of the start)
+and handed to the resources ingest, which then judges the controller's gap
+across the restart by the interval's two edges
+(``resources.validate_resources_csv``, ``proved_down``); the manifest records
+``resources_proved_down``. Without the option - the finite proof never gives
+it - nothing of this runs or is recorded, and ``collect`` never applies it.
+
+The restart transition rule (``resources.TRANSITION_RULE``, option A of the T6
+page with the Project Manager's conditions, adopted by the student on
+2026-10-05, prospective, for the new G3 T6 run): ``--restart-transition-rule
+1a-option-a-2026-10-05``, explicit and only beside ``--fetch-started-at-cmd``
+(exit 2 otherwise), hands the ingest the collector's own lifecycle record of
+the run (``egw_experiments.proved_down.read_lifecycle_witness``). The
+restarted controller's rows stamped after the die's second and at or before
+the start's (never past E) are then admitted when that record shows its id
+disappear and then appear at the rule's positions, instead of being rejected;
+they count, are covered and are aggregated like every other row, and the
+manifest reports them apart under ``resources_transition_rows`` with the
+rule's name. Without the option, nothing of this runs or is recorded and
+every run is as before; ``collect`` never applies it.
+
+The drain's OUTCOME is classified from the helper's exit code and output
+(``drain.outcome``): ``quiet`` (exit 0 with the helper's quiet line),
+``gave-up`` (a non-zero exit with its give-up line: the controller stayed
+backlogged until the helper's limit, a VALID observation of failed recovery,
+recorded with a warning and never a validity reason) or ``error`` (anything
+else: an instrument failure and a validity reason). Exclusion follows the
+validity of the evidence, never the outcome: a valid run that shows a failed
+recovery is retained and analysed.
+
+The same four artefacts may be taken outside the harness (the runbook's
+helpers of docs/setup/qemu_integrated_gateway.md 6.1) and INGESTED, on
+``run`` or ``collect``, with ``--twins-before-from``, ``--twins-after-from``,
+``--post-drain-events-from`` and ``--drain-transcript-from``. Each file is
+verified against this run BEFORE it counts, copied write-once under the name
+the hook would have written, sealed, and recorded with its provenance
+(``source: "ingested"``, the source path and the copy's sha256; a hook's
+record carries ``source: "hook"``). A refused or missing file is a validity
+reason naming it. No flag excuses missing restart evidence: a
+``controller_restart`` run needs the before snapshot and the drain, and, when
+the drain was quiet, the after snapshot and the post-drain events as well.
+
+What "verified against this run" means (review finding F6a): a twin
+snapshot must carry its label, a seed that is null or the plan entry's, and
+EXACTLY the devices of this run — for the before snapshot the identities
+``egw_simulator.devices.make_devices`` derives from the plan entry's seed
+(the plan names no device types, and the harness starts the simulator
+without ``--devices``, so the simulator's default set applies), for the after
+snapshot the devices of the verified before snapshot (what `snap --like
+before` reads) — each entry shaped as `snap` writes it (``device_type``,
+``exists``, ``ingestion`` with the helper's keys and typed-or-null values);
+an absent twin (``exists`` false, null values) is legitimate, and nothing
+requires the before snapshot to carry the measured run's ``last_run_id``.
+Every post-drain event must carry this run's ``run_id`` and a logged
+outcome. A drain transcript taken outside the harness must START with the
+envelope the runbook's test 6 line writes before the helper runs,
+``run_id=<run id> captured_utc=<ISO 8601 UTC instant>``: the run id must be
+this run's and the instant later than the manifest's measured window end
+and not later than the collection; the helper's quiet or give-up line then
+classifies it. A transcript without the envelope, of another run, or
+captured before the run ended is refused naming the reason — an old file
+that merely holds a quiet line never becomes this run's drain.
+
+G4 core provenance (plan 655-661, manifest 1.5): ``--execution-mode``
+declares the run's execution mode (``tcg-emulated``, ``native-kvm`` or
+``native-metal``), with no default and no environment fallback. Every
+simulator run records three environment records: the guest's
+(``sut_environment.json``, ingested), the load generator's
+(``loadgen_environment.json``, with the host's boot id and size and the two
+simulator invocations, the password redacted) and the hypervisor's
+(``hypervisor_environment.json``: this host's single ``qemu-system-aarch64``
+process, read from ``/proc`` before the collector start hook and again after
+the collector stop hook, never between the run-end stamp and the controller
+marker). The declaration is checked against them
+(:func:`egw_experiments.environment.provenance_checks`, on the run's own
+files); an unset mode and every failed check except the advisory G5 is a
+validity reason of the run, timed or not, with no override, and the run is
+still sealed. The manifest
+records ``execution_mode``, ``image_identity`` and ``provenance``. ``collect``
+re-checks a run that carries the ``provenance`` record, on its sealed files
+(the hypervisor is never captured after the fact), and leaves every other run
+(every manifest before 1.5) as it was, adding no key and no file. External
+runs carry none of this: no mode, no checks, no hypervisor record.
+
+Produces the plan 5.8 raw structure::
+
+    results/raw/<run_id>/
+      events.jsonl             # controller log (fetched from the VM)
+      events.post-drain.jsonl  # controller_restart: second copy, after the drain
+      sent_events.jsonl        # simulator log
+      resources.csv            # 1 Hz SUT docker stats (ingested)
+      controller_metrics.csv   # 1 Hz controller /metrics samples
+      twins.before.json        # controller_restart: the twins before the
+      twins.after.json         #   measured run and after the drain
+      configuration_identity.json  # what the run rests on (ingested)
+      manifest.json            # scenario, seed, commit, digests, env refs,
+                               # config echo, timestamps, measured window,
+                               # validity, deviations, protocol version,
+                               # exclusion
+      sut_environment.json     # captured ON the VM (ingested)
+      loadgen_environment.json # captured here (harness host)
+      hypervisor_environment.json  # captured here: the QEMU process (G4)
+      logs/                    # simulator stdout/stderr, warmup artifacts
+      logs/sut/                # fetched broker log, controller log, docker
+                               # events, the item-18 hooks' full output and
+                               # drain.txt (an ingested drain transcript)
+      SHA256SUMS               # written last, ONLY after successful
+                               # collection; covers every file above
+
+Warm-up note (CONTRACTS >= v1.1): the warm-up reuses the run's seed, hence
+the same ``device_uuid`` set as the measured run. This is intentional: it
+warms the real twins the measured run will patch. The measured run then
+restarts ``seq`` at 0 under a distinct ``run_id``, which is safe only with
+a controller implementing CONTRACTS >= v1.1 run-scoped dedupe (section 4:
+the ``seq`` floor applies only within the same ``run_id`` and resets when
+``run_id`` changes). With an older controller the measured run's first
+messages would be misclassified as duplicates, corrupting the delivery
+rate.
+
+Clock-domain note (CONTRACTS v1.1): because the harness runs off the ARM
+VM, its ``time.monotonic_ns()`` values are NOT comparable with the
+controller's (monotonic clocks are per-host). The confirmation deadline is
+therefore anchored on a CONTROLLER-side marker (sprint P5, report 5.2):
+immediately after the measured simulator process exits and BEFORE the
+confirmation window, the runner polls ``GET {controller_url}/metrics`` with
+a plain stdlib request and records
+
+- ``controller_monotonic_at_run_end_ns`` — the controller's own
+  ``monotonic_ns`` at that instant;
+- ``confirmation_deadline_monotonic_ns`` — that value plus the UNCHANGED
+  60 s window;
+- ``confirmation_deadline_clock_domain: "controller"``.
+
+Anchoring the deadline this way makes it independent of the events it
+judges (deriving it from ``max(received_monotonic_ns)`` is circular: a very
+late message becomes the new maximum and pushes its own deadline 60 s
+further out). The 60 s window value itself never changes. When the
+controller cannot be polled the two fields are null, the clock domain is
+``"unavailable"``, a ``confirmation_marker_unavailable`` deviation is
+recorded, and the timed run is INVALID unless
+``--allow-missing-controller-marker`` authorizes it.
+
+SUT collector hooks (sprint P5, report 5.3) make ``run`` — and hence the
+``campaign`` batch runner, which drives this same function — end-to-end:
+``--collector-start-cmd`` runs BEFORE the warm-up, ``--collector-stop-cmd``
+AFTER the measured run and before the confirmation window, and
+``--collector-fetch-cmd`` AFTER the confirmation window, producing the
+local CSV that then goes through the EXISTING validated ingest path. The
+templates accept ``{run_id}``, ``{duration_s}`` (warm-up + measured window
++ confirmation window + margin) and ``{dest}``. Every hook's command, exit
+code and start/end timestamps are recorded in the manifest
+(``collector_hooks``); a hook exiting non-zero makes the run INVALID with a
+reason naming the flag — never a silent warning.
+
+Collector output accounting (2026-09-19): ``--expect-services NAME,...``
+names the services the collector must account for; the same list reaches the
+start hook through the ``{expect_services}`` placeholder. The fetch hook
+(``src/deployment/scripts/fetch-collector-output.sh``) puts the collector's
+CSV and its ``.diagnostics.log`` / ``.lifecycle.csv`` companions (and a
+``.self-test`` marker, if any) in ``logs/collector/``. Right after the fetch
+hook, and before anything is sealed, :func:`inspect_collector_outputs` records
+per file presence, size and sha256, the deployed collector's hash, the
+collector's service inventory and the rows per expected service in the
+manifest (``collector``). Every ``collector.problems`` entry (a missing
+companion, a self-test marker, no expected services, an expected service
+without rows, an inventory naming a missing service, a collector that did not
+stop cleanly, a closing record that cannot account for its own samples, ...)
+makes a timed run INVALID. What the collector documents as harmless, and what
+the ingest validation judges on the real instants, is recorded in
+``collector.observations`` instead and is never a reason (2026-09-20). The manual path is accounted
+for in the same way: a ``--resources-from`` file (``run``, ``campaign`` or
+``collect``) and the companions beside it are copied into
+``logs/collector/resources-from/`` and inspected. The full stdout and stderr
+of every hook are kept as ``logs/collector/hook-<hook>.stdout.txt`` /
+``.stderr.txt``; a hook that exceeds its timeout is ended with its whole
+process group, so none of its children writes after the seal. The sha256 of
+the helper the fetch hook runs is recorded (``collector.fetch_helper_sha256``).
+
+Mandatory artefacts (sprint P5, report 5.4): each condition kind declares
+the evidence a completed run MUST carry (simulator: manifest.json,
+sent_events.jsonl, events.jsonl, resources.csv, plus
+controller_metrics.csv where ``/metrics`` sampling is mandated
+instrumentation; external: manifest.json + timings.json). A missing
+mandatory artefact marks the run invalid AND withholds SHA256SUMS: an
+incomplete run must never look like sealed evidence.
+"""
+
+from __future__ import annotations
+
+import csv
+import http.client
+import json
+import math
+import os
+import re
+import shlex
+import shutil
+import signal
+import subprocess
+import sys
+import tempfile
+import threading
+import time
+import urllib.error
+import urllib.request
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from egw_simulator.devices import DEVICE_TYPES, make_devices
+
+from .checksums import (
+    SUMS_FILENAME,
+    sha256_file,
+    verify_sha256sums,
+    write_sha256sums,
+)
+from .controller_metrics import FAST_RETRY_CAP_S, FAST_RETRY_S, ControllerMetricsSampler
+from .environment import (
+    EXECUTION_MODES,
+    HYPERVISOR_ENVIRONMENT_FILENAME,
+    LOADGEN_ENVIRONMENT_FILENAME,
+    PROVENANCE_RULE,
+    SUT_ENVIRONMENT_FILENAME,
+    capture_hypervisor_snapshot,
+    image_identity_record,
+    provenance_checks,
+    provenance_problems,
+    read_environment_record,
+    read_sut_environment,
+    sut_env_node,
+    utc_now_iso,
+    validate_sut_environment,
+    write_hypervisor_environment,
+    write_loadgen_environment,
+)
+from .plan_gen import load_campaign_plan, plan_to_json
+from .protocol import (
+    CONDITIONS,
+    CONFIRMATION_WINDOW_S,
+    MAX_SAMPLE_GAP_S,
+    PROTOCOL_VERSION,
+    TIMED_CONDITION_IDS,
+)
+from .proved_down import (
+    LIFECYCLE_SUFFIX,
+    STARTED_AT_FILENAME,
+    STARTED_AT_HOOK,
+    derive_proved_down,
+    read_lifecycle_witness,
+)
+from .resources import (
+    TRANSITION_RULE,
+    LifecycleWitness,
+    ProvedDownInterval,
+    ResourceSampler,
+    parse_csv_timestamp,
+    validate_resources_csv,
+)
+
+# Repository root: <repo>/src/egw_experiments/run.py -> parents[2] == <repo>
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SRC_DIR = REPO_ROOT / "src"
+DEFAULT_RESULTS_BASE = REPO_ROOT / "experiments" / "results"
+DEFAULT_PLAN_PATH = REPO_ROOT / "experiments" / "campaign_plan.json"
+IMAGES_LOCK_PATH = SRC_DIR / "deployment" / "images.lock.env"
+
+# Grace added on top of the nominal duration before the simulator subprocess
+# is considered hung and killed.
+SUBPROCESS_GRACE_S = 300
+
+# Fetch-command retry policy (audit 9.3): up to FETCH_ATTEMPTS attempts with
+# exponential backoff FETCH_BACKOFF_BASE_S * 2**(attempt-1) between them.
+FETCH_ATTEMPTS = 3
+FETCH_BACKOFF_BASE_S = 2.0
+FETCH_TIMEOUT_S = 300.0
+
+#: Seconds a collector hook's process group is given to exit after SIGTERM
+#: (sent when the hook exceeds its timeout) before SIGKILL. A hook runs in a
+#: session of its own, so the whole group is signalled: the ssh/scp children
+#: of fetch-collector-output.sh must never outlive the hook and write into
+#: logs/collector/ after the inspection and the seal.
+HOOK_KILL_GRACE_S = 5.0
+
+# Environment variables consulted when the corresponding CLI flag is absent.
+FETCH_EVENTS_CMD_ENV = "EGW_FETCH_EVENTS_CMD"
+SUT_ENV_FILE_ENV = "EGW_SUT_ENV_FILE"
+
+# 1.5 (G4 core provenance, plan 655-661; a new validity rule, so a new
+# version): every simulator run gains 'execution_mode' (the --execution-mode
+# token, or null when unset), 'environment_refs.hypervisor'
+# ('hypervisor_environment.json', or null when it could not be written),
+# 'image_identity' (the QEMU executable's sha256 and version line, the
+# kernel's sha256, the rootfs drive and its image name, all from the
+# hypervisor record's start snapshot, a reference to 'image_digests' and the
+# controller image id of the configuration identity, each null when not
+# read), 'provenance' ({rule, declared_by, execution_mode, checks: [{check,
+# ok, detail}, the advisory G5 with 'advisory': true], problems}) and
+# 'config.cli.execution_mode';
+# loadgen_environment.json gains the boot id, the CPU affinity, MemTotal, the
+# CPU model, the Python executable and both simulator invocations (password
+# redacted). Every 'provenance.problems' entry is a validity reason of the
+# run, timed or not, with no override. The rule is gated by the record, not
+# by this string: a manifest without 'provenance' (every earlier one, and
+# every external run, which gains none of the keys under 1.5 either) is
+# judged as before, and 'collect' never adds the keys or the file to it.
+# 1.4 (the restart transition rule, adopted 2026-10-05; additive and opt-in
+# within the version, no reader change needed): with
+# --restart-transition-rule, 'config.cli' gains 'restart_transition_rule' and
+# a controller_restart run given the StartedAt read gains
+# 'resources_transition_rows' (the rule's name, whether it admitted the
+# restarted controller's transition rows or why not, their instants and raw
+# values, the lifecycle pair and the record's file and sha256); without the
+# option neither exists, so every other manifest is as before.
+# 1.4 (decision 1a, adopted 2026-09-30; additive and opt-in within the
+# version, no reader change needed): with --fetch-started-at-cmd,
+# 'sut_log_fetches' holds a 'started_at' record (shaped like the others),
+# 'config.cli' gains 'fetch_started_at_cmd' and a controller_restart run gains
+# 'resources_proved_down' (whether the proved-down interval applied at the
+# resources ingest or why not, and its outcomes); without the option none of
+# the three exists, so every other manifest is as before.
+# 1.4 (work order of 2026-09-29, A2; additive within the version, no reader
+# change needed): 'controller_metrics' gains 'write_error' (the first file of
+# the sampler that could not be opened, written, flushed or closed, or its
+# thread still running after the join; null when none) and 'write_errors'
+# (every such failure in order). A write_error is a validity reason of every
+# run, re-applied by 'collect'.
+# 1.4 (ADR 0011 item 18; additive within the version, no reader change
+# needed): adds 'sut_log_fetches' (the records of --fetch-broker-log-cmd,
+# --fetch-controller-log-cmd and --fetch-docker-events-cmd, shaped like a
+# 'collector_hooks' record plus 'dest_file'/'dest_exists'); for
+# controller_restart runs 'twin_snapshots' (one record per snapshot, each
+# with 'file', 'source' ('hook' or 'ingested'), 'verified' and 'problems';
+# a hook's record also 'dest_exists', an ingested one 'from' and 'sha256'),
+# 'drain' (the --drain-cmd record with 'outcome' — quiet, gave-up or error —
+# 'source' and 'verified'; an ingested transcript's record with 'file',
+# 'from', 'sha256', 'outcome', 'problems' and, once verified, 'captured_utc'
+# from its envelope) and 'events_post_drain_fetch'
+# (shaped like 'events_fetch' plus 'file', 'source', 'verified' and
+# 'problems', or the ingested file's record), each null or empty on other
+# conditions; 'configuration_identity' (the parsed content of
+# --config-identity-from) and 'configuration_identity_file'; 'config.cli'
+# gains the seven hook/identity flags and the four --*-from flags. A failed
+# fetch or snapshot, a drain in error, a refused or missing restart evidence
+# artefact and, for controller_restart, a missing configuration identity are
+# validity reasons of a timed run; a drain that gave up is not.
+# controller_metrics.csv gains ten columns after 'queue_depth'
+# (egw_experiments.controller_metrics).
+# 1.4 (collector output accounting, 2026-09-19; additive, no reader change
+# needed): adds 'collector' ({expected_services, hooks_in_use, source} and,
+# when the SUT resources come from a collector hook or --resources-from, the
+# inspection of the collector's output in logs/collector/: 'files'
+# (csv/diagnostics/lifecycle/self_test: path, present, size, sha256),
+# 'deployed_sha256', 'start_line_count', 'declared_expected_services',
+# 'inventory', 'inventory_missing', 'stop_line', 'stop_line_count',
+# 'self_test_present',
+# 'rows_per_expected_service', 'unexpected_services', 'problems'; with a
+# fetch hook also 'fetch_helper_path'/'fetch_helper_sha256'; with
+# --resources-from also 'source_path'); every 'collector_hooks' record gains
+# 'stdout_file'/'stderr_file' (the hook's full output under logs/collector/)
+# and, when it exceeded its timeout, 'timed_out'; 'config.cli' gains
+# 'expect_services'. 'collector.problems' are validity reasons of a timed run.
+# 1.3 (sprint P5.4, additive within the version — no reader change needed):
+# 'controller_marker' gains 'lag_s'/'lag_tolerance_s' and 'controller_metrics'
+# gains 'invalid_values'/'last_invalid_value'.
+# 1.3 (sprint P5): adds 'collector_hooks', 'controller_marker',
+# 'controller_monotonic_at_run_end_ns', 'missing_mandatory_artifacts',
+# 'allow_missing_controller_marker'; 'confirmation_deadline_monotonic_ns'
+# moves to the CONTROLLER clock domain (or null when unavailable).
+# 1.2 (work order P1): adds 'deviations', 'sut_environment_missing_fields',
+# 'allow_warmup_failure', 'allow_protocol_deviation'; hardens validity.
+MANIFEST_VERSION = "1.5"
+
+MANIFEST_FILENAME = "manifest.json"
+
+# Timeout of the confirmation-marker poll (sprint P5, report 5.2). Short by
+# design: it runs between the measured run and the confirmation window, and a
+# controller that does not answer within it is recorded as unavailable rather
+# than delaying the protocol timing.
+CONTROLLER_MARKER_TIMEOUT_S = 5.0
+
+#: Tolerated delay between the end of the measured window (``finished_utc``)
+#: and the confirmation-marker poll (sprint P5.4 defect 5). The marker fixes
+#: the instant the CONFIRMATION_WINDOW_S window is counted from, so every
+#: second between the measured end and the poll is a second of EXTRA grace:
+#: the effective window becomes 60 + lag s and confirmations the protocol
+#: says are lost get counted in-window. The poll therefore happens
+#: immediately after the run-end stamp — before the samplers are joined and
+#: before any hook — and this tolerance only bounds what is considered
+#: normal instrumentation jitter (one local HTTP request against a
+#: CONTROLLER_MARKER_TIMEOUT_S budget). Above it the run records a warning
+#: AND a 'confirmation_marker_lag' deviation so the analysis can see that
+#: the deadline of that run is anomalous. The 60 s window value itself is
+#: NOT affected by this constant.
+CONTROLLER_MARKER_LAG_TOLERANCE_S = 2.0
+
+#: Mandatory evidence per condition kind (sprint P5, report 5.4
+#: "sent_events.jsonl ausente pode produzir run selado"). A missing mandatory
+#: artefact makes the run INVALID and WITHHOLDS SHA256SUMS: an incomplete run
+#: directory must never look like sealed evidence. ``manifest.json`` is part
+#: of the declared set but is written unconditionally right after the check,
+#: so it is never probed on disk.
+SIMULATOR_MANDATORY_ARTIFACTS: tuple[str, ...] = (
+    MANIFEST_FILENAME,
+    "sent_events.jsonl",
+    "events.jsonl",
+    "resources.csv",
+)
+EXTERNAL_MANDATORY_ARTIFACTS: tuple[str, ...] = (MANIFEST_FILENAME, "timings.json")
+
+#: Functional outcome vocabulary of an external sample, spelled EXACTLY as
+#: ``egw_experiments.analyze`` reads it: that module lists ``outcome``
+#: verbatim in ``external_runs.csv`` and turns anything it does not
+#: recognise into ``"unspecified"``. A value outside this tuple is therefore
+#: no boot result at all, and the runner must not seal it.
+EXTERNAL_FUNCTIONAL_OUTCOMES: tuple[str, ...] = ("pass", "fail")
+
+#: External conditions whose evidence is FUNCTIONAL rather than timed, i.e.
+#: whose measurement IS the pass/fail outcome. Derived from the frozen
+#: protocol so it cannot drift from it: an external condition that may not
+#: support performance claims (plan 5.1 — ``qemu_boots``) is measured by its
+#: outcome, and a sample without one discharges nothing. Gate G1 is
+#: evidenced by exactly these runs.
+FUNCTIONAL_EXTERNAL_CONDITION_IDS: frozenset[str] = frozenset(
+    c.id
+    for c in CONDITIONS
+    if c.runner == "external" and not c.performance_claims_allowed
+)
+
+#: Conditions for which GET /metrics sampling is MANDATED instrumentation
+#: (protocol.py, "Controller-metrics reconciliation": dropout_reconnect,
+#: load_sweep and soak). For these, ``controller_metrics.csv`` joins the
+#: mandatory artefact set — the analysis fails their acceptance criteria
+#: without it, so a run lacking it is incomplete, not merely degraded.
+METRICS_MANDATORY_CONDITION_IDS: frozenset[str] = frozenset(
+    {"dropout_reconnect", "load_sweep", "soak"}
+)
+
+#: Collector hook labels in execution order, with the CLI flag that
+#: configures each (sprint P5, report 5.3).
+COLLECTOR_HOOK_FLAGS: dict[str, str] = {
+    "start": "--collector-start-cmd",
+    "stop": "--collector-stop-cmd",
+    "fetch": "--collector-fetch-cmd",
+}
+
+#: SUT log fetch hooks (ADR 0011 item 18) in execution order, with the CLI
+#: flag that configures each. They run through the collector-hook machinery
+#: after the harness events fetch (and, on controller_restart, after the
+#: post-drain steps, so they cover the drain) and before the seal; each must
+#: write {dest}, its file under logs/sut/ (SUT_LOG_FILES).
+SUT_LOG_FETCH_FLAGS: dict[str, str] = {
+    "broker_log": "--fetch-broker-log-cmd",
+    "controller_log": "--fetch-controller-log-cmd",
+    "docker_events": "--fetch-docker-events-cmd",
+}
+
+#: Sub-directory of the run's logs/ receiving the fetched SUT logs and the
+#: full output of every item-18 hook (hook-<hook>.stdout.txt/.stderr.txt).
+SUT_LOG_SUBDIR = "sut"
+
+#: The file each SUT log fetch must write, relative to logs/sut/.
+SUT_LOG_FILES: dict[str, str] = {
+    "broker_log": "broker.log",
+    "controller_log": "controller.log",
+    "docker_events": "docker-events.log",
+}
+
+#: The StartedAt read of decision 1a (adopted 2026-09-30, prospective), with
+#: its flag: an opt-in SUT fetch through the same machinery, run right after
+#: the docker-events fetch and before the resources are ingested, writing
+#: {dest} = logs/sut/controller-started-at.txt
+#: (egw_experiments.proved_down.STARTED_AT_FILENAME); its record joins
+#: 'sut_log_fetches' and its failure is a reason like theirs. Kept apart from
+#: SUT_LOG_FETCH_FLAGS, the three fetches the finite proof's evaluator demands
+#: of its run: a run not given the option has no record of it at all.
+STARTED_AT_FETCH_FLAGS: dict[str, str] = {STARTED_AT_HOOK: "--fetch-started-at-cmd"}
+
+#: Restart-evidence hooks of the controller_restart condition (ADR 0011 item
+#: 18): the twin snapshot taken before the measured run and again after the
+#: drain (both through --twin-snapshot-cmd, writing {dest}), and the
+#: blocking drain (--drain-cmd, the runbook's `drained` helper) run after
+#: the confirmation window and the harness events fetch, before the
+#: post-drain fetch and the second snapshot.
+RESTART_EVIDENCE_FLAGS: dict[str, str] = {
+    "twin_snapshot_before": "--twin-snapshot-cmd",
+    "twin_snapshot_after": "--twin-snapshot-cmd",
+    "drain": "--drain-cmd",
+}
+
+#: Every hook label execute_collector_hook may record, with its flag.
+HOOK_FLAGS: dict[str, str] = {
+    **COLLECTOR_HOOK_FLAGS,
+    **SUT_LOG_FETCH_FLAGS,
+    **STARTED_AT_FETCH_FLAGS,
+    **RESTART_EVIDENCE_FLAGS,
+}
+
+#: The twin snapshot files, at the run root, per snapshot hook.
+TWIN_SNAPSHOT_FILES: dict[str, str] = {
+    "twin_snapshot_before": "twins.before.json",
+    "twin_snapshot_after": "twins.after.json",
+}
+
+#: The second copy of the controller's events, fetched after the drain
+#: (--post-drain-fetch-cmd) and kept apart from the harness copy
+#: events.jsonl, which is fetched after the confirmation window as before.
+POST_DRAIN_EVENTS_FILENAME = "events.post-drain.jsonl"
+
+#: The configuration identity captured on the guest (the broker
+#: configuration's hash and values, stop_grace_period, the controller
+#: image's id and source commit, the paho version, the A3 choice), copied
+#: into the run directory from --config-identity-from and embedded in the
+#: manifest.
+CONFIG_IDENTITY_FILENAME = "configuration_identity.json"
+
+#: Timeout of the blocking --drain-cmd. The runbook's `drained` helper gives
+#: up after its own limit (900 s); twice that leaves room for the quiet
+#: window it needs where a first-contact message may be in progress, without
+#: letting a hung helper hold the run open indefinitely.
+DRAIN_TIMEOUT_S = 1800.0
+
+#: Timeout of each --twin-snapshot-cmd hook (the default hook timeout, made
+#: explicit) and, with it, the allowance the collector window carries for
+#: the before-snapshot: that hook blocks between the collector start hook
+#: and the measured run, so a self-terminating collector's ``{duration_s}``
+#: must cover the whole of it (see ``collector_window_s`` in
+#: :func:`execute_run`).
+SNAPSHOT_TIMEOUT_S = FETCH_TIMEOUT_S
+
+#: Where an ingested drain transcript lands, under logs/sut/ (the hook's
+#: own output is kept as hook-drain.stdout.txt / .stderr.txt beside it).
+DRAIN_TRANSCRIPT_FILENAME = "drain.txt"
+
+#: The runbook's `drained` helper (docs/setup/qemu_integrated_gateway.md,
+#: 6.1) prints exactly one of two lines: on success, on stdout, one starting
+#: with DRAIN_QUIET_LINE_PREFIX; when it gives up at its limit, on stderr,
+#: one starting with DRAIN_GAVE_UP_LINE_PREFIX (its other stop, "STOP:
+#: drained: GET ... failed or was not valid JSON, ...", is an instrument
+#: failure). tools/session/nominal.sh greps the same give-up prefix, so both
+#: are a documented, byte-stable interface.
+DRAIN_QUIET_LINE_PREFIX = "drained: queue_depth 0"
+DRAIN_GAVE_UP_LINE_PREFIX = "STOP: drained: no quiet window"
+
+#: What a drain record's ``outcome`` may hold (:func:`classify_drain_output`):
+#: 'quiet' (exit 0 and the quiet line), 'gave-up' (a non-zero exit and the
+#: give-up line: the controller stayed backlogged until the helper's limit,
+#: a VALID observation of failed recovery, never a validity reason) or
+#: 'error' (a spawn error, a timeout, an exit code contradicting the line,
+#: output without either line or with both: an instrument failure and a
+#: validity reason). The finite proof's evaluator reads ``drain.outcome``
+#: and applies the ADR's inconclusive rule itself; the harness does not.
+DRAIN_OUTCOMES = ("quiet", "gave-up", "error")
+
+#: The flags that ingest each restart evidence artefact from a file taken
+#: outside the harness, keyed like the hook that would take it.
+RESTART_EVIDENCE_FROM_FLAGS: dict[str, str] = {
+    "twin_snapshot_before": "--twins-before-from",
+    "twin_snapshot_after": "--twins-after-from",
+    "drain": "--drain-transcript-from",
+    "post_drain": "--post-drain-events-from",
+}
+
+#: The hook flag that takes each restart evidence artefact.
+RESTART_EVIDENCE_HOOK_FLAGS: dict[str, str] = {
+    **RESTART_EVIDENCE_FLAGS,
+    "post_drain": "--post-drain-fetch-cmd",
+}
+
+#: The label a twin snapshot file must carry (itest_reconcile `snap`).
+TWIN_SNAPSHOT_LABELS: dict[str, str] = {
+    "twin_snapshot_before": "before",
+    "twin_snapshot_after": "after",
+}
+
+#: The keys of a snapshot entry's ``ingestion`` object, as the runbook's
+#: `snap` writes them (itest_reconcile.INGESTION_KEYS; a test keeps the two
+#: equal), with the JSON type each value has when it is not null: the
+#: controller's ingestion feature (egw_controller.ditto) stores the last run
+#: id, sequence number, message id and envelope timestamp, and the accepted
+#: count. `snap` reads a missing property as null and an absent twin (404)
+#: as all-null values.
+TWIN_INGESTION_TYPES: dict[str, type] = {
+    "last_run_id": str,
+    "last_seq": int,
+    "last_message_id": str,
+    "last_ts": str,
+    "accepted_count": int,
+}
+
+#: The envelope the runbook's test 6 line writes as the FIRST line of a drain
+#: transcript taken outside the harness, before the helper runs:
+#: ``printf 'run_id=%s captured_utc=%s\n' "$RID" "$(date -u +%FT%TZ)"``.
+#: It binds the transcript to one run and one instant; the helper's own lines
+#: follow it through ``tee -a``.
+DRAIN_ENVELOPE_RE = re.compile(r"^run_id=(\S+) captured_utc=(\S+)$")
+
+#: The outcomes a controller event record may carry (egw_controller
+#: events.py, OUTCOMES; the runbook's `accounted`): a post-drain copy of the
+#: events is refused when a line carries anything else.
+POST_DRAIN_EVENT_OUTCOMES: tuple[str, ...] = (
+    "accepted",
+    "rejected",
+    "duplicate",
+    "failed",
+)
+
+#: Extra seconds added to the {duration_s} placeholder handed to the collector
+#: hooks, on top of warm-up + measured run + confirmation window. The stop
+#: hook ends the collector anyway; the margin only prevents a self-terminating
+#: collector (``collect-resources.sh --duration``) from dying early because
+#: the harness lost a few seconds to subprocess start-up.
+COLLECTOR_DURATION_MARGIN_S = 60
+
+#: Sub-directory of the run's logs/ holding the raw artefact produced by the
+#: --collector-fetch-cmd hook, BEFORE it passes the ingest validation. Keeping
+#: it means a rejected collector file is still inspectable next to the run it
+#: belongs to (the validated copy lands at <run_dir>/resources.csv).
+COLLECTOR_FETCH_SUBDIR = "collector"
+
+#: What the SUT collector writes beside its CSV (collect-resources.sh, "Files
+#: written beside <output.csv>"), as {key: (suffix, mandatory)}. The fetch hook
+#: (src/deployment/scripts/fetch-collector-output.sh) copies them next to the
+#: fetched CSV in logs/collector/, so the run's SHA256SUMS covers them. A
+#: ``.self-test`` marker is optional: it exists only when the collector ran on
+#: substituted inputs, and its presence makes the output NOT a measurement.
+COLLECTOR_OUTPUT_FILES: dict[str, tuple[str, bool]] = {
+    "csv": ("", True),
+    "diagnostics": (".diagnostics.log", True),
+    "lifecycle": (".lifecycle.csv", True),
+    "self_test": (".self-test", False),
+}
+
+#: Sub-directory of logs/collector/ receiving a copy of the --resources-from
+#: file and of the companions beside it (the manual path), under the same
+#: name the fetch hook uses, so they are sealed with the run like the fetched
+#: output — without ever touching what a fetch hook put in logs/collector/.
+RESOURCES_FROM_SUBDIR = "resources-from"
+
+#: Characters of one service (container) name, the same set the collector
+#: accepts for --expect-services (collect-resources.sh, argument checks).
+SERVICE_NAME_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
+
+_SHA256_HEX_RE = re.compile(r"^[0-9a-f]{64}$")
+
+#: Conditions on which --skip-warmup invalidates the run unless explicitly
+#: authorized with --allow-protocol-deviation (work order P1 fix 5). These
+#: are the performance conditions whose protocol timing (warm-up/cooldown
+#: structure, plan 7.1) underpins the RQ2/RQ3 claims.
+SKIP_WARMUP_STRICT_CONDITIONS: frozenset[str] = frozenset(
+    {"nominal", "load_sweep", "soak"}
+)
+
+MEASURED_WINDOW_CLOCK_NOTE = (
+    "harness-host wall clock; assumes NTP-synchronized clocks between the "
+    "harness host and the SUT VM. Used ONLY to window 1 Hz resource and "
+    "controller-metrics samples (sub-second NTP error is negligible against "
+    "the >=300 s measured windows); NEVER used for latency (CONTRACTS 5: "
+    "latency is monotonic, single-host, in the controller)."
+)
+
+
+def parse_images_lock(path: str | Path = IMAGES_LOCK_PATH) -> dict[str, str]:
+    """Parse ``images.lock.env`` (KEY=value lines) into a dict. Best-effort:
+    a missing file returns an empty dict (recorded as a manifest warning)."""
+    path = Path(path)
+    result: dict[str, str] = {}
+    if not path.is_file():
+        return result
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        result[key.strip()] = value.strip().strip('"').strip("'")
+    return result
+
+
+def read_git_commit(repo_root: str | Path = REPO_ROOT) -> str | None:
+    """Current git commit hash, or None when unavailable (best-effort)."""
+    try:
+        proc = subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=10,
+            cwd=str(repo_root),
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if proc.returncode != 0:
+        return None
+    out = proc.stdout.strip()
+    return out or None
+
+
+# ---------------------------------------------------------------------------
+# Raw immutability (work order P1 item 11)
+# ---------------------------------------------------------------------------
+
+
+class SealedRunError(RuntimeError):
+    """Refusal to replace raw run evidence (work order P1 item 11).
+
+    Raised by the ingest/collection paths when a destination file already
+    exists with DIFFERENT content. Raw run directories are write-once:
+    once ``SHA256SUMS`` exists the directory is sealed, and recording
+    different evidence requires a NEW run identity.
+    """
+
+
+def run_dir_is_sealed(run_dir: str | Path) -> bool:
+    """True when the run directory carries SHA256SUMS (sealed evidence)."""
+    return (Path(run_dir) / SUMS_FILENAME).is_file()
+
+
+def ingest_copy(src: str | Path, dest: str | Path, run_dir: str | Path) -> bool:
+    """Copy ``src`` into the run dir under the raw-immutability rules.
+
+    - destination absent: plain copy;
+    - destination present with IDENTICAL content: no-op (idempotent
+      re-collection);
+    - destination present with DIFFERENT content: :class:`SealedRunError`
+      — raw evidence is never overwritten; a different measurement needs a
+      new run identity.
+
+    Returns True when ``dest`` holds ``src``'s content afterwards.
+    """
+    src = Path(src)
+    dest = Path(dest)
+    if dest.is_file():
+        if sha256_file(src) == sha256_file(dest):
+            return True
+        raise overwrite_refusal(dest, src, run_dir)
+    shutil.copyfile(src, dest)
+    return True
+
+
+def overwrite_refusal(
+    dest: str | Path, src: str | Path, run_dir: str | Path
+) -> SealedRunError:
+    """The :class:`SealedRunError` refusing to replace ``dest`` with ``src``.
+
+    ``dest`` is named by its path inside the run directory (``resources.csv``,
+    ``logs/collector/...``)."""
+    dest = Path(dest)
+    try:
+        shown = dest.relative_to(run_dir).as_posix()
+    except ValueError:
+        shown = dest.name
+    sealed_note = (
+        f"this run directory is sealed ({SUMS_FILENAME} present)"
+        if run_dir_is_sealed(run_dir)
+        else "raw run evidence is write-once"
+    )
+    return SealedRunError(
+        f"refusing to overwrite {shown} in {run_dir}: the existing "
+        f"raw file's content differs from {src}; {sealed_note}. "
+        "Recording different evidence requires a NEW run identity: "
+        "repeat the run under a new versioned run_id and document the "
+        "exclusion of the old one (plan 5.8)."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Simulator output layout (CONTRACTS 7; work order P1c fix F0)
+# ---------------------------------------------------------------------------
+
+
+def simulator_run_dir(output_dir: str | Path, run_id: str) -> Path:
+    """Directory the simulator ACTUALLY writes into for a given --output.
+
+    ``egw_simulator.runner`` writes ``manifest.json`` and
+    ``sent_events.jsonl`` under ``<output_dir>/<run_id>/`` (its module
+    docstring and ``--output`` help). The harness passes ``--output
+    logs/simulator``, so the real outputs land at
+    ``logs/simulator/<run_id>/`` — collection MUST use this same mapping
+    (probing ``<output_dir>/sent_events.jsonl`` directly would silently
+    lose the simulator log of every real run). The analysis side
+    (``analyze.read_simulator_manifest``) probes this layout first.
+    """
+    return Path(output_dir) / run_id
+
+
+# ---------------------------------------------------------------------------
+# Events collection (audit 9.3)
+# ---------------------------------------------------------------------------
+
+
+def format_cmd_template(template: str, run_id: str, dest: str | Path | None = None) -> str:
+    """Substitute ``{run_id}`` and ``{dest}`` placeholders literally.
+
+    Plain string replacement (not ``str.format``) so any other brace
+    construct in the operator's command survives untouched.
+    """
+    out = template.replace("{run_id}", run_id)
+    if dest is not None:
+        out = out.replace("{dest}", str(dest))
+    return out
+
+
+def fetch_events_via_cmd(
+    template: str,
+    run_id: str,
+    dest: str | Path,
+    *,
+    attempts: int = FETCH_ATTEMPTS,
+    backoff_base_s: float | None = None,
+    timeout_s: float = FETCH_TIMEOUT_S,
+    sleep=time.sleep,
+) -> tuple[bool, str, list[dict[str, Any]]]:
+    """Run the fetch command template with retries and backoff.
+
+    The template's ``{run_id}`` and ``{dest}`` placeholders are substituted
+    (``{dest}`` always with forward slashes, so POSIX splitting never eats
+    Windows backslashes), the command is split POSIX-style (``shlex.split``;
+    quote arguments that contain spaces, use forward slashes in paths) and
+    executed WITHOUT a shell. Success requires exit code 0 AND ``dest``
+    existing afterwards.
+
+    Returns ``(ok, formatted_cmd, attempt_records)``.
+    """
+    if backoff_base_s is None:
+        backoff_base_s = FETCH_BACKOFF_BASE_S
+    dest = Path(dest)
+    cmd_str = format_cmd_template(template, run_id, dest.as_posix())
+    argv = shlex.split(cmd_str, posix=True)
+    records: list[dict[str, Any]] = []
+    for attempt in range(1, attempts + 1):
+        record: dict[str, Any] = {"attempt": attempt, "started_utc": utc_now_iso()}
+        try:
+            proc = subprocess.run(
+                argv,
+                capture_output=True,
+                text=True,
+                timeout=timeout_s,
+                check=False,
+            )
+            record["returncode"] = proc.returncode
+            stderr_tail = (proc.stderr or "").strip()
+            if stderr_tail:
+                record["stderr_tail"] = stderr_tail[-500:]
+        except (OSError, subprocess.TimeoutExpired) as exc:
+            record["returncode"] = None
+            record["error"] = str(exc)
+        record["dest_exists"] = dest.is_file()
+        records.append(record)
+        if record.get("returncode") == 0 and record["dest_exists"]:
+            return True, cmd_str, records
+        if attempt < attempts:
+            sleep(backoff_base_s * 2 ** (attempt - 1))
+    return False, cmd_str, records
+
+
+def find_controller_events(event_log_dir: str | Path, run_id: str) -> Path | None:
+    """Locate the controller's per-run events.jsonl in EGW_EVENT_LOG_DIR.
+
+    CONTRACTS 5 fixes one events.jsonl per run_id inside EGW_EVENT_LOG_DIR
+    but not the exact file layout, so several plausible layouts are tried.
+    """
+    d = Path(event_log_dir)
+    candidates = [
+        d / run_id / "events.jsonl",
+        d / f"{run_id}.events.jsonl",
+        d / f"{run_id}.jsonl",
+        d / f"events-{run_id}.jsonl",
+        d / f"events_{run_id}.jsonl",
+    ]
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def collect_controller_events(
+    event_log_dir: str | Path, run_id: str, dest: str | Path
+) -> str | None:
+    """Copy the run's controller events.jsonl into the run directory.
+
+    Returns a description of the source used, or None when nothing was
+    found. Falls back to filtering a shared ``events.jsonl`` by run_id.
+    """
+    dest = Path(dest)
+    source = find_controller_events(event_log_dir, run_id)
+    if source is not None:
+        shutil.copyfile(source, dest)
+        return str(source)
+
+    shared = Path(event_log_dir) / "events.jsonl"
+    if shared.is_file():
+        matched: list[str] = []
+        with open(shared, "r", encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                if obj.get("run_id") == run_id:
+                    matched.append(line)
+        if matched:
+            dest.write_text("\n".join(matched) + "\n", encoding="utf-8")
+            return f"{shared} (filtered by run_id)"
+    return None
+
+
+def collect_events(
+    *,
+    run_id: str,
+    dest: Path,
+    fetch_events_cmd: str | None,
+    event_log_dir: Path,
+    warnings: list[str],
+    fetch_info: dict[str, Any],
+) -> str | None:
+    """Full events-collection step: fetch command first, local fallback.
+
+    Records the fetch attempts in ``fetch_info`` and human-readable
+    problems in ``warnings``. Returns the ``events_source`` description or
+    None when collection failed entirely.
+    """
+    if fetch_events_cmd:
+        ok, cmd_str, attempt_records = fetch_events_via_cmd(
+            fetch_events_cmd, run_id, dest
+        )
+        fetch_info["template"] = fetch_events_cmd
+        fetch_info["command"] = cmd_str
+        fetch_info["attempts"] = attempt_records
+        fetch_info["ok"] = ok
+        if ok:
+            return f"fetch-cmd: {cmd_str}"
+        warnings.append(
+            f"fetch-events-cmd failed after {len(attempt_records)} "
+            f"attempt(s): {cmd_str}"
+        )
+    source = collect_controller_events(event_log_dir, run_id, dest)
+    if source is None and fetch_events_cmd is None:
+        warnings.append(
+            f"controller events.jsonl for run_id {run_id!r} not found under "
+            f"{event_log_dir} and no --fetch-events-cmd/"
+            f"{FETCH_EVENTS_CMD_ENV} configured. The controller writes "
+            "events.jsonl ON the ARM VM (plan 5.1); configure a fetch "
+            "command template, e.g. --fetch-events-cmd "
+            "'scp vm:/opt/egw/data/events/{run_id}/events.jsonl {dest}', "
+            "or recover later with: python -m egw_experiments collect "
+            f"--run-id {run_id} --fetch-events-cmd '...'"
+        )
+    elif source is None:
+        warnings.append(
+            f"local event-log fallback also failed (looked under "
+            f"{event_log_dir}); recover with: python -m egw_experiments "
+            f"collect --run-id {run_id} --fetch-events-cmd '...'"
+        )
+    return source
+
+
+# ---------------------------------------------------------------------------
+# Confirmation marker in the CONTROLLER's clock domain (sprint P5, report 5.2)
+# ---------------------------------------------------------------------------
+
+
+def _http_get_json(url: str, timeout_s: float) -> Any:
+    """One plain stdlib HTTP GET returning the parsed JSON body.
+
+    Deliberately ``urllib`` only: the harness core is standard-library
+    only, and this single request must never pull an HTTP client into the
+    dependency set. Raises on any network/HTTP/JSON failure; callers record
+    the failure instead of propagating it.
+    """
+    with urllib.request.urlopen(url, timeout=timeout_s) as resp:
+        body = resp.read()
+    return json.loads(body.decode("utf-8"))
+
+
+def poll_controller_marker(
+    controller_url: str | None,
+    *,
+    timeout_s: float = CONTROLLER_MARKER_TIMEOUT_S,
+) -> dict[str, Any]:
+    """Read the controller's confirmation marker right after the run ends.
+
+    The controller's ``GET /metrics`` carries (CONTRACTS, sprint P5) an
+    additive ``monotonic_ns`` field — ``time.monotonic_ns()`` in the
+    CONTROLLER's clock domain at request handling — plus an RFC 3339
+    ``wall_utc``. Anchoring the 60 s confirmation deadline on that value
+    makes the deadline independent of the events themselves (report 5.2:
+    deriving it from ``max(received_monotonic_ns)`` is circular, because a
+    very late message becomes the new maximum and pushes its own deadline).
+
+    The 60 s window itself is NOT touched here; only the instrumentation
+    that fixes the END INSTANT is.
+
+    Returns ``{url, polled_utc, ok, monotonic_ns, wall_utc, error}``; a
+    failed read never raises — an unreachable controller, a typed HTTP
+    failure (``http.client.HTTPException``) or a too-old controller is
+    recorded, and the caller applies the validity rules. One request, no
+    retry; a programming error or a cancellation propagates.
+    """
+    record: dict[str, Any] = {
+        "url": None,
+        "polled_utc": None,
+        "ok": False,
+        "monotonic_ns": None,
+        "wall_utc": None,
+        "error": None,
+    }
+    if not controller_url:
+        record["error"] = (
+            "no --controller-url configured: the confirmation deadline "
+            "cannot be anchored in the controller's clock domain"
+        )
+        return record
+    url = str(controller_url).rstrip("/") + "/metrics"
+    record["url"] = url
+    record["polled_utc"] = utc_now_iso()
+    try:
+        payload = _http_get_json(url, timeout_s)
+    except (OSError, ValueError) as exc:
+        record["error"] = f"GET {url} failed: {exc}"
+        return record
+    except http.client.HTTPException as exc:
+        # A typed HTTP failure that is not an OSError (IncompleteRead,
+        # BadStatusLine, LineTooLong: a controller killed or restarted
+        # mid-response) is a failed read like any other, named by its type:
+        # no marker, so no deadline. Until 2026-09-29 it escaped execute_run
+        # before the manifest was written, and crashed itest_reconcile's
+        # mark and wait. Anything else (a programming error, a cancellation)
+        # still propagates.
+        record["error"] = f"GET {url} failed: {type(exc).__name__}: {exc}"
+        return record
+    if not isinstance(payload, dict):
+        record["error"] = f"GET {url} did not return a JSON object"
+        return record
+    monotonic_ns = payload.get("monotonic_ns")
+    if isinstance(monotonic_ns, bool) or not isinstance(monotonic_ns, int):
+        record["error"] = (
+            f"GET {url} response carries no integer 'monotonic_ns' field: "
+            "this controller predates the confirmation-marker contract, so "
+            "the deadline cannot be anchored in its clock domain"
+        )
+        return record
+    wall_utc = payload.get("wall_utc")
+    record["monotonic_ns"] = monotonic_ns
+    record["wall_utc"] = wall_utc if isinstance(wall_utc, str) else None
+    record["ok"] = True
+    return record
+
+
+# ---------------------------------------------------------------------------
+# SUT collector hooks (sprint P5, report 5.3: 'campaign' must be end-to-end)
+# ---------------------------------------------------------------------------
+
+
+def parse_expected_services(value: str) -> list[str]:
+    """Parse ``--expect-services NAME,NAME,...`` into a list of names.
+
+    Each name must use only the characters the collector itself accepts
+    (``A-Za-z0-9_.-``, :data:`SERVICE_NAME_RE`); an empty element (``a,,b``,
+    a trailing comma, an empty value) and a repeated name are refused. Raises
+    ``ValueError`` with a message naming the offending element.
+    """
+    names = value.split(",")
+    return validate_expected_services(names)
+
+
+def validate_expected_services(names: list[str]) -> list[str]:
+    """Check a list of expected service names; returns it unchanged.
+
+    Raises ``ValueError`` when the list is empty, holds an empty or repeated
+    name, or a name with a character outside ``A-Za-z0-9_.-``.
+    """
+    if not names:
+        raise ValueError("--expect-services names no service")
+    seen: set[str] = set()
+    for name in names:
+        if not isinstance(name, str) or not SERVICE_NAME_RE.match(name):
+            raise ValueError(
+                f"--expect-services: invalid service name {name!r} (only "
+                "A-Z a-z 0-9 _ . - are allowed, as in collect-resources.sh; "
+                "names are separated by single commas)"
+            )
+        if name in seen:
+            raise ValueError(f"--expect-services: {name!r} is given twice")
+        seen.add(name)
+    return list(names)
+
+
+def format_collector_template(
+    template: str,
+    run_id: str,
+    *,
+    duration_s: int,
+    dest: str | Path,
+    expect_services: list[str] | None = None,
+) -> str:
+    """Substitute ``{run_id}``, ``{dest}``, ``{duration_s}`` and
+    ``{expect_services}`` literally.
+
+    Same plain-replacement rule as :func:`format_cmd_template` (any other
+    brace construct in the operator's command survives untouched);
+    ``{dest}`` is always rendered with forward slashes so POSIX splitting
+    never eats Windows backslashes. ``{expect_services}`` is the
+    ``--expect-services`` list joined with commas (empty when unset), so the
+    start hook hands the collector the same list the harness enforces.
+    """
+    out = format_cmd_template(template, run_id, Path(dest).as_posix())
+    out = out.replace("{expect_services}", ",".join(expect_services or []))
+    return out.replace("{duration_s}", str(duration_s))
+
+
+def _as_bytes(data: bytes | str | None) -> bytes:
+    if data is None:
+        return b""
+    if isinstance(data, str):
+        return data.encode("utf-8", errors="replace")
+    return data
+
+
+def _signal_hook_group(proc: subprocess.Popen, *, kill: bool) -> None:
+    """SIGTERM (or SIGKILL) the hook's whole process group.
+
+    The hook was started in a session of its own, so its process group id is
+    its pid and every child it did not move elsewhere (the ssh and scp of
+    fetch-collector-output.sh) is a member. Where process groups do not
+    exist (Windows), only the hook process itself can be signalled.
+    """
+    if os.name == "posix":
+        sig = signal.SIGKILL if kill else signal.SIGTERM
+        try:
+            os.killpg(proc.pid, sig)
+        except (ProcessLookupError, PermissionError):
+            pass  # the group is already gone
+        return
+    try:
+        if kill:
+            proc.kill()
+        else:
+            proc.terminate()
+    except OSError:
+        pass
+
+
+def _stop_hook_process_group(
+    proc: subprocess.Popen, grace_s: float
+) -> tuple[bytes | None, bytes | None]:
+    """End a hook that exceeded its timeout, children included.
+
+    SIGTERM to the group, ``grace_s`` seconds to exit, then SIGKILL to the
+    group. Returns the output read so far (``communicate`` keeps what it read
+    across its timeouts). A descendant that left the group (for example a
+    daemonised ssh ControlMaster) could keep the pipes open after the
+    SIGKILL; reading is then abandoned after one more grace period.
+    """
+    _signal_hook_group(proc, kill=False)
+    try:
+        return proc.communicate(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        pass
+    _signal_hook_group(proc, kill=True)
+    partial: tuple[bytes | str | None, bytes | str | None]
+    try:
+        return proc.communicate(timeout=grace_s)
+    except subprocess.TimeoutExpired as exc:
+        partial = (exc.stdout, exc.stderr)
+    for stream in (proc.stdout, proc.stderr):
+        if stream is not None:
+            stream.close()
+    try:
+        proc.wait(timeout=grace_s)
+    except subprocess.TimeoutExpired:
+        pass
+    return _as_bytes(partial[0]), _as_bytes(partial[1])
+
+
+def execute_collector_hook(
+    hook: str,
+    template: str,
+    run_id: str,
+    *,
+    duration_s: int,
+    dest: str | Path,
+    expect_services: list[str] | None = None,
+    log_dir: str | Path | None = None,
+    timeout_s: float | None = None,
+    kill_grace_s: float | None = None,
+) -> dict[str, Any]:
+    """Execute one collector hook and return its manifest record.
+
+    The record is ``{hook, flag, template, command, started_utc,
+    finished_utc, returncode}`` (plus ``stderr_tail``/``error`` when
+    applicable). A non-zero (or absent) return code is NEVER a silent
+    warning: the caller turns it into a validity reason naming the hook.
+    The same machinery runs the SUT log fetches and the restart-evidence
+    hooks of ADR 0011 item 18; ``flag`` is the label's entry in
+    :data:`HOOK_FLAGS`.
+
+    The hook runs without a shell, with stdin from the null device, in a
+    session (and so a process group) of its own. When it exceeds
+    ``timeout_s`` (default :data:`FETCH_TIMEOUT_S`) the WHOLE group gets
+    SIGTERM and, ``kill_grace_s`` seconds later (default
+    :data:`HOOK_KILL_GRACE_S`), SIGKILL: a child left running (the ssh/scp of
+    the fetch script) must not write into logs/collector/ after the
+    inspection and the seal. The record then carries ``timed_out: true``,
+    ``returncode: null`` and an ``error`` saying so.
+
+    With ``log_dir`` the hook's FULL stdout and stderr are written, byte for
+    byte, to ``<log_dir>/hook-<hook>.stdout.txt`` and ``.stderr.txt``
+    whenever the command ran (also when it timed out); the record then
+    carries their paths as ``stdout_path``/``stderr_path``. The 500-character
+    ``stderr_tail`` stays in the record for a quick read of the manifest.
+    """
+    timeout_s = FETCH_TIMEOUT_S if timeout_s is None else float(timeout_s)
+    kill_grace_s = (
+        HOOK_KILL_GRACE_S if kill_grace_s is None else float(kill_grace_s)
+    )
+    cmd_str = format_collector_template(
+        template,
+        run_id,
+        duration_s=duration_s,
+        dest=dest,
+        expect_services=expect_services,
+    )
+    record: dict[str, Any] = {
+        "hook": hook,
+        "flag": HOOK_FLAGS.get(hook, hook),
+        "template": template,
+        "command": cmd_str,
+        "started_utc": utc_now_iso(),
+        "returncode": None,
+    }
+    stdout: bytes | None = None
+    stderr: bytes | None = None
+    proc: subprocess.Popen | None = None
+    try:
+        proc = subprocess.Popen(
+            shlex.split(cmd_str, posix=True),
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            start_new_session=True,
+        )
+    except (OSError, ValueError) as exc:
+        record["error"] = str(exc)
+    if proc is not None:
+        try:
+            out, err = proc.communicate(timeout=timeout_s)
+            record["returncode"] = proc.returncode
+        except subprocess.TimeoutExpired:
+            out, err = _stop_hook_process_group(proc, kill_grace_s)
+            record["timed_out"] = True
+            record["error"] = (
+                f"timed out after {timeout_s:g} s; the hook's process group "
+                f"was terminated (SIGTERM, then SIGKILL after {kill_grace_s:g} "
+                "s)"
+            )
+        stdout, stderr = _as_bytes(out), _as_bytes(err)
+    if stderr is not None:
+        stderr_tail = stderr.decode("utf-8", errors="replace").strip()
+        if stderr_tail:
+            record["stderr_tail"] = stderr_tail[-500:]
+    if log_dir is not None and stdout is not None and stderr is not None:
+        log_dir = Path(log_dir)
+        log_dir.mkdir(parents=True, exist_ok=True)
+        for stream, data in (("stdout", stdout), ("stderr", stderr)):
+            path = log_dir / f"hook-{hook}.{stream}.txt"
+            path.write_bytes(data)
+            record[f"{stream}_path"] = str(path)
+    record["finished_utc"] = utc_now_iso()
+    return record
+
+
+def collector_hook_failures(
+    collector_hooks: list[dict[str, Any]] | None,
+) -> list[str]:
+    """Human-readable failure reasons for the hooks that did not exit 0."""
+    reasons: list[str] = []
+    for record in collector_hooks or []:
+        if record.get("returncode") == 0:
+            continue
+        flag = record.get("flag") or COLLECTOR_HOOK_FLAGS.get(
+            str(record.get("hook")), "collector hook"
+        )
+        detail = record.get("error")
+        reasons.append(
+            f"collector hook {flag} failed with exit code "
+            f"{record.get('returncode')}"
+            + (f" ({detail})" if detail else "")
+            + ": the SUT resource collector was not driven as the protocol "
+            "prescribes, so this run's CPU/RAM evidence cannot be trusted"
+        )
+    return reasons
+
+
+def _hook_outcome(record: dict[str, Any]) -> str:
+    """``exit code N``, with the recorded error, of a hook that did not exit 0."""
+    detail = record.get("error")
+    return f"exit code {record.get('returncode')}" + (
+        f" ({detail})" if detail else ""
+    )
+
+
+def sut_log_fetch_failures(
+    sut_log_fetches: list[dict[str, Any]] | None,
+) -> list[str]:
+    """Reasons for the SUT log fetches that did not exit 0 or wrote no file.
+
+    The broker log, the controller container log and the docker events of
+    the run are the record of every connection end during it (ADR 0011). A
+    fetch that failed, or that exited 0 without producing its file, left
+    that record on the guest, so the run's connection history cannot be read
+    from the run directory.
+
+    The StartedAt read of decision 1a (``--fetch-started-at-cmd``, hook
+    ``started_at``), when the run was given it, is judged the same way and
+    named for what it is: without its file the restarted controller's
+    StartedAt is not in the run directory and no proved-down interval is
+    granted.
+    """
+    reasons: list[str] = []
+    for record in sut_log_fetches or []:
+        if record.get("hook") == STARTED_AT_HOOK:
+            flag = record.get("flag") or STARTED_AT_FETCH_FLAGS[STARTED_AT_HOOK]
+            dest = record.get("dest_file") or "its file"
+            what = (
+                "so the restarted controller's StartedAt cannot be read from "
+                "the run directory and no proved-down interval is granted "
+                "(decision 1a)"
+            )
+            if record.get("returncode") != 0:
+                reasons.append(
+                    f"SUT fetch {flag} failed with {_hook_outcome(record)}: "
+                    f"{dest} was not fetched, {what}"
+                )
+            elif not record.get("dest_exists"):
+                reasons.append(
+                    f"SUT fetch {flag} exited 0 but wrote no file at {dest}, {what}"
+                )
+            continue
+        flag = record.get("flag") or SUT_LOG_FETCH_FLAGS.get(
+            str(record.get("hook")), "SUT log fetch"
+        )
+        dest = record.get("dest_file") or "its file"
+        if record.get("returncode") != 0:
+            reasons.append(
+                f"SUT log fetch {flag} failed with {_hook_outcome(record)}: "
+                f"{dest} was not fetched, so the connection history of this "
+                "run cannot be read from the run directory"
+            )
+        elif not record.get("dest_exists"):
+            reasons.append(
+                f"SUT log fetch {flag} exited 0 but wrote no file at {dest}: "
+                "the log was not fetched, so the connection history of this "
+                "run cannot be read from the run directory"
+            )
+    return reasons
+
+
+# ---------------------------------------------------------------------------
+# Restart evidence (ADR 0011 item 18): the drain's outcome, the verification
+# of the twin snapshots and of the post-drain events, their ingestion from
+# files taken outside the harness, and the validity reasons
+# ---------------------------------------------------------------------------
+
+
+def classify_drain_output(text: str, returncode: int | None) -> str:
+    """The drain's outcome from what the runbook's `drained` helper printed.
+
+    ``text`` is the helper's output — stdout and stderr, in either order:
+    the hook keeps them apart, the runbook's transcript (``drained 2>&1 |
+    tee``) merges them — and ``returncode`` its exit code, or None for a
+    transcript ingested without one. A line is the helper's only when it
+    STARTS with the prefix (:data:`DRAIN_QUIET_LINE_PREFIX`,
+    :data:`DRAIN_GAVE_UP_LINE_PREFIX`), byte for byte.
+
+    - 'quiet': the quiet line, and the exit code 0 or unknown;
+    - 'gave-up': the give-up line, and the exit code non-zero or unknown;
+    - 'error': neither line, both lines, or an exit code that contradicts
+      the line printed (the helper's other stop, "STOP: drained: GET ...
+      failed ...", has no line of its own and is an error as well).
+    """
+    lines = text.splitlines()
+    quiet = any(line.startswith(DRAIN_QUIET_LINE_PREFIX) for line in lines)
+    gave_up = any(line.startswith(DRAIN_GAVE_UP_LINE_PREFIX) for line in lines)
+    if quiet == gave_up:
+        return "error"
+    if returncode is None:
+        return "quiet" if quiet else "gave-up"
+    if returncode == 0:
+        return "quiet" if quiet else "error"
+    return "gave-up" if gave_up else "error"
+
+
+def _drain_transcript_problems(text: str, returncode: int | None) -> list[str]:
+    """Why :func:`classify_drain_output` found 'error' (empty otherwise)."""
+    lines = text.splitlines()
+    quiet = any(line.startswith(DRAIN_QUIET_LINE_PREFIX) for line in lines)
+    gave_up = any(line.startswith(DRAIN_GAVE_UP_LINE_PREFIX) for line in lines)
+    if quiet and gave_up:
+        return [
+            "both the helper's quiet line and its give-up line are in the "
+            "transcript"
+        ]
+    if not quiet and not gave_up:
+        return [
+            f"neither the helper's quiet line ({DRAIN_QUIET_LINE_PREFIX!r} ...) "
+            f"nor its give-up line ({DRAIN_GAVE_UP_LINE_PREFIX!r} ...) is in "
+            "the transcript"
+        ]
+    if returncode is None or (returncode == 0) == quiet:
+        return []
+    return [
+        f"exit code {returncode} contradicts the "
+        + ("quiet" if quiet else "give-up")
+        + " line printed"
+    ]
+
+
+def drain_hook_outcome(record: dict[str, Any], run_dir: str | Path) -> str:
+    """Classify a --drain-cmd hook's record from the output it kept.
+
+    A hook that did not run to an exit code (``error`` set: a spawn error or
+    a timeout) is 'error'; otherwise the kept ``stdout_file`` and
+    ``stderr_file`` (relative to ``run_dir``) are read and classified with
+    the exit code."""
+    if record.get("error") is not None or record.get("timed_out"):
+        return "error"
+    run_dir = Path(run_dir)
+    text = ""
+    for key in ("stdout_file", "stderr_file"):
+        name = record.get(key)
+        if not name:
+            continue
+        try:
+            text += (run_dir / name).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            return "error"
+        if not text.endswith("\n"):
+            text += "\n"
+    return classify_drain_output(text, record.get("returncode"))
+
+
+def expected_twin_devices(
+    seed: int, device_types: tuple[str, ...] | list[str] = DEVICE_TYPES
+) -> dict[str, str]:
+    """``{device_uuid: device_type}`` of the run whose plan entry carries
+    ``seed``: the identities ``egw_simulator.devices.make_devices`` derives
+    from it (CONTRACTS 2, plan 5.6). The campaign plan names no device
+    types and :func:`_simulator_cmd` passes no ``--devices``, so a planned
+    run publishes for the simulator's default set, ``DEVICE_TYPES``; the
+    parameter exists for a plan entry that would name a subset."""
+    return {d.device_uuid: d.device_type for d in make_devices(seed, device_types)}
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
+
+
+def _ids(values: list[str], limit: int = 5) -> str:
+    shown = ", ".join(values[:limit])
+    return shown + (f", ... ({len(values)} in all)" if len(values) > limit else "")
+
+
+def _snapshot_entry_problems(device_uuid: str, entry: Any, device_type: str) -> list[str]:
+    """What keeps one ``devices`` entry from being what `snap` writes for
+    ``device_uuid`` of type ``device_type``."""
+    if not isinstance(entry, dict):
+        return [f"{device_uuid}: the entry is a JSON {type(entry).__name__}, not an object"]
+    problems: list[str] = []
+    if entry.get("device_type") != device_type:
+        problems.append(
+            f"{device_uuid}: device_type must be {device_type!r}, found "
+            f"{entry.get('device_type')!r}"
+        )
+    exists = entry.get("exists")
+    if not isinstance(exists, bool):
+        problems.append(f"{device_uuid}: exists must be a boolean, found {exists!r}")
+    ingestion = entry.get("ingestion")
+    if not isinstance(ingestion, dict):
+        problems.append(f"{device_uuid}: ingestion must be a JSON object")
+        return problems
+    if set(ingestion) != set(TWIN_INGESTION_TYPES):
+        problems.append(
+            f"{device_uuid}: ingestion keys must be "
+            f"{', '.join(TWIN_INGESTION_TYPES)}, found {', '.join(map(str, ingestion)) or 'none'}"
+        )
+        return problems
+    for key, kind in TWIN_INGESTION_TYPES.items():
+        value = ingestion[key]
+        if value is None:
+            continue
+        ok = (_is_int(value) and value >= 0) if kind is int else isinstance(value, str)
+        if not ok:
+            problems.append(
+                f"{device_uuid}: ingestion.{key} must be null or "
+                + ("a non-negative integer" if kind is int else "a string")
+                + f", found {value!r}"
+            )
+    if exists is False and any(v is not None for v in ingestion.values()):
+        problems.append(
+            f"{device_uuid}: exists is false but ingestion carries values (an "
+            "absent twin has none)"
+        )
+    return problems
+
+
+def twin_snapshot_problems(
+    doc: Any,
+    *,
+    label: str,
+    seed: int | None,
+    devices: dict[str, str] | None,
+    devices_origin: str,
+) -> list[str]:
+    """What keeps ``doc`` from being the twin snapshot ``label`` of this run.
+
+    A snapshot is what itest_reconcile's `snap` writes: a JSON object with
+    ``label`` equal to ``label`` ('before' or 'after'), a ``seed`` that,
+    when it is not null and the plan entry has a seed, equals the plan
+    entry's (the `--like` form of the helper writes null: it derives the
+    devices from an earlier snapshot), and a ``devices`` object naming
+    EXACTLY ``devices`` — ``{device_uuid: device_type}``, described by
+    ``devices_origin`` in the problems: the identities the plan entry's
+    seed determines for the before snapshot (:func:`expected_twin_devices`),
+    the verified before snapshot's for the after one — each entry an object
+    with the expected ``device_type``, a boolean ``exists`` and an
+    ``ingestion`` object with the keys of :data:`TWIN_INGESTION_TYPES`,
+    every value null or of its type (:func:`_snapshot_entry_problems`). An
+    absent twin (``exists`` false, null values) is legitimate. With
+    ``devices`` None the snapshot cannot be shown to be the run's and
+    ``devices_origin`` says why (review finding F6a).
+    """
+    if not isinstance(doc, dict):
+        return [f"the document is a JSON {type(doc).__name__}, not an object"]
+    problems: list[str] = []
+    if doc.get("label") != label:
+        problems.append(f"label must be {label!r}, found {doc.get('label')!r}")
+    file_seed = doc.get("seed")
+    if file_seed is not None and seed is not None and file_seed != seed:
+        problems.append(f"seed {file_seed!r} is not the plan entry's seed {seed!r}")
+    found = doc.get("devices")
+    if not isinstance(found, dict):
+        problems.append("devices must be a JSON object")
+        return problems
+    if not found:
+        problems.append("devices names no device")
+        return problems
+    if devices is None:
+        problems.append(devices_origin)
+        return problems
+    unexpected = [u for u in found if u not in devices]
+    missing = [u for u in devices if u not in found]
+    if unexpected:
+        problems.append(
+            f"devices names {len(unexpected)} device(s) that are not "
+            f"{devices_origin}: {_ids(unexpected)}"
+        )
+    if missing:
+        problems.append(
+            f"devices lacks {len(missing)} of {devices_origin}: {_ids(missing)}"
+        )
+    for device_uuid, device_type in devices.items():
+        if device_uuid in found:
+            problems.extend(_snapshot_entry_problems(device_uuid, found[device_uuid], device_type))
+    return problems
+
+
+def _twin_snapshot_file_problems(
+    path: Path,
+    *,
+    label: str,
+    seed: int | None,
+    devices: dict[str, str] | None,
+    devices_origin: str,
+) -> list[str]:
+    try:
+        doc = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        return [f"not readable JSON ({exc})"]
+    return twin_snapshot_problems(
+        doc, label=label, seed=seed, devices=devices, devices_origin=devices_origin
+    )
+
+
+def verified_before_devices(
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+    run_dir: str | Path,
+) -> dict[str, str] | None:
+    """``{device_uuid: device_type}`` of the run's VERIFIED before snapshot
+    (its record in ``twin_snapshots`` says so and its file is in
+    ``run_dir``), or None: what the after snapshot is bound to."""
+    file = TWIN_SNAPSHOT_FILES["twin_snapshot_before"]
+    for record in twin_snapshots or []:
+        if record.get("file") != file or not record.get("verified"):
+            continue
+        try:
+            doc = json.loads((Path(run_dir) / file).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return None
+        devices = doc.get("devices") if isinstance(doc, dict) else None
+        if not isinstance(devices, dict) or not devices:
+            return None
+        return {
+            u: e.get("device_type") for u, e in devices.items() if isinstance(e, dict)
+        }
+    return None
+
+
+def snapshot_devices_of_run(
+    hook: str,
+    *,
+    seed: int | None,
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] | None,
+    run_dir: str | Path,
+) -> tuple[dict[str, str] | None, str]:
+    """The devices the snapshot ``hook`` must name, and their origin for
+    the problems: the plan entry's seed for the before snapshot, the
+    verified before snapshot for the after one (`snap --like before`);
+    (None, why) when neither is available."""
+    if hook == "twin_snapshot_before":
+        if seed is None:
+            return None, (
+                "the plan entry has no seed, so the devices of this run cannot "
+                "be derived and the snapshot cannot be shown to be the run's"
+            )
+        return expected_twin_devices(seed), f"the devices of this run (seed {seed})"
+    devices = verified_before_devices(twin_snapshots, run_dir)
+    if devices is None:
+        return None, (
+            "no verified before snapshot to bind the after snapshot to "
+            f"({TWIN_SNAPSHOT_FILES['twin_snapshot_before']} missing, refused "
+            "or not verified)"
+        )
+    return devices, "the devices of the verified before snapshot"
+
+
+def post_drain_events_problems(
+    path: str | Path, run_id: str, *, limit: int = 5
+) -> list[str]:
+    """What keeps ``path`` from being the post-drain copy of this run's
+    events: it must be non-empty JSON Lines where every line is a JSON
+    object whose ``run_id`` is ``run_id`` and whose ``outcome`` is one of
+    :data:`POST_DRAIN_EVENT_OUTCOMES`. At most ``limit`` problems are
+    listed, then the remaining lines are left unchecked (a file of another
+    run would otherwise name every line)."""
+    path = Path(path)
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as exc:
+        return [f"not readable ({exc})"]
+    problems: list[str] = []
+    records = 0
+    outcomes = "/".join(POST_DRAIN_EVENT_OUTCOMES)
+    for number, line in enumerate(text.splitlines(), 1):
+        if not line.strip():
+            continue
+        records += 1
+        try:
+            doc = json.loads(line)
+        except json.JSONDecodeError:
+            problems.append(f"line {number} is not JSON")
+        else:
+            if not isinstance(doc, dict):
+                problems.append(f"line {number} is not a JSON object")
+            else:
+                if doc.get("run_id") != run_id:
+                    problems.append(
+                        f"line {number} belongs to run {doc.get('run_id')!r}, "
+                        f"not {run_id!r}"
+                    )
+                if doc.get("outcome") not in POST_DRAIN_EVENT_OUTCOMES:
+                    problems.append(
+                        f"line {number} has outcome {doc.get('outcome')!r}, not "
+                        f"one of {outcomes}"
+                    )
+        if len(problems) >= limit:
+            problems.append(f"further lines not checked (after line {number})")
+            break
+    if records == 0:
+        problems.append("the file holds no event record")
+    return problems
+
+
+def verify_twin_snapshot_record(
+    record: dict[str, Any],
+    run_dir: str | Path,
+    *,
+    seed: int | None,
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+) -> None:
+    """Set ``verified``/``problems`` on a --twin-snapshot-cmd hook's record:
+    a hook that exited 0 and wrote its file is verified only when the file
+    is the snapshot of this run's label and devices
+    (:func:`twin_snapshot_problems`; ``twin_snapshots`` holds the earlier
+    records, where the after snapshot finds its verified before)."""
+    record["verified"] = False
+    record["problems"] = []
+    if record.get("returncode") != 0 or not record.get("dest_exists"):
+        return
+    hook = str(record.get("hook"))
+    devices, origin = snapshot_devices_of_run(
+        hook, seed=seed, twin_snapshots=twin_snapshots, run_dir=run_dir
+    )
+    record["problems"] = _twin_snapshot_file_problems(
+        Path(run_dir) / TWIN_SNAPSHOT_FILES[hook],
+        label=TWIN_SNAPSHOT_LABELS[hook],
+        seed=seed,
+        devices=devices,
+        devices_origin=origin,
+    )
+    record["verified"] = not record["problems"]
+
+
+def verify_post_drain_record(
+    record: dict[str, Any], run_dir: str | Path, run_id: str
+) -> None:
+    """Set ``verified``/``problems`` on a --post-drain-fetch-cmd record: a
+    fetch that succeeded is verified only when the file is the post-drain
+    copy of THIS run's events (:func:`post_drain_events_problems`)."""
+    record["verified"] = False
+    record["problems"] = []
+    if not record.get("ok"):
+        return
+    record["problems"] = post_drain_events_problems(
+        Path(run_dir) / POST_DRAIN_EVENTS_FILENAME, run_id
+    )
+    record["verified"] = not record["problems"]
+
+
+def _ingested_record(hook: str, file: str, source: str | Path) -> dict[str, Any]:
+    return {
+        "hook": hook,
+        "flag": RESTART_EVIDENCE_FROM_FLAGS[hook],
+        "file": file,
+        "source": "ingested",
+        "from": str(source),
+        "sha256": None,
+        "verified": False,
+        "problems": [],
+    }
+
+
+def _refuse_ingest(
+    record: dict[str, Any], problems: list[str], warnings: list[str]
+) -> dict[str, Any]:
+    record["problems"] = problems
+    warnings.append(
+        f"{record['flag']} {record['from']} REFUSED ({record['file']} not "
+        "ingested): " + "; ".join(problems)
+    )
+    return record
+
+
+def ingest_twin_snapshot(
+    run_dir: Path,
+    hook: str,
+    source: str | Path,
+    *,
+    seed: int | None,
+    warnings: list[str],
+    twin_snapshots: list[dict[str, Any]] | tuple[dict[str, Any], ...] = (),
+) -> dict[str, Any]:
+    """Verify and copy a twin snapshot taken outside the harness.
+
+    The file is verified BEFORE it counts (:func:`twin_snapshot_problems`:
+    label, seed, and exactly this run's devices — the plan entry's seed
+    determines the before snapshot's, the verified before snapshot among
+    ``twin_snapshots`` the after one's) and copied write-once
+    (:func:`ingest_copy`) to the name the hook would have written only when
+    it verifies: a refused file never enters the run directory, so the
+    right file can follow it. The record carries the provenance (``source:
+    "ingested"``, ``from``, the copy's ``sha256``) or the ``problems`` that
+    refused it; a missing file is such a problem.
+    """
+    file = TWIN_SNAPSHOT_FILES[hook]
+    record = _ingested_record(hook, file, source)
+    src = Path(source)
+    if not src.is_file():
+        warnings.append(f"{record['flag']} file not found: {src}")
+        record["problems"] = [f"file not found: {src}"]
+        return record
+    devices, origin = snapshot_devices_of_run(
+        hook, seed=seed, twin_snapshots=twin_snapshots, run_dir=run_dir
+    )
+    problems = _twin_snapshot_file_problems(
+        src,
+        label=TWIN_SNAPSHOT_LABELS[hook],
+        seed=seed,
+        devices=devices,
+        devices_origin=origin,
+    )
+    if problems:
+        return _refuse_ingest(record, problems, warnings)
+    dest = run_dir / file
+    ingest_copy(src, dest, run_dir)
+    record["sha256"] = sha256_file(dest)
+    record["verified"] = True
+    return record
+
+
+def ingest_post_drain_events(
+    run_dir: Path, run_id: str, source: str | Path, *, warnings: list[str]
+) -> dict[str, Any]:
+    """Verify and copy the post-drain copy of this run's events taken
+    outside the harness, like :func:`ingest_twin_snapshot` (a file of
+    another run is refused, naming the mismatch, and not copied)."""
+    record = _ingested_record("post_drain", POST_DRAIN_EVENTS_FILENAME, source)
+    src = Path(source)
+    if not src.is_file():
+        warnings.append(f"{record['flag']} file not found: {src}")
+        record["problems"] = [f"file not found: {src}"]
+        return record
+    problems = post_drain_events_problems(src, run_id)
+    if problems:
+        return _refuse_ingest(record, problems, warnings)
+    dest = run_dir / POST_DRAIN_EVENTS_FILENAME
+    ingest_copy(src, dest, run_dir)
+    record["sha256"] = sha256_file(dest)
+    record["verified"] = True
+    return record
+
+
+def parse_utc_instant(text: Any) -> datetime | None:
+    """An ISO 8601 instant WITH a UTC designator or offset (``Z`` or
+    ``+00:00``), as an aware datetime; None for anything else (a naive
+    stamp names no instant)."""
+    if not isinstance(text, str) or not text:
+        return None
+    try:
+        value = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if value.tzinfo is None:
+        return None
+    return value
+
+
+def drain_transcript_envelope_problems(
+    text: str,
+    *,
+    run_id: str,
+    window_end_utc: str | None,
+    now: datetime | None = None,
+) -> tuple[list[str], str | None]:
+    """Why the envelope of a transcript taken outside the harness does not
+    bind it to ``run_id``, and the ``captured_utc`` it names.
+
+    The FIRST line must match :data:`DRAIN_ENVELOPE_RE` (what the runbook's
+    test 6 line writes before `drained` runs); its run id must be this
+    run's and its instant an ISO 8601 UTC instant later than the
+    manifest's measured window end (``window_end_utc``: the drain follows
+    the run) and not later than ``now`` (the collection instant, the real
+    clock by default: a later stamp is not an observation). An empty list
+    means the transcript is bound to this run.
+    """
+    first = text.split("\n", 1)[0].rstrip("\r") if text else ""
+    match = DRAIN_ENVELOPE_RE.match(first)
+    if match is None:
+        return [
+            "the first line is not the envelope 'run_id=<run id> "
+            "captured_utc=<UTC instant>' the runbook's test 6 line writes "
+            f"before the helper runs (found {first!r})"
+        ], None
+    envelope_run_id, captured_text = match.group(1), match.group(2)
+    if envelope_run_id != run_id:
+        return [
+            f"the envelope binds the transcript to run {envelope_run_id!r}, "
+            f"not {run_id!r}"
+        ], None
+    captured = parse_utc_instant(captured_text)
+    if captured is None:
+        return [
+            f"the envelope's captured_utc {captured_text!r} is not an ISO 8601 "
+            "UTC instant"
+        ], None
+    end = parse_utc_instant(window_end_utc)
+    if end is None:
+        return [
+            "the run's measured window end (manifest measured_window_utc.end) "
+            "is not recorded, so the transcript cannot be shown to follow the run"
+        ], captured_text
+    if captured <= end:
+        return [
+            f"the envelope's captured_utc {captured_text} is not later than the "
+            f"run's measured window end {window_end_utc}: the transcript cannot "
+            "be this run's drain"
+        ], captured_text
+    if captured > (now if now is not None else datetime.now(timezone.utc)):
+        return [
+            f"the envelope's captured_utc {captured_text} is later than the "
+            "collection instant"
+        ], captured_text
+    return [], captured_text
+
+
+def ingest_drain_transcript(
+    run_dir: Path,
+    source: str | Path,
+    *,
+    run_id: str,
+    window_end_utc: str | None,
+    warnings: list[str],
+) -> dict[str, Any]:
+    """Classify and copy a drain transcript taken outside the harness (the
+    envelope line, then ``drained 2>&1 | tee -a <file>``).
+
+    The transcript must first be bound to this run by its envelope
+    (:func:`drain_transcript_envelope_problems`: this ``run_id``, an instant
+    after ``window_end_utc`` and not after now); it is then classified
+    exactly as a hook's output is (:func:`classify_drain_output`, without
+    an exit code): 'quiet' or 'gave-up' is copied write-once — whole, the
+    envelope included — to ``logs/sut/drain.txt`` and recorded with its
+    provenance and ``captured_utc``; an unbound transcript, or 'error'
+    (neither of the helper's lines, or both), is refused, not copied, and a
+    validity reason. The record's ``outcome`` is what the finite proof's
+    evaluator reads; the harness applies no inconclusive rule of its own.
+    """
+    file = f"logs/{SUT_LOG_SUBDIR}/{DRAIN_TRANSCRIPT_FILENAME}"
+    record = _ingested_record("drain", file, source)
+    record["outcome"] = "error"
+    record["captured_utc"] = None
+    src = Path(source)
+    if not src.is_file():
+        warnings.append(f"{record['flag']} file not found: {src}")
+        record["problems"] = [f"file not found: {src}"]
+        return record
+    try:
+        text = src.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return _refuse_ingest(record, [f"not readable ({exc})"], warnings)
+    problems, captured_utc = drain_transcript_envelope_problems(
+        text, run_id=run_id, window_end_utc=window_end_utc
+    )
+    if problems:
+        return _refuse_ingest(record, problems, warnings)
+    outcome = classify_drain_output(text, None)
+    if outcome == "error":
+        return _refuse_ingest(record, _drain_transcript_problems(text, None), warnings)
+    dest = run_dir / "logs" / SUT_LOG_SUBDIR / DRAIN_TRANSCRIPT_FILENAME
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    ingest_copy(src, dest, run_dir)
+    record["sha256"] = sha256_file(dest)
+    record["outcome"] = outcome
+    record["captured_utc"] = captured_utc
+    record["verified"] = True
+    return record
+
+
+def _evidence_step(hook: str) -> str:
+    """'<hook flag> or <from flag> (<file>)' naming one restart evidence step."""
+    file = {
+        **TWIN_SNAPSHOT_FILES,
+        "drain": f"logs/{SUT_LOG_SUBDIR}/{DRAIN_TRANSCRIPT_FILENAME}",
+        "post_drain": POST_DRAIN_EVENTS_FILENAME,
+    }[hook]
+    return (
+        f"{RESTART_EVIDENCE_HOOK_FLAGS[hook]} or "
+        f"{RESTART_EVIDENCE_FROM_FLAGS[hook]} ({file})"
+    )
+
+
+def _drain_gave_up(drain: dict[str, Any] | None) -> bool:
+    return drain is not None and drain.get("outcome") == "gave-up"
+
+
+def restart_evidence_missing(
+    twin_snapshots: list[dict[str, Any]] | None,
+    drain: dict[str, Any] | None,
+    events_post_drain_fetch: dict[str, Any] | None,
+) -> list[str]:
+    """The restart evidence steps a controller_restart run has NO record of
+    (ADR 0011 item 18): the before snapshot and the drain always; the after
+    snapshot and the post-drain events unless the drain gave up (there is
+    then no quiet state to snapshot or to read the outcomes from). A step
+    that ran and failed, or a file that was refused, is not missing; it is
+    reported by :func:`restart_evidence_failures` from its record."""
+    missing: list[str] = []
+    files = {record.get("file") for record in twin_snapshots or []}
+    if TWIN_SNAPSHOT_FILES["twin_snapshot_before"] not in files:
+        missing.append(_evidence_step("twin_snapshot_before"))
+    if drain is None:
+        missing.append(_evidence_step("drain"))
+    if not _drain_gave_up(drain):
+        if TWIN_SNAPSHOT_FILES["twin_snapshot_after"] not in files:
+            missing.append(_evidence_step("twin_snapshot_after"))
+        if events_post_drain_fetch is None:
+            missing.append(_evidence_step("post_drain"))
+    return missing
+
+
+def _twin_snapshot_reasons(record: dict[str, Any]) -> list[str]:
+    file = record.get("file") or "the snapshot file"
+    tail = ": without both snapshots the twins cannot be compared across the restart"
+    if record.get("source") == "ingested":
+        if record.get("verified"):
+            return []
+        return [
+            f"twin snapshot {record.get('flag')} {record.get('from')} refused "
+            f"({file} not ingested): " + "; ".join(record.get("problems") or [])
+            + tail
+        ]
+    flag = record.get("flag") or "--twin-snapshot-cmd"
+    if record.get("returncode") != 0:
+        return [f"twin snapshot {flag} ({file}) failed with {_hook_outcome(record)}" + tail]
+    if not record.get("dest_exists"):
+        return [f"twin snapshot {flag} exited 0 but wrote no file at {file}" + tail]
+    if not record.get("verified"):
+        return [
+            f"twin snapshot {flag} wrote {file} but it is not the snapshot of "
+            "this run: " + "; ".join(record.get("problems") or []) + tail
+        ]
+    return []
+
+
+def _drain_reasons(drain: dict[str, Any]) -> list[str]:
+    if drain.get("outcome") != "error":
+        return []
+    tail = (
+        ": an instrument failure, so the post-drain evidence does not bound "
+        "the recovery"
+    )
+    if drain.get("source") == "ingested":
+        return [
+            f"drain transcript {drain.get('flag')} {drain.get('from')} refused "
+            f"({drain.get('file')} not ingested): "
+            + "; ".join(drain.get("problems") or [])
+            + tail
+        ]
+    return [
+        f"drain {drain.get('flag') or '--drain-cmd'} failed with "
+        f"{_hook_outcome(drain)}: neither the helper's quiet line "
+        f"({DRAIN_QUIET_LINE_PREFIX!r} ...) with exit 0 nor its give-up line "
+        f"({DRAIN_GAVE_UP_LINE_PREFIX!r} ...) with a non-zero exit was "
+        "observed" + tail
+    ]
+
+
+def _post_drain_reasons(record: dict[str, Any]) -> list[str]:
+    tail = ", so the outcome of every delivery after the restart cannot be read"
+    if record.get("source") == "ingested":
+        if record.get("verified"):
+            return []
+        return [
+            f"post-drain events {record.get('flag')} {record.get('from')} refused "
+            f"({POST_DRAIN_EVENTS_FILENAME} not ingested): "
+            + "; ".join(record.get("problems") or [])
+            + tail
+        ]
+    if not record.get("ok"):
+        attempts = record.get("attempts") or []
+        return [
+            "post-drain fetch --post-drain-fetch-cmd failed after "
+            f"{len(attempts)} attempt(s): no {POST_DRAIN_EVENTS_FILENAME} was "
+            "fetched" + tail
+        ]
+    if not record.get("verified"):
+        return [
+            f"post-drain fetch --post-drain-fetch-cmd wrote "
+            f"{POST_DRAIN_EVENTS_FILENAME} but it is not the post-drain copy of "
+            "this run's events: " + "; ".join(record.get("problems") or []) + tail
+        ]
+    return []
+
+
+def restart_evidence_failures(
+    twin_snapshots: list[dict[str, Any]] | None,
+    drain: dict[str, Any] | None,
+    events_post_drain_fetch: dict[str, Any] | None,
+) -> list[str]:
+    """Reasons of a controller_restart run whose restart evidence is not
+    complete and verified (ADR 0011 item 18).
+
+    A step with no record at all (:func:`restart_evidence_missing`) is a
+    reason: the recovery cannot be evidenced without the before snapshot,
+    the drain and — when the drain was quiet — the after snapshot and the
+    post-drain copy of the events, so a run that omitted them is never
+    marked valid by their absence, and no flag excuses it. Every configured
+    hook that failed, wrote no file or wrote a file that does not verify,
+    and every ingested file that was refused or missing, is a reason naming
+    it. A drain whose outcome is 'error' is a reason (an instrument
+    failure); a drain that 'gave-up' is not: it is a valid observation of
+    failed recovery, recorded by :func:`restart_evidence_notes`.
+    """
+    reasons: list[str] = []
+    for step in restart_evidence_missing(twin_snapshots, drain, events_post_drain_fetch):
+        reasons.append(
+            f"controller_restart condition without its restart evidence step "
+            f"{step}: neither taken by its hook nor ingested from a file, so "
+            "the recovery across the restart cannot be evidenced from the run "
+            "directory (ADR 0011 item 18)"
+        )
+    for record in twin_snapshots or []:
+        reasons.extend(_twin_snapshot_reasons(record))
+    if drain is not None:
+        reasons.extend(_drain_reasons(drain))
+    if events_post_drain_fetch is not None:
+        reasons.extend(_post_drain_reasons(events_post_drain_fetch))
+    return reasons
+
+
+def restart_evidence_notes(
+    twin_snapshots: list[dict[str, Any]] | None,
+    drain: dict[str, Any] | None,
+    events_post_drain_fetch: dict[str, Any] | None,
+) -> list[str]:
+    """The warning a drain that gave up leaves in the manifest: the failed
+    recovery is retained as a result, and the after evidence it makes
+    pointless is not required (named when absent)."""
+    if not _drain_gave_up(drain):
+        return []
+    note = (
+        "the controller was not observed quiet within the helper's limit "
+        "after the restart: a failed recovery, retained (drain.outcome "
+        "'gave-up' is an observation, never a validity reason; the proof's "
+        "evaluator applies the ADR's rule to it)"
+    )
+    files = {record.get("file") for record in twin_snapshots or []}
+    absent: list[str] = []
+    if TWIN_SNAPSHOT_FILES["twin_snapshot_after"] not in files:
+        absent.append(TWIN_SNAPSHOT_FILES["twin_snapshot_after"])
+    if events_post_drain_fetch is None:
+        absent.append(POST_DRAIN_EVENTS_FILENAME)
+    if absent:
+        note += (
+            "; " + " and ".join(absent) + " not required of this run: there "
+            "is no quiet state to snapshot or to read the post-drain outcomes "
+            "from"
+        )
+    return [note]
+
+
+def _inventory_fields(message: str) -> dict[str, str]:
+    """``key=value`` fields of an ``inventory:`` message (values hold no
+    spaces: service names are limited to ``A-Za-z0-9_.-``)."""
+    fields: dict[str, str] = {}
+    for token in message[len("inventory:"):].split():
+        key, sep, value = token.partition("=")
+        if sep:
+            fields[key] = value
+    return fields
+
+
+def _stop_samples(message: str) -> int | None:
+    """The ``samples=`` count of a ``stop:`` message, else None.
+
+    The collector's closing summary opens with ``samples=<n>``; the later
+    ``withheld_samples=`` field is a different count and never matches."""
+    match = re.search(r"(?<![\w.-])samples=(\d+)(?:\s|$)", message)
+    return int(match.group(1)) if match else None
+
+
+#: The other figures of the collector's closing summary, in the order
+#: ``collect-resources.sh`` writes them, with what each counts in the
+#: collector's own words (the two counts it keeps, the time the withheld
+#: samples cost, and the samples whose cost it cannot measure). EVERY one of
+#: them is recorded in the manifest, always. Only what really means the
+#: evidence cannot be accounted for is a problem:
+#:
+#: - a figure the collector could not compute (``unknown``) or does not state:
+#:   its closing record cannot be read;
+#: - :data:`_UNMEASURED_COUNTERS` above zero: elapsed time in NEITHER count,
+#:   i.e. withheld samples whose cost no accepted sample has measured;
+#: - ``withheld_elapsed_s`` above zero while ``withheld_samples`` reads zero:
+#:   the record contradicts itself (see the fabricated zeros below).
+#:
+#: ``utc_gap_seconds`` and ``withheld_samples`` above zero are recorded and
+#: reported, never a verdict of their own (2026-09-20):
+#: ``collect-resources.sh:117-120`` says a wall clock stepped FORWARD adds to
+#: ``utc_gap_seconds`` "although no time passed unsampled", and a withheld
+#: sample is the pacing artefact the collector recalibrates after (two samples
+#: in one wall-clock second). The authority on the spacing of the evidence is
+#: :func:`~egw_experiments.resources.validate_resources_csv`, which reads the
+#: REAL instants of the CSV and judges them against the protocol's
+#: :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S` -- not a counter compared
+#: with zero.
+#:
+#: What the collector really writes when it cannot read its own state
+#: (``collect-resources.sh:1303-1342``, AWK_SUMMARY and the defaults around
+#: it), since the rule must not rest on a premise the collector does not hold:
+#:
+#: - the closing awk could not run at all: the shell's defaults leave all five
+#:   figures ``unknown``;
+#: - it ran but found no ``#last`` line: the first four read ``unknown`` and
+#:   ``withheld_open_at_stop`` reads 0 (it is 0 from BEGIN);
+#: - it ran and the ``#last`` line is there but a field is not a number: ONLY
+#:   ``utc_gap_seconds`` degrades to ``unknown``; ``withheld_samples`` and
+#:   ``withheld_runs_unmeasured`` fall back to 0, ``withheld_elapsed_s`` to
+#:   0.00 and ``withheld_open_at_stop`` stays 0
+#:   (``collect-resources.sh:396-398`` documents the same fallback for a line
+#:   an older collector wrote).
+#:
+#: A zero in the withheld figures is therefore NOT proof that nothing was
+#: withheld, which is why ``withheld_elapsed_s`` is read here too: a figure
+#: above zero while the count reads zero is a contradiction inside the record.
+_CLOSING_COUNTERS = {
+    "utc_gap_seconds": (
+        "second(s) of UTC, beyond one interval, in which no sample was stamped"
+    ),
+    "withheld_samples": (
+        "sample(s) withheld (each fell in a second that is not after the last "
+        "stamped one -- a clock stepped back, or two samples in one second -- "
+        "so no rows were written for it)"
+    ),
+    "withheld_elapsed_s": (
+        "second(s) of elapsed time without an accepted sample, beyond one "
+        "interval and the forward UTC gaps, that finished runs of withheld "
+        "samples cost"
+    ),
+    "withheld_runs_unmeasured": (
+        "run(s) of withheld samples whose elapsed time could not be measured "
+        "(what they cost is in neither count)"
+    ),
+    "withheld_open_at_stop": (
+        "withheld sample(s) of a run still open when the collector stopped (no "
+        "accepted sample has measured it)"
+    ),
+}
+#: Written as a decimal figure of seconds, not as a count.
+_DECIMAL_COUNTERS = ("withheld_elapsed_s",)
+#: Above zero, elapsed time in neither count: a problem of its own.
+_UNMEASURED_COUNTERS = ("withheld_runs_unmeasured",)
+#: Above zero, accounted for only when the collector's own line measures it
+#: (:func:`judge_open_run_at_stop`, 2026-10-08); otherwise a problem as before.
+_OPEN_RUN_COUNTER = "withheld_open_at_stop"
+#: What the protocol, not this inspection, judges about the two counters above
+#: zero. The same sentence is in ``tools/session/collector_check.py``, which
+#: applies this rule to the preflight's collector output: the two halves must
+#: not disagree about what an unusable closing record is.
+_JUDGED_ELSEWHERE = (
+    "the spacing of the real instants is judged by validate_resources_csv "
+    "against the protocol's MAX_SAMPLE_GAP_S, which is the authority on it"
+)
+#: ``interval=1s``/``duration=45s`` of the ``start:`` record: seconds, with or
+#: without the collector's trailing unit.
+_SECONDS_RE = re.compile(r"^(\d+(?:\.\d+)?)s?$")
+#: One diagnostics record, matched as ``tools/session/collector_check.py``
+#: matches it: ``collect-resources.sh``'s ``diag()`` writes the UTC timestamp,
+#: a space and the message, so the keyword follows an optional leading token.
+#: The token is matched LOOSELY on purpose -- a record whose timestamp is
+#: malformed, or absent altogether, must be FOUND and reported, never read as
+#: an absent record and never allowed to switch off in silence the rules that
+#: depend on the collector's bounds (2026-09-20).
+_DIAG_RECORD_RE = re.compile(r"^(?:(\S+) )?(start|inventory|stop):(?: |$)")
+#: The strict leading UTC timestamp of a diagnostics record: the collector
+#: writes the bounds of its window through ``awk strftime``, and nothing else
+#: is a bound of a measured window.
+_DIAG_STAMP_RE = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+#: A closing figure written as a count, and one written as a decimal.
+_COUNT_VALUE_RE = re.compile(r"^\d+$")
+_DECIMAL_VALUE_RE = re.compile(r"^\d+(?:\.\d+)?$")
+
+
+def _stop_counter(message: str, name: str) -> str | None:
+    """The ``<name>=<value>`` field of a ``stop:`` message, as written."""
+    match = re.search(rf"(?<![\w.-]){name}=(\S+)", message)
+    return match.group(1) if match else None
+
+
+def _declared_seconds(message: str, name: str) -> float | None:
+    """``interval=``/``duration=`` of a ``start:`` message, in seconds."""
+    match = _SECONDS_RE.match(_stop_counter(message, name) or "")
+    return float(match.group(1)) if match else None
+
+
+def _diagnostic_stamp(token: str | None) -> str | None:
+    """``token`` when it is a strictly valid UTC instant, else None.
+
+    The spelling must be the collector's own ``YYYY-MM-DDTHH:MM:SSZ`` AND a
+    real calendar instant; ``tools/session/collector_check.py`` reads the
+    records by the same rule, so a bound one half refuses is not a bound the
+    other accepts.
+    """
+    if token is None or not _DIAG_STAMP_RE.match(token):
+        return None
+    return token if parse_csv_timestamp(token) is not None else None
+
+
+#: The words both halves use for a record whose leading token is not the
+#: collector's own UTC timestamp. Such a record is a problem of its own: its
+#: bounds cannot be trusted, and the rules that rest on them must be reported
+#: as NOT run, never switched off in silence (2026-09-20).
+_UNSTAMPED_RECORD = (
+    "the '{kind}:' line carries no strictly valid leading UTC timestamp "
+    "(YYYY-MM-DDTHH:MM:SSZ): {token!r}"
+)
+
+
+#: The collector's own measurement of a run of withheld samples still open at
+#: its stop, in the grammar collect-resources.sh writes it: diag()'s UTC stamp,
+#: then the closing awk's (AWK_SUMMARY) words, with the two /proc/uptime
+#: readings as read (two decimals) and their difference through %.2f
+#: (2026-10-08: the line G4 session B's preflight wrote and neither half read).
+#: Every number is bounded to nine whole digits (an uptime of 31 years, a count
+#: of a billion): a longer field is not the collector's and never reaches int(),
+#: which refuses strings above 4,300 digits (PR #61 review).
+_OPEN_RUN_MEASURED_RE = re.compile(
+    r"^(\S+) the run ended (\d{1,9}) withheld sample\(s\) after the last "
+    r"accepted one: (\d{1,9}\.\d\d) s of elapsed time since it \(uptime "
+    r"(\d{1,9}\.\d\d) s to (\d{1,9}\.\d\d) s\), in neither total$"
+)
+#: The same line when the collector could not read an elapsed-time endpoint.
+_OPEN_RUN_UNKNOWN_RE = re.compile(
+    r"^(?:\S+ )?the run ended \d+ withheld sample\(s\) after the last "
+    r"accepted one; the elapsed time since it is unknown$"
+)
+#: The collector's monotonic bounds on its start and stop records (2026-10-05).
+_RECORD_UPTIME_RE = re.compile(r"\buptime_s=(\d{1,9}\.\d\d)(?=\s|$)")
+_RECORD_BOOT_RE = re.compile(
+    r"\bboot_id=([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})(?=\s|$)"
+)
+
+
+def _centiseconds(text: str) -> int:
+    """An uptime written with exactly two decimals, as whole centiseconds."""
+    whole, _, cents = text.partition(".")
+    return int(whole) * 100 + int(cents)
+
+
+def judge_open_run_at_stop(
+    *,
+    open_at_stop: int,
+    withheld_samples: int | None,
+    lines: list[str],
+    start_record: str | None,
+    stop_record: str | None,
+    window: tuple[str | None, str | None],
+    record_lines: tuple[int | None, int | None, int | None],
+    max_gap_s: float = MAX_SAMPLE_GAP_S,
+) -> dict[str, Any]:
+    """Whether the collector's own line measures a run of withheld samples
+    still open at its stop, on the guest's monotonic clock.
+
+    ``withheld_open_at_stop`` counts samples that fell in a wall-clock second
+    not after the last stamped one and were followed by the stop instead of an
+    accepted sample, so no accepted sample measured their elapsed time. The
+    collector measures it itself as it stops ("the run ended N withheld
+    sample(s) after the last accepted one: X s of elapsed time since it (uptime
+    A s to B s)"). That time is accounted for -- as elapsed time WITHOUT
+    recorded readings, never as samples -- only when: the closing record does
+    not contradict itself (``withheld_samples``, which counts every withheld
+    sample, the open run's included, is readable and not below N); the
+    collector did not also write that the time is unknown; exactly one line in
+    the collector's grammar is there, stamped inside the collector's window and
+    written between the inventory and the stop records; it counts N; its two
+    endpoints are in order and X is their difference, in whole centiseconds;
+    they lie inside the uptime_s bounds of the start and stop records, which
+    carry ONE boot id; and the time from the last accepted sample to the end of
+    the collector's window (the stop record's uptime_s, not the awk's own
+    reading) is not longer than the protocol's MAX_SAMPLE_GAP_S, since a longer
+    tail without a reading is a real gap that UTC stamps that stepped back
+    could hide from validate_resources_csv. Otherwise ``reason`` says why not,
+    and the counter stays a problem. No row, sample or instant is made.
+
+    One rule for both halves, given the same text: the records from their
+    keyword on and their validated stamps. tools/session/collector_check.py
+    (the preflight) and :func:`inspect_collector_outputs` (a timed run) call it.
+
+    Returns ``{"measured": {...} | None, "reason": str | None}``.
+    """
+    result: dict[str, Any] = {"measured": None, "reason": None}
+    if not open_at_stop:
+        return result
+
+    def refused(reason: str) -> dict[str, Any]:
+        result["reason"] = reason
+        return result
+
+    if withheld_samples is None or open_at_stop > withheld_samples:
+        return refused(
+            f"the closing record contradicts itself: withheld_open_at_stop={open_at_stop}"
+            f" exceeds withheld_samples={withheld_samples}, which counts every "
+            "withheld sample, the open run's included (a zero there is what the "
+            "closing awk writes when it cannot read the count, collect-resources.sh "
+            "AWK_SUMMARY)"
+        )
+    texts = [line.rstrip("\r").strip() for line in lines]
+    if any(_OPEN_RUN_UNKNOWN_RE.match(text) for text in texts):
+        return refused(
+            "the collector wrote that the elapsed time since its last accepted "
+            "sample is unknown"
+        )
+    found = [
+        (index, match)
+        for index, match in (
+            (index, _OPEN_RUN_MEASURED_RE.match(text))
+            for index, text in enumerate(texts, start=1)
+        )
+        if match is not None
+    ]
+    if not found:
+        return refused(
+            "the collector's line measuring it ('<UTC stamp> the run ended ... "
+            "withheld sample(s) after the last accepted one: ... s of elapsed time "
+            "since it (uptime ... s to ... s), in neither total') is absent"
+        )
+    if len(found) > 1:
+        return refused(
+            f"{len(found)} lines of the collector measure it (lines "
+            f"{', '.join(str(index) for index, _ in found)}): ambiguous"
+        )
+    index, match = found[0]
+    token, count, elapsed, first, last = match.groups()
+    result["measured"] = {
+        "samples": int(count),
+        "elapsed_s": elapsed,
+        "from_uptime_s": first,
+        "to_uptime_s": last,
+        "line": index,
+    }
+    if _diagnostic_stamp(token) is None:
+        return refused(
+            f"its leading token {token!r} is not the collector's UTC timestamp "
+            "(YYYY-MM-DDTHH:MM:SSZ)"
+        )
+    window_start, window_end = window
+    if window_start is None or window_end is None:
+        return refused(
+            "the collector's start and stop records carry no usable stamps, so its "
+            "line cannot be placed in the collector's window"
+        )
+    if not window_start <= token <= window_end:
+        return refused(
+            f"its stamp {token} lies outside the collector's window "
+            f"({window_start} to {window_end})"
+        )
+    _start_at, inventory_at, stop_at = record_lines
+    if inventory_at is None or stop_at is None or not inventory_at < index < stop_at:
+        return refused(
+            f"its line (line {index}) is not between the collector's inventory "
+            f"(line {inventory_at}) and stop (line {stop_at}) records, where its "
+            "closing awk writes it"
+        )
+    if int(count) != open_at_stop:
+        return refused(
+            f"its line counts {count} withheld sample(s), the closing record "
+            f"{open_at_stop}"
+        )
+    first_cs, last_cs, elapsed_cs = (
+        _centiseconds(value) for value in (first, last, elapsed)
+    )
+    if last_cs <= first_cs:
+        return refused(f"its endpoints are not in order (uptime {first} s to {last} s)")
+    if last_cs - first_cs != elapsed_cs:
+        return refused(
+            f"its {elapsed} s is not the difference of its endpoints (uptime "
+            f"{first} s to {last} s)"
+        )
+    bounds = []
+    for record in (start_record, stop_record):
+        uptime = _RECORD_UPTIME_RE.search(record or "")
+        boot = _RECORD_BOOT_RE.search(record or "")
+        bounds.append((uptime.group(1) if uptime else None, boot.group(1) if boot else None))
+    (start_uptime, start_boot), (stop_uptime, stop_boot) = bounds
+    if start_uptime is None or stop_uptime is None:
+        return refused(
+            "the collector's start and stop records do not both carry a readable "
+            "uptime_s=, so its endpoints cannot be placed in the collector's "
+            "window on the monotonic clock"
+        )
+    if start_boot is None or stop_boot is None or start_boot != stop_boot:
+        return refused(
+            "the start and stop records do not carry one boot id "
+            f"({start_boot or 'none'} and {stop_boot or 'none'}): the monotonic "
+            "endpoints may span a reboot"
+        )
+    start_cs, stop_cs = _centiseconds(start_uptime), _centiseconds(stop_uptime)
+    if first_cs < start_cs or last_cs > stop_cs:
+        return refused(
+            f"its endpoints (uptime {first} s to {last} s) lie outside the "
+            f"collector's own window (uptime {start_uptime} s to {stop_uptime} s)"
+        )
+    tail_cs = stop_cs - first_cs
+    result["measured"]["window_end_uptime_s"] = stop_uptime
+    result["measured"]["tail_s"] = f"{tail_cs // 100}.{tail_cs % 100:02d}"
+    if tail_cs > round(max_gap_s * 100):
+        return refused(
+            f"{result['measured']['tail_s']} s from the last accepted sample (uptime "
+            f"{first} s) to the end of the collector's window (uptime {stop_uptime} s)"
+            f" without a recorded reading exceeds the protocol's MAX_SAMPLE_GAP_S "
+            f"({max_gap_s:g} s): a real gap"
+        )
+    return result
+
+
+def open_run_observation(head: str, measured: dict[str, Any], judged_elsewhere: str) -> str:
+    """The words both halves record for an open run the collector measured."""
+    return (
+        f"{head}. The collector measured that time on the guest's monotonic clock: "
+        f"{measured['elapsed_s']} s since the last accepted sample (uptime "
+        f"{measured['from_uptime_s']} s to {measured['to_uptime_s']} s, one boot); "
+        f"its window ends at uptime {measured['window_end_uptime_s']} s, "
+        f"{measured['tail_s']} s after that sample, not above the protocol's "
+        "MAX_SAMPLE_GAP_S. It is elapsed time WITHOUT recorded readings: no rows "
+        f"were written for those samples and none is made here, and {judged_elsewhere}"
+    )
+
+
+def reconcile_closing_record(
+    *,
+    samples: int | None,
+    withheld: int | None,
+    instants_in_window: int | None,
+    csv_readable: bool,
+    window: tuple[str | None, str | None],
+    window_seconds: int | None,
+    interval_s: float | None,
+    duration_s: float | None,
+    record_lines: tuple[int | None, int | None, int | None],
+) -> dict[str, Any]:
+    """Read the collector's closing record against its CSV and its start record.
+
+    ONE rule for both halves of F3: this is what
+    :func:`inspect_collector_outputs` applies after a timed run and what
+    ``tools/session/collector_check.py`` applies to the preflight's output --
+    the same function, not two copies of the same words -- so the two cannot
+    disagree about what an unusable closing record is.
+
+    The reconciliation catches ONLY a record that contradicts itself
+    (2026-09-20):
+
+    - records that do not describe one clean run: the file positions given in
+      ``record_lines`` (the ``start:``, ``inventory:`` and ``stop:`` records,
+      1-based, None for a record that is absent) must increase in that order,
+      since the collector writes its start first, its inventory when the stop
+      hook's SIGTERM ends it and its closing record last
+      (``collect-resources.sh``); only the records that ARE there are
+      compared, an absent one being a problem of its own in each half;
+    - rounds that cannot have been taken: more stamped sampling rounds
+      (``samples`` less ``withheld_samples``) than the seconds of the
+      collector's own window can hold, since an accepted round stamps a
+      second strictly after the last stamped one;
+    - rows that cannot exist: more distinct instants inside that window than
+      the stamped sampling rounds the record accounts for, since a round
+      stamps at most one instant and a withheld round stamps none;
+    - a CSV with no instant at all inside that window while the record
+      accounts for stamped rounds.
+
+    Two shapes cannot be read at all, and block the reconciliation (which is
+    a problem of its own, below): a window whose stop is not after its start,
+    and a record stating more withheld rounds than rounds taken.
+
+    It invents NO coverage and NO spacing threshold of its own. Everything
+    else the record says -- withheld rounds, forward clock steps, the number
+    of rounds the declared interval implies, a rate or a window below what the
+    ``start:`` line declared, rounds that wrote no row -- is RECORDED and
+    REPORTED as an observation, never a reason to invalidate a run: the
+    spacing of the evidence is judged by
+    :func:`~egw_experiments.resources.validate_resources_csv` against the
+    protocol's :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S` and its
+    coverage by the protocol's own rule, both on the REAL instants of the
+    CSV. A threshold of this function's own would silently make the
+    acceptance stricter than the protocol in the half that seals the thesis
+    numbers, and both real capsules of 2026-09-19 sit on the boundary of such
+    a rule: the 45 s preflight closed with ``samples=46`` and carries 45
+    instants, ``nominal-r01`` with ``samples=721`` and 720 -- one round more
+    than the instants, because the collector's first round only primes each
+    container's CPU delta and writes no row (``collect-resources.sh:80-82``).
+
+    A reconciliation that could not be made is reported as NOT run, a problem
+    of its own: the figures are never left null beside an empty problem list.
+
+    Returns ``{problems, observations, state, records_in_order,
+    rounds_the_declared_interval_implies, declared_duration_shortfall_s}``.
+    ``records_in_order`` is the verdict on ``record_lines`` (None when fewer
+    than two records were found), so a caller that stops its own validation
+    on unusable bounds reads the same verdict rather than repeating the rule.
+    The last figure is the seconds by which the collection fell short of the
+    ``duration=`` it was asked for: a number a caller that DOES know what it
+    asked for can judge (the preflight starts its collector with an explicit
+    ``--duration`` and expects it to reach it), which nothing here can, since
+    the stop hook legitimately ends a timed run's collector early.
+    """
+    problems: list[str] = []
+    observations: list[str] = []
+    implied: int | None = None
+    shortfall: float | None = None
+    start_stamp, stop_stamp = window
+    window_text = f"{start_stamp}..{stop_stamp}"
+
+    # The FILE order of the three records, which is evidence in itself:
+    # collect-resources.sh writes the 'start:' record before the loop
+    # (:1064), the 'inventory:' record after it, when the stop hook's SIGTERM
+    # ends the collector (:1298), and the closing record last (:1342). Any
+    # other order is concatenated or edited evidence. Both halves get this
+    # rule from HERE, in one wording -- until 2026-09-20 they held two
+    # unequal copies of it, and a diagnostics whose inventory came before its
+    # start was refused by the preflight half and sealed by the harness half.
+    # Only the records that are there are compared: an absent record is a
+    # problem of its own in each half and says nothing about the order of the
+    # rest.
+    kinds = ("start", "inventory", "stop")
+    placed = [
+        (kind, at) for kind, at in zip(kinds, record_lines) if at is not None
+    ]
+    records_in_order: bool | None = None
+    if len(placed) > 1:
+        records_in_order = all(
+            first[1] < second[1] for first, second in zip(placed, placed[1:])
+        )
+        if not records_in_order:
+            where = ", ".join(
+                f"{kind} line {at}" if at is not None else f"{kind} absent"
+                for kind, at in zip(kinds, record_lines)
+            )
+            problems.append(
+                f"the diagnostics records are out of order ({where}): the "
+                "collector writes its 'start:' record first, its 'inventory:' "
+                "record when the stop hook ends it and its closing record "
+                "last, so these do not describe one clean collector run "
+                "(concatenated or edited evidence)"
+            )
+
+    # The rounds the stamped window can hold, which is arithmetic and not a
+    # threshold: an ACCEPTED round stamps a second strictly after the last
+    # stamped one (collect-resources.sh:422-427 withholds every sample that
+    # would fall in a second already stamped or earlier, and writes no rows
+    # for it), so a window of N seconds holds at most N + 1 stamped rounds --
+    # one per second, both bounds included -- and the closing record, written
+    # after the loop, may carry its own stamp into the second after the last
+    # round. The rounds that stamped no second are exactly the withheld ones,
+    # which the record itself counts, so they are subtracted rather than
+    # allowed for. The bound is the stamped SECONDS and not the declared
+    # interval, so a collector that paced FASTER than it declared is not
+    # punished by it (2026-09-20).
+    if window_seconds is not None and window_seconds > 0:
+        if samples is not None and withheld is not None:
+            stamped_rounds = samples - withheld
+            if stamped_rounds > window_seconds + 2:
+                problems.append(
+                    f"the closing record states samples={samples} less "
+                    f"withheld_samples={withheld} = {stamped_rounds} stamped "
+                    f"sampling round(s) inside its own {window_seconds} s "
+                    f"window {window_text}: an accepted round stamps a second "
+                    "strictly after the last one, so at most "
+                    f"{window_seconds + 1} of them can have been stamped "
+                    "there (one more for the closing record's own stamp), and "
+                    "the record cannot be true"
+                )
+        # What the start record asked of the collector, beside what its
+        # closing record and its own window say. The collector's own window is
+        # the only length these two records can prove, so the rounds its
+        # declared interval implies are counted over THAT window, one per
+        # interval plus the priming round. None of this is a verdict here.
+        if interval_s:
+            implied = int(window_seconds / interval_s) + 1
+            if samples is not None:
+                if samples > implied + 1:
+                    # One round of slack: the closing record is written after
+                    # the loop, so its stamp can fall in the second after the
+                    # last round. Beyond that the two records disagree -- a
+                    # sampling round that stamps no second still counts here
+                    # (a withheld sample, collect-resources.sh:422-427), and a
+                    # wall clock stepped BACK shortens the stamped window
+                    # while the rounds go on, so this figure is recorded. What
+                    # cannot be true whatever the interval is the count of
+                    # STAMPED rounds above, which subtracts them.
+                    observations.append(
+                        f"the closing record states samples={samples}, more "
+                        f"rounds than its own {window_seconds} s window at "
+                        f"the interval={interval_s:g}s the 'start:' line "
+                        f"declares allows ({implied}): a sampling round that "
+                        "stamped no second (a withheld sample, or one lost "
+                        "to a clock stepped back) is counted there and in no "
+                        "window, so this is recorded, not judged here: "
+                        f"{_JUDGED_ELSEWHERE}"
+                    )
+                elif samples * 2 <= implied:
+                    observations.append(
+                        f"the collector took {samples} sampling round(s) "
+                        f"where the interval={interval_s:g}s it declares "
+                        f"implies about {implied} over its own "
+                        f"{window_seconds} s window: it did not reach its "
+                        "declared rate. Recorded, not judged here: "
+                        f"{_JUDGED_ELSEWHERE}"
+                    )
+    if (
+        window_seconds is not None
+        and window_seconds > 0
+        and duration_s
+        and window_seconds < duration_s
+    ):
+        # True of both halves, which is why it is worded here: the stop hook's
+        # SIGTERM ends the collector after the measured run (nominal-r01 of
+        # 2026-09-19 declared duration=840s and closed a 722 s window). What
+        # the instants must satisfy is judged by validate_resources_csv over
+        # the window it is GIVEN -- the window the run measured for a timed
+        # run, the collector's OWN window in the preflight check, where a
+        # collection that ended early is therefore validated against itself
+        # and this figure is the only trace of it. Neither half can tell the
+        # two apart, so the shortfall is returned as a number for a caller
+        # that knows what it asked the collector for.
+        shortfall = duration_s - window_seconds
+        observations.append(
+            f"the collector's window is {window_seconds} s, "
+            f"{duration_s - window_seconds:g} s shorter than the "
+            f"duration={duration_s:g}s the 'start:' line declares: the stop "
+            "hook ends the collector with SIGTERM after the measured run, "
+            "before its declared duration, so this is recorded, not judged "
+            "here (the coverage is judged by validate_resources_csv over the "
+            "window it is given, which in the preflight check is the "
+            "collector's own)"
+        )
+
+    # The closing record against the CSV. Every term of the relation is
+    # stated by collect-resources.sh:
+    #
+    # - samples= counts every sampling round the loop completed (:1287,
+    #   incremented at the end of each round, withheld rounds included);
+    # - a WITHHELD sample writes no rows at all (:422-427 and :716, :862: a
+    #   second not after the last stamped one is never stamped), so the
+    #   withheld_samples of the closing record stamp no instant;
+    # - the collector's FIRST round only primes each container's CPU delta
+    #   and writes no row either (:80-82, "--max-samples N yields at most
+    #   N-1 rows per container").
+    #
+    # A round therefore stamps AT MOST one instant, which is the only thing
+    # proved here. A shortfall means rounds that wrote no row (a sample whose
+    # inputs could not be read, :76-79, :1100, :1274); it is recorded, and
+    # what it costs the evidence is judged on the real instants.
+    blockers: list[str] = []
+    if start_stamp is None or stop_stamp is None:
+        blockers.append(
+            "the collector's window is not bounded by two strictly valid UTC "
+            "timestamps"
+        )
+    else:
+        # A stop that is not after the start bounds no window at all: the
+        # length derived from it would be negative or zero, and every rule
+        # that rests on it would be arithmetic about nothing. Both halves get
+        # the rule from here, in one wording (2026-09-20).
+        start_at = parse_csv_timestamp(start_stamp)
+        stop_at = parse_csv_timestamp(stop_stamp)
+        if start_at is not None and stop_at is not None and start_at >= stop_at:
+            blockers.append(
+                f"the collector's start {start_stamp} is not earlier than its "
+                f"stop {stop_stamp}: the measured window is reversed or empty"
+            )
+    if not csv_readable or instants_in_window is None:
+        blockers.append("the CSV's instants could not be read")
+    if samples is None:
+        blockers.append("the closing record states no integer samples= count")
+    if withheld is None:
+        blockers.append(
+            "the closing record states no integer withheld_samples= count"
+        )
+    elif samples is not None and withheld > samples:
+        # A withheld sample IS a completed round, and samples= counts every
+        # round the loop completed (collect-resources.sh:1287), so
+        # withheld_samples <= samples holds of every record that can be read
+        # at all. The two counters come from different places -- the shell
+        # loop and the closing awk's state line -- so a record that breaks the
+        # invariant is one whose state file was not read (2026-09-20).
+        blockers.append(
+            f"the closing record states withheld_samples={withheld} against "
+            f"samples={samples}: more rounds withheld than taken, so the "
+            "record cannot be read"
+        )
+    if blockers:
+        state = "not run: " + "; ".join(blockers)
+        problems.append(
+            f"the closing record was NOT reconciled with the CSV ({state}): "
+            "the sampling round(s) the collector accounts for and the "
+            "distinct instant(s) the CSV carries inside its window were not "
+            "compared"
+        )
+        return {
+            "problems": problems,
+            "observations": observations,
+            "state": state,
+            "records_in_order": records_in_order,
+            "rounds_the_declared_interval_implies": implied,
+            "declared_duration_shortfall_s": shortfall,
+        }
+
+    # Past the blockers, every figure of the relation is a number, and the
+    # withheld rounds are never more than the rounds taken.
+    accounted = samples - withheld
+    if instants_in_window > accounted:
+        problems.append(
+            f"the CSV carries {instants_in_window} distinct instant(s) "
+            f"inside the collector's window {window_text}, more than the "
+            f"samples={samples} less withheld_samples={withheld} = "
+            f"{accounted} sampling round(s) its closing record accounts for: "
+            "a round stamps at most one instant and a withheld round stamps "
+            "none at all, so the CSV holds instants the collector did not "
+            "stamp"
+        )
+    elif accounted > 1 and instants_in_window == 0:
+        problems.append(
+            f"the closing record accounts for samples={samples} less "
+            f"withheld_samples={withheld} = {accounted} stamped sampling "
+            "round(s), and the CSV carries no instant at all inside the "
+            f"collector's window {window_text}: the record and the CSV "
+            "cannot both be true"
+        )
+    elif instants_in_window < accounted - 1:
+        observations.append(
+            f"the closing record accounts for samples={samples} less "
+            f"withheld_samples={withheld} = {accounted} stamped sampling "
+            f"round(s), and the CSV carries {instants_in_window} distinct "
+            f"instant(s) inside the collector's window {window_text}: "
+            f"{accounted - 1 - instants_in_window} round(s), beyond the "
+            "first one (which only primes each container's CPU delta), wrote "
+            f"no row at all. Recorded, not judged here: {_JUDGED_ELSEWHERE}"
+        )
+    return {
+        "problems": problems,
+        "observations": observations,
+        "state": "run",
+        "records_in_order": records_in_order,
+        "rounds_the_declared_interval_implies": implied,
+        "declared_duration_shortfall_s": shortfall,
+    }
+
+
+def inspect_collector_outputs(
+    collector_dest: str | Path,
+    expect_services: list[str] | None,
+    *,
+    run_dir: str | Path | None = None,
+) -> dict[str, Any]:
+    """Account for the SUT collector's fetched output (collector hooks).
+
+    ``collector_dest`` is the fetched CSV (``logs/collector/resources-
+    <run_id>.csv``, or the manual path's copy under
+    ``logs/collector/resources-from/``); its companions sit beside it with
+    the suffixes of :data:`COLLECTOR_OUTPUT_FILES`. Nothing is modified: the
+    files are read and hashed where they were put, BEFORE the run directory is
+    sealed. Returns the manifest's ``collector`` record:
+
+    - ``files``: per key (``csv``, ``diagnostics``, ``lifecycle``,
+      ``self_test``) ``{path, present, size, sha256}`` (``path`` relative to
+      ``run_dir`` when given);
+    - ``deployed_sha256``: the ``collector_sha256`` of the diagnostics'
+      ``start:`` line (the collector that actually ran on the guest), else
+      None; ``start_line_count``;
+    - ``declared_expected_services``: the start line's ``expected services:``
+      value as the collector wrote it;
+    - ``inventory``: the last ``inventory:`` line, raw, and
+      ``inventory_missing``: its ``missing=`` names (``[]`` for ``none``);
+      ``inventory_line_count``: more than one inventory makes the record
+      ambiguous, a problem of its own (2026-09-20);
+      ``stop_line``: the last ``stop:`` line, raw, and ``stop_line_count``.
+      The closing record must be unambiguous and in its place: an absent,
+      duplicated or misplaced ``stop:`` line, and one without an integer
+      ``samples=`` count, are problems of their own (2026-09-19). So is any
+      of the three records whose leading token is not the collector's own
+      strictly valid UTC timestamp: its bounds cannot be trusted, and the
+      rules that rest on them are reported as NOT run rather than switched
+      off in silence (2026-09-20);
+      ``stop_counters``: every other figure of the closing summary as the
+      collector wrote it (:data:`_CLOSING_COUNTERS`, None for one it does not
+      state), recorded always. What makes one of them a problem, and what is
+      recorded without being one, is :data:`_CLOSING_COUNTERS`: the rule is
+      the one ``tools/session/collector_check.py`` applies to the preflight's
+      collector output, word for word, so the two halves cannot disagree
+      about what an unusable closing record is (2026-09-20);
+    - ``declared_interval_s``, ``declared_duration_s``: what the ``start:``
+      line asked of the collector, and ``declared_duration_shortfall_s``:
+      the seconds by which its window fell short of that duration (an
+      observation here -- the stop hook ends a timed run's collector before
+      it -- and a number a caller that knows what it asked for can judge);
+      ``window_seconds`` and
+      ``rounds_the_declared_interval_implies``: its own window and the rounds
+      that interval implies over it. All three are null when the collector's
+      stop is not after its start: such a window measures nothing, and saying
+      so is a problem of its own (2026-09-20);
+    - ``samples``, ``distinct_instants_in_window``: the rounds the closing
+      record accounts for and the instants the CSV really carries inside the
+      collector's window, read against each other by
+      :func:`reconcile_closing_record` -- the same function the preflight
+      check calls -- and ``closing_record_reconciliation``: ``run``, or why
+      it could not be made (which is a problem of its own, so these figures
+      are never left null beside an empty problem list);
+    - ``self_test_present``;
+    - ``rows_per_expected_service``: data rows of each expected service in
+      the fetched CSV's ``container`` column; ``unexpected_services``: the
+      other names found there (a warning only);
+    - ``problems``: every reason why the output cannot be accounted for.
+      The caller turns each into a validity reason of a timed run;
+    - ``observations``: what the collector's record says without being a
+      verdict here -- the forward UTC gaps, the withheld samples, a rate or a
+      window below what the ``start:`` line declared, more rounds than that
+      window and interval imply, and rounds that wrote no row. These are the
+      facts the collector documents as harmless, or that the protocol judges
+      elsewhere on the real instants: they are recorded, never a reason.
+
+    The ingest validation of the CSV (header, instants, coverage, gaps) is
+    NOT repeated here; it stays in :func:`ingest_resources`, and it is the
+    authority on the spacing and the coverage of the evidence.
+    """
+    collector_dest = Path(collector_dest)
+    run_dir = Path(run_dir) if run_dir is not None else None
+    problems: list[str] = []
+    observations: list[str] = []
+    files: dict[str, dict[str, Any]] = {}
+    for key, (suffix, _mandatory) in COLLECTOR_OUTPUT_FILES.items():
+        path = collector_dest.with_name(collector_dest.name + suffix)
+        shown = (
+            path.relative_to(run_dir).as_posix()
+            if run_dir is not None and path.is_relative_to(run_dir)
+            else path.name
+        )
+        present = path.is_file()
+        files[key] = {
+            "path": shown,
+            "present": present,
+            "size": path.stat().st_size if present else None,
+            "sha256": sha256_file(path) if present else None,
+        }
+
+    csv_name = collector_dest.name
+    if not files["csv"]["present"]:
+        where = files["csv"]["path"].rpartition("/")[0] or collector_dest.parent.name
+        problems.append(
+            f"collector CSV {csv_name} is absent from {where}/: the "
+            "collector's output was not delivered (by the fetch hook or "
+            "--resources-from)"
+        )
+    for key, (suffix, mandatory) in COLLECTOR_OUTPUT_FILES.items():
+        if key != "csv" and mandatory and not files[key]["present"]:
+            problems.append(
+                f"mandatory collector companion {csv_name}{suffix} is absent: "
+                "without it the collector's rows cannot be explained or "
+                "attributed (fetch it with "
+                "src/deployment/scripts/fetch-collector-output.sh)"
+            )
+    self_test_present = bool(files["self_test"]["present"])
+    if self_test_present:
+        problems.append(
+            f"{csv_name}.self-test is present: the collector ran in self-test "
+            "mode on substituted inputs, so this output is NOT a measurement"
+        )
+    if not expect_services:
+        problems.append(
+            "--expect-services was not given: the services the collector must "
+            "account for are unknown, so a service without a single row would "
+            "go unnoticed"
+        )
+
+    # Diagnostics: the deployed collector's hash, the expected set it was
+    # given, its inventory and closing summary.
+    deployed_sha256: str | None = None
+    declared: str | None = None
+    inventory: str | None = None
+    inventory_missing: list[str] | None = None
+    stop_line: str | None = None
+    stop_counters: dict[str, str | None] = {}
+    samples: int | None = None
+    declared_interval_s: float | None = None
+    declared_duration_s: float | None = None
+    window_seconds: int | None = None
+    implied_rounds: int | None = None
+    withheld: float | None = None
+    # The bounds of the collector's own window, as it stamped them.
+    start_stamp: str | None = None
+    stop_stamp: str | None = None
+    start_lines = 0
+    inventory_lines = 0
+    stop_lines = 0
+    # Where each record sits in the file (1-based, as
+    # tools/session/collector_check.py numbers them): the collector writes the
+    # start first and the closing summary last, so their order is evidence,
+    # and :func:`reconcile_closing_record` judges it for both halves.
+    start_at: int | None = None
+    inventory_at: int | None = None
+    stop_at: int | None = None
+    if files["diagnostics"]["present"]:
+        diag_path = collector_dest.with_name(csv_name + ".diagnostics.log")
+        diag_lines = diag_path.read_text(
+            encoding="utf-8", errors="replace"
+        ).splitlines()
+        first_start: str | None = None
+        stop_message: str | None = None
+        # The leading token of each record as it was written, so a record
+        # whose timestamp is not the collector's own can be named.
+        start_token: str | None = None
+        inventory_token: str | None = None
+        stop_token: str | None = None
+        inventory_stamp: str | None = None
+        # The FIRST record of each kind is the one kept and reported, in both
+        # halves: ``one_record`` in tools/session/collector_check.py keeps
+        # ``found[0]``, and until 2026-09-20 this loop overwrote its record on
+        # every match and kept the LAST, so a diagnostics holding two
+        # collectors gave the two halves two different windows for the same
+        # bytes (both refuse such a capsule over the duplicate count, but the
+        # figures they reported about it disagreed).
+        for index, raw in enumerate(diag_lines, start=1):
+            line = raw.rstrip("\r").strip()
+            match = _DIAG_RECORD_RE.match(line)
+            if match is None:
+                continue
+            token, kind = match.group(1), match.group(2)
+            # The message always begins at the keyword, whatever the token
+            # before it was.
+            message = line[match.start(2):]
+            if kind == "start":
+                start_lines += 1
+                if first_start is None:
+                    first_start = message
+                    start_at = index
+                    start_token = token
+                    start_stamp = _diagnostic_stamp(token)
+            elif kind == "inventory":
+                inventory_lines += 1
+                if inventory is None:
+                    inventory = line
+                    inventory_at = index
+                    inventory_token = token
+                    inventory_stamp = _diagnostic_stamp(token)
+                    fields = _inventory_fields(message)
+                    missing = fields.get("missing")
+                    inventory_missing = (
+                        None
+                        if missing is None
+                        else [] if missing == "none" else missing.split(",")
+                    )
+            else:  # 'stop': the closing record
+                stop_lines += 1
+                if stop_line is None:
+                    stop_line = line
+                    stop_message = message
+                    stop_at = index
+                    stop_token = token
+                    stop_stamp = _diagnostic_stamp(token)
+        if first_start is None:
+            problems.append(
+                "the collector diagnostics hold no 'start:' line: the sha256 "
+                "of the collector that ran on the guest is unknown"
+            )
+        else:
+            match = re.search(r"\bcollector_sha256=(\S+)", first_start)
+            candidate = match.group(1) if match else None
+            if candidate is not None and _SHA256_HEX_RE.match(candidate):
+                deployed_sha256 = candidate
+            else:
+                problems.append(
+                    "the collector's 'start:' line carries no usable "
+                    f"collector_sha256 ({candidate!r}): the sha256 of the "
+                    "collector that ran on the guest is unknown"
+                )
+            _, sep, value = first_start.rpartition("expected services: ")
+            declared = value.strip() if sep else None
+            declared_set = (
+                set()
+                if declared in (None, "", "none declared")
+                else set(declared.split(","))
+            )
+            if expect_services and declared_set != set(expect_services):
+                problems.append(
+                    "the collector's 'start:' line declares expected services "
+                    f"{declared!r}, the harness expects "
+                    f"{','.join(expect_services)!r}: the start hook did not "
+                    "pass the same --expect-services to the collector, so its "
+                    "inventory's missing= was judged against another set"
+                )
+            # What the start record asked of the collector: its closing
+            # record is read against these below.
+            declared_interval_s = _declared_seconds(first_start, "interval")
+            declared_duration_s = _declared_seconds(first_start, "duration")
+            if start_stamp is None:
+                problems.append(
+                    _UNSTAMPED_RECORD.format(kind="start", token=start_token)
+                )
+        if start_lines > 1:
+            problems.append(
+                f"the collector diagnostics hold {start_lines} 'start:' lines: "
+                "more than one collector wrote this output (a run_id reused "
+                "within one guest boot appends to the same files)"
+            )
+        if inventory is None:
+            problems.append(
+                "the collector diagnostics hold no 'inventory:' line: the "
+                "collector did not stop cleanly (it writes the inventory when "
+                "the stop hook's SIGTERM ends it)"
+            )
+        elif inventory_missing:
+            problems.append(
+                "the collector's inventory reports expected service(s) never "
+                "observed: " + ", ".join(inventory_missing)
+            )
+        elif inventory_missing is None:
+            problems.append(
+                "the collector's 'inventory:' line has no 'missing=' field: "
+                f"{inventory!r}"
+            )
+        if inventory_lines > 1:
+            problems.append(
+                f"the collector diagnostics hold {inventory_lines} "
+                "'inventory:' lines: the inventory is ambiguous (more than "
+                "one collector wrote this output)"
+            )
+        if inventory is not None and inventory_stamp is None:
+            problems.append(
+                _UNSTAMPED_RECORD.format(kind="inventory", token=inventory_token)
+            )
+        if stop_line is None:
+            problems.append(
+                "the collector diagnostics hold no 'stop:' line: the closing "
+                "record is incomplete, so neither the number of samples the "
+                "collector kept nor the end of its window is known"
+            )
+        else:
+            if stop_lines > 1:
+                problems.append(
+                    f"the collector diagnostics hold {stop_lines} 'stop:' "
+                    "lines: the closing record is ambiguous (more than one "
+                    "collector wrote this output)"
+                )
+            if stop_stamp is None:
+                problems.append(
+                    _UNSTAMPED_RECORD.format(kind="stop", token=stop_token)
+                )
+            samples = _stop_samples(stop_message or "")
+            if samples is None:
+                problems.append(
+                    "the collector's 'stop:' line carries no integer "
+                    f"'samples=' count: {stop_line!r}"
+                )
+            # What the collector could and could not measure, in its own
+            # words. Every figure is recorded; a figure it did not state, or
+            # stated as 'unknown', leaves the closing record as unreadable as
+            # a missing 'samples=' count. See _CLOSING_COUNTERS for what is a
+            # problem and what is recorded without being one.
+            read: dict[str, float] = {}
+            for name, counts in _CLOSING_COUNTERS.items():
+                value = _stop_counter(stop_message or "", name)
+                stop_counters[name] = value
+                decimal = name in _DECIMAL_COUNTERS
+                pattern = _DECIMAL_VALUE_RE if decimal else _COUNT_VALUE_RE
+                if value is None:
+                    problems.append(
+                        f"the collector's 'stop:' line has no '{name}=' "
+                        f"field: the collector's own count of {counts} is "
+                        "not stated, so its closing record is incomplete"
+                    )
+                elif not pattern.match(value):
+                    problems.append(
+                        f"the collector's 'stop:' line carries {name}="
+                        f"{value}: the collector could not read its own "
+                        "state file when it closed (it then writes "
+                        f"'unknown'), so its count of {counts} is unknown "
+                        "and its closing record cannot be read"
+                    )
+                else:
+                    read[name] = float(value) if decimal else int(value)
+            for name in _UNMEASURED_COUNTERS:
+                if read.get(name):
+                    problems.append(
+                        f"the collector reports {name}={stop_counters[name]}:"
+                        f" {stop_counters[name]} {_CLOSING_COUNTERS[name]}, "
+                        "so that time is accounted for nowhere and the "
+                        "evidence cannot be added up"
+                    )
+            if read.get(_OPEN_RUN_COUNTER):
+                withheld_read = read.get("withheld_samples")
+                judged = judge_open_run_at_stop(
+                    open_at_stop=int(read[_OPEN_RUN_COUNTER]),
+                    withheld_samples=(
+                        None if withheld_read is None else int(withheld_read)
+                    ),
+                    lines=diag_lines,
+                    start_record=first_start,
+                    stop_record=stop_message,
+                    window=(start_stamp, stop_stamp),
+                    record_lines=(start_at, inventory_at, stop_at),
+                )
+                head = (
+                    f"the collector reports {_OPEN_RUN_COUNTER}="
+                    f"{stop_counters[_OPEN_RUN_COUNTER]}: "
+                    f"{stop_counters[_OPEN_RUN_COUNTER]} "
+                    f"{_CLOSING_COUNTERS[_OPEN_RUN_COUNTER]}"
+                )
+                if judged["reason"] is not None:
+                    problems.append(
+                        f"{head}, so that time is accounted for nowhere "
+                        "and the evidence cannot be added up: "
+                        f"{judged['reason']}"
+                    )
+                else:
+                    observations.append(
+                        open_run_observation(
+                            head, judged["measured"], _JUDGED_ELSEWHERE
+                        )
+                    )
+            if read.get("utc_gap_seconds"):
+                observations.append(
+                    "the collector reports utc_gap_seconds="
+                    f"{stop_counters['utc_gap_seconds']}: "
+                    f"{stop_counters['utc_gap_seconds']} "
+                    f"{_CLOSING_COUNTERS['utc_gap_seconds']}. A wall clock "
+                    "stepped forward adds to it although no time passed "
+                    "unsampled (collect-resources.sh), so it is recorded, "
+                    f"not judged here: {_JUDGED_ELSEWHERE}"
+                )
+            if read.get("withheld_samples"):
+                observations.append(
+                    "the collector reports withheld_samples="
+                    f"{stop_counters['withheld_samples']} "
+                    f"({stop_counters['withheld_elapsed_s']} s of elapsed "
+                    f"time): {stop_counters['withheld_samples']} "
+                    f"{_CLOSING_COUNTERS['withheld_samples']}. The collector "
+                    "recalibrates its phase after one, so it is recorded, "
+                    f"not judged here: {_JUDGED_ELSEWHERE}, and what the "
+                    "withheld samples cost is a problem of its own when it "
+                    "is in neither count"
+                )
+            if read.get("withheld_elapsed_s") and read.get("withheld_samples") == 0:
+                problems.append(
+                    "the collector reports withheld_elapsed_s="
+                    f"{stop_counters['withheld_elapsed_s']} while "
+                    "withheld_samples=0: the closing record contradicts "
+                    "itself, and the zero is what its closing awk writes "
+                    "when it cannot read the withheld count in its state "
+                    "file (collect-resources.sh:1303-1330), so the samples "
+                    "that cost that elapsed time are unaccounted for"
+                )
+            withheld = read.get("withheld_samples")
+
+    # Rows per expected service in the fetched CSV ('container' column), and
+    # the instants behind them ('ts_utc'), which the closing record is
+    # reconciled with below.
+    rows_per_service: dict[str, int] | None = None
+    unexpected: list[str] = []
+    instants: set[str] = set()
+    csv_ok = False
+    if files["csv"]["present"]:
+        counts: dict[str, int] = {}
+        container_col: int | None = None
+        read_error: str | None = None
+        try:
+            with open(
+                collector_dest, "r", encoding="utf-8", errors="replace", newline=""
+            ) as fh:
+                reader = csv.reader(fh)
+                header = next(reader, None)
+                if header is not None and "container" in header:
+                    container_col = header.index("container")
+                    ts_col = header.index("ts_utc") if "ts_utc" in header else None
+                    for row in reader:
+                        if ts_col is not None and len(row) > ts_col:
+                            instants.add(row[ts_col].strip())
+                        if len(row) <= container_col:
+                            continue
+                        name = row[container_col].strip()
+                        if name:
+                            counts[name] = counts.get(name, 0) + 1
+                    csv_ok = ts_col is not None
+        except (OSError, csv.Error) as exc:
+            read_error = str(exc)
+            csv_ok = False
+        if read_error is not None:
+            problems.append(
+                f"collector CSV {csv_name} could not be read to count the rows "
+                f"per service: {read_error}"
+            )
+        elif container_col is None:
+            problems.append(
+                f"collector CSV {csv_name} has no 'container' column: the rows "
+                "cannot be attributed to services"
+            )
+        elif expect_services:
+            rows_per_service = {name: counts.get(name, 0) for name in expect_services}
+            for name, rows in rows_per_service.items():
+                if rows == 0:
+                    problems.append(
+                        f"expected service {name!r} has no rows in the fetched "
+                        f"collector CSV {csv_name}"
+                    )
+            unexpected = sorted(set(counts) - set(expect_services))
+        if read_error is None and container_col is not None and not csv_ok:
+            # The rows are there but nothing says WHEN: the instants cannot be
+            # placed in the collector's window, so the reconciliation below is
+            # reported as not run rather than quietly skipped (2026-09-20).
+            problems.append(
+                f"collector CSV {csv_name} has no 'ts_utc' column: its rows "
+                "cannot be placed in the collector's window"
+            )
+
+    # The collector's own window, then its closing record against that window,
+    # the interval and duration the 'start:' line declared, and the instants
+    # the CSV really carries. The rule is :func:`reconcile_closing_record`,
+    # the ONE function tools/session/collector_check.py calls on the
+    # preflight's output (2026-09-20): only a record that contradicts itself
+    # is a problem -- rounds the stamped window cannot hold, instants that no
+    # round could have stamped, or no instant at all beside stamped rounds --
+    # and everything else it says (withheld rounds, forward clock steps, an
+    # implied number of rounds, rounds that wrote no row, a window shorter
+    # than the declared duration) is recorded and reported as an observation,
+    # never a reason to invalidate a run. The spacing and the coverage of the
+    # evidence are judged on the REAL instants by the ingest validation,
+    # against the protocol's own thresholds.
+    start_at_utc = parse_csv_timestamp(start_stamp) if start_stamp else None
+    stop_at_utc = parse_csv_timestamp(stop_stamp) if stop_stamp else None
+    in_window: int | None = None
+    if start_at_utc is not None and stop_at_utc is not None:
+        # A stop that is not after the start measures nothing: no length is
+        # recorded from it (and none derived: the rounds the interval implies
+        # and the shortfall stay null), and the reconciliation refuses it in
+        # the words both halves share (2026-09-20).
+        measured = int((stop_at_utc - start_at_utc).total_seconds())
+        window_seconds = measured if measured > 0 else None
+        if csv_ok:
+            parsed = [parse_csv_timestamp(value) for value in instants]
+            in_window = sum(
+                1
+                for at in parsed
+                if at is not None and start_at_utc <= at <= stop_at_utc
+            )
+    reconciliation = reconcile_closing_record(
+        samples=samples,
+        withheld=None if withheld is None else int(withheld),
+        instants_in_window=in_window,
+        csv_readable=csv_ok,
+        window=(start_stamp, stop_stamp),
+        window_seconds=window_seconds,
+        interval_s=declared_interval_s,
+        duration_s=declared_duration_s,
+        record_lines=(start_at, inventory_at, stop_at),
+    )
+    problems += reconciliation["problems"]
+    observations += reconciliation["observations"]
+    implied_rounds = reconciliation["rounds_the_declared_interval_implies"]
+
+    return {
+        "files": files,
+        "deployed_sha256": deployed_sha256,
+        "start_line_count": start_lines,
+        "declared_expected_services": declared,
+        "declared_interval_s": declared_interval_s,
+        "declared_duration_s": declared_duration_s,
+        "inventory": inventory,
+        "inventory_missing": inventory_missing,
+        "inventory_line_count": inventory_lines,
+        "stop_line": stop_line,
+        "stop_line_count": stop_lines,
+        "stop_counters": stop_counters,
+        "samples": samples,
+        "window": [start_stamp, stop_stamp],
+        "window_seconds": window_seconds,
+        "rounds_the_declared_interval_implies": implied_rounds,
+        "distinct_instants": len(instants),
+        "distinct_instants_in_window": in_window,
+        "closing_record_reconciliation": reconciliation["state"],
+        "declared_duration_shortfall_s": (
+            reconciliation["declared_duration_shortfall_s"]
+        ),
+        "self_test_present": self_test_present,
+        "rows_per_expected_service": rows_per_service,
+        "unexpected_services": unexpected,
+        "observations": observations,
+        "problems": problems,
+    }
+
+
+def collector_problem_reasons(problems: list[str] | None) -> list[str]:
+    """Validity reasons for the ``collector.problems`` of a run."""
+    return [
+        f"collector output not accounted for: {problem}; this run's CPU/RAM "
+        "evidence cannot be trusted"
+        for problem in problems or []
+    ]
+
+
+#: Programs that run the script given as their first argument
+#: (``sh <script> ...``, ``python3 <script> ...``).
+_SCRIPT_INTERPRETER_RE = re.compile(
+    r"^(?:sh|bash|dash|ash|ksh|zsh|python(?:\d+(?:\.\d+)*)?t?)(?:\.exe)?$",
+    re.IGNORECASE,
+)
+
+
+def identify_hook_helper(command: str) -> dict[str, Any]:
+    """The local program a rendered hook command runs, and its sha256.
+
+    For ``sh <script> ...`` (or another shell, or ``python <script> ...``)
+    the helper is the script; otherwise it is the command's first word. A
+    bare program name such as ``scp`` is NOT looked up on PATH: only a path
+    naming a readable local regular file is hashed. Returns ``{"path",
+    "sha256"}``; ``sha256`` is None when the helper cannot be identified
+    (``path`` is then what the command names, or None for ``sh -c ...``).
+    """
+    try:
+        argv = shlex.split(command, posix=True)
+    except ValueError:
+        argv = []
+    path_text: str | None = argv[0] if argv else None
+    if (
+        argv
+        and _SCRIPT_INTERPRETER_RE.match(Path(argv[0]).name)
+        and len(argv) > 1
+    ):
+        path_text = None if argv[1].startswith("-") else argv[1]
+    digest: str | None = None
+    if path_text:
+        candidate = Path(path_text)
+        try:
+            if candidate.is_file():
+                digest = sha256_file(candidate)
+        except OSError:
+            digest = None
+    return {"path": path_text, "sha256": digest}
+
+
+def resources_from_copy_plan(
+    src: str | Path, run_dir: str | Path, run_id: str
+) -> tuple[Path, list[tuple[Path, Path]]]:
+    """Where the manual path keeps its copy of the collector output.
+
+    Returns ``(dest_csv, pairs)``: ``dest_csv`` is
+    ``logs/collector/resources-from/resources-<run_id>.csv`` and ``pairs``
+    lists ``(source, destination)`` for the ``--resources-from`` file and
+    every companion that exists beside it (the suffixes of
+    :data:`COLLECTOR_OUTPUT_FILES`).
+    """
+    src = Path(src)
+    dest_csv = (
+        Path(run_dir)
+        / "logs"
+        / COLLECTOR_FETCH_SUBDIR
+        / RESOURCES_FROM_SUBDIR
+        / f"resources-{run_id}.csv"
+    )
+    pairs = [
+        (Path(f"{src}{suffix}"), Path(f"{dest_csv}{suffix}"))
+        for suffix, _mandatory in COLLECTOR_OUTPUT_FILES.values()
+        if Path(f"{src}{suffix}").is_file()
+    ]
+    return dest_csv, pairs
+
+
+def resources_from_copy_conflicts(
+    pairs: list[tuple[Path, Path]],
+) -> list[tuple[Path, Path]]:
+    """The ``(source, destination)`` pairs whose destination already holds
+    DIFFERENT content (raw evidence is write-once)."""
+    return [
+        (source, dest)
+        for source, dest in pairs
+        if dest.is_file() and sha256_file(source) != sha256_file(dest)
+    ]
+
+
+def copy_resources_from_outputs(
+    pairs: list[tuple[Path, Path]], run_dir: str | Path
+) -> None:
+    """Copy the manual-path collector output into the run directory.
+
+    Refuses with :class:`SealedRunError` BEFORE copying anything when a
+    destination holds different content; identical files are left as they
+    are (an idempotent re-collection adds nothing).
+    """
+    conflicts = resources_from_copy_conflicts(pairs)
+    if conflicts:
+        source, dest = conflicts[0]
+        raise overwrite_refusal(dest, source, run_dir)
+    for source, dest in pairs:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        ingest_copy(source, dest, run_dir)
+
+
+def collector_warnings(record: dict[str, Any]) -> list[str]:
+    """Manifest warnings for one collector record: every problem, plus the
+    services found outside the expected list (a warning only)."""
+    out = [
+        f"collector output problem: {problem}"
+        for problem in record.get("problems") or []
+    ]
+    unexpected = record.get("unexpected_services") or []
+    if unexpected:
+        out.append(
+            "collector CSV holds rows of services outside --expect-services "
+            "(not a validity problem): " + ", ".join(unexpected)
+        )
+    return out
+
+
+# ---------------------------------------------------------------------------
+# Mandatory artefacts per condition kind (sprint P5, report 5.4)
+# ---------------------------------------------------------------------------
+
+
+def mandatory_artifacts(
+    condition_id: str | None,
+    *,
+    runner: str = "simulator",
+    allow_missing_resources: bool = False,
+) -> list[str]:
+    """The evidence files a completed run of this kind MUST carry.
+
+    Simulator conditions: manifest.json, sent_events.jsonl, events.jsonl,
+    resources.csv — plus controller_metrics.csv on the conditions where
+    ``GET /metrics`` sampling is mandated instrumentation
+    (:data:`METRICS_MANDATORY_CONDITION_IDS`). External conditions:
+    manifest.json plus the ingested timings file.
+
+    ``--allow-missing-resources`` drops resources.csv from the set: an
+    absence explicitly authorized (and recorded as a deviation) is a
+    documented decision, not an incomplete run.
+    """
+    if runner != "simulator":
+        return list(EXTERNAL_MANDATORY_ARTIFACTS)
+    names = [
+        name
+        for name in SIMULATOR_MANDATORY_ARTIFACTS
+        if not (name == "resources.csv" and allow_missing_resources)
+    ]
+    if condition_id in METRICS_MANDATORY_CONDITION_IDS:
+        names.append("controller_metrics.csv")
+    return names
+
+
+def missing_mandatory_artifacts(
+    run_dir: str | Path,
+    condition_id: str | None,
+    *,
+    runner: str = "simulator",
+    allow_missing_resources: bool = False,
+) -> list[str]:
+    """Mandatory artefacts absent from ``run_dir`` (report 5.4).
+
+    ``manifest.json`` is skipped: it is written unconditionally by the
+    caller immediately after this check, so probing it here would always
+    report it missing.
+    """
+    run_dir = Path(run_dir)
+    missing: list[str] = []
+    for name in mandatory_artifacts(
+        condition_id,
+        runner=runner,
+        allow_missing_resources=allow_missing_resources,
+    ):
+        if name == MANIFEST_FILENAME:
+            continue
+        if not (run_dir / name).is_file():
+            missing.append(name)
+    return missing
+
+
+# ---------------------------------------------------------------------------
+# SUT environment / resources ingestion (audit 9.1/9.2)
+# ---------------------------------------------------------------------------
+
+
+def ingest_sut_environment(
+    run_dir: Path, sut_env_from: str | Path | None, warnings: list[str]
+) -> bool:
+    """Copy the operator-fetched sut_environment.json into the run dir.
+
+    Returns True when ``sut_environment.json`` is present in the run dir
+    afterwards. A source path that does not exist is a warning (the
+    validity rules then apply). An already-ingested file is never
+    overwritten with different content (raises :class:`SealedRunError`);
+    an identical re-copy is a no-op (work order P1 item 11).
+    """
+    dest = run_dir / SUT_ENVIRONMENT_FILENAME
+    if sut_env_from is not None:
+        src = Path(sut_env_from)
+        if src.is_file():
+            ingest_copy(src, dest, run_dir)
+        else:
+            warnings.append(f"--sut-env-from file not found: {src}")
+    return dest.is_file()
+
+
+#: The broker options a configuration identity must state (ADR 0011, C1),
+#: each an integer count except the expiry, a duration string.
+CONFIG_IDENTITY_BROKER_KEYS = (
+    "max_inflight_messages",
+    "max_inflight_bytes",
+    "max_queued_messages",
+    "max_queued_bytes",
+    "persistent_client_expiration",
+    "sys_interval",
+)
+
+#: The fields of a configuration identity (ADR 0011, the proof's record):
+#: the broker configuration's hash and its C1 values, the statement on the
+#: reload, the stop allowance, the controller image's id and source commit,
+#: the paho version installed in it and the A3 choice.
+CONFIG_IDENTITY_FIELDS = (
+    "broker_conf_sha256",
+    "broker_conf_values",
+    "broker_reloaded",
+    "stop_grace_period",
+    "controller_image_id",
+    "controller_source_commit",
+    "paho_version",
+    "a3_choice",
+)
+
+
+def _is_hex(value: Any, length: int | None = None) -> bool:
+    if not isinstance(value, str) or not value:
+        return False
+    if length is not None and len(value) != length:
+        return False
+    return all(c in "0123456789abcdef" for c in value)
+
+
+def configuration_identity_problems(doc: Any) -> list[str]:
+    """What keeps ``doc`` from being a configuration identity (ADR 0011).
+
+    An empty list means the document carries every field of
+    :data:`CONFIG_IDENTITY_FIELDS` with the right type: any other JSON
+    value — ``{}``, a list, a string, an object missing a field or
+    carrying one of the wrong type — is not evidence of what the run
+    rested on and must not make a ``controller_restart`` run valid.
+    """
+    if not isinstance(doc, dict):
+        return [f"the document is a JSON {type(doc).__name__}, not an object"]
+    problems: list[str] = []
+    if not _is_hex(doc.get("broker_conf_sha256"), 64):
+        problems.append("broker_conf_sha256 must be 64 lowercase hex characters")
+    values = doc.get("broker_conf_values")
+    if not isinstance(values, dict):
+        problems.append("broker_conf_values must be a JSON object")
+    else:
+        for key in CONFIG_IDENTITY_BROKER_KEYS:
+            value = values.get(key)
+            if key == "persistent_client_expiration":
+                ok = isinstance(value, str) and bool(value)
+            else:
+                ok = (
+                    isinstance(value, int)
+                    and not isinstance(value, bool)
+                    and value >= 0
+                )
+            if not ok:
+                problems.append(
+                    f"broker_conf_values.{key} missing or of the wrong type"
+                )
+    if not isinstance(doc.get("broker_reloaded"), bool):
+        problems.append("broker_reloaded must be a boolean")
+    grace = doc.get("stop_grace_period")
+    if not isinstance(grace, str) or not grace:
+        problems.append("stop_grace_period must be a non-empty string")
+    image = doc.get("controller_image_id")
+    if not (
+        isinstance(image, str)
+        and image.startswith("sha256:")
+        and _is_hex(image[len("sha256:"):], 64)
+    ):
+        problems.append(
+            "controller_image_id must be 'sha256:' followed by 64 hex characters"
+        )
+    commit = doc.get("controller_source_commit")
+    if not (_is_hex(commit) and 7 <= len(commit) <= 40):
+        problems.append(
+            "controller_source_commit must be 7 to 40 lowercase hex characters"
+        )
+    paho = doc.get("paho_version")
+    if not isinstance(paho, str) or not paho.strip():
+        problems.append("paho_version must be a non-empty string")
+    if doc.get("a3_choice") not in ("a", "b"):
+        problems.append("a3_choice must be 'a' or 'b'")
+    return problems
+
+
+def ingest_configuration_identity(
+    run_dir: Path, config_identity_from: str | Path | None, warnings: list[str]
+) -> dict[str, Any] | None:
+    """Copy the guest-side configuration identity into the run dir and
+    return the parsed content of the copy (ADR 0011 item 18).
+
+    The file lands as ``configuration_identity.json`` under the same
+    write-once rules as the SUT environment (:func:`ingest_copy`: an
+    identical re-copy is a no-op, a differing one raises
+    :class:`SealedRunError`). Returns the parsed document of the file
+    present in the run dir afterwards when it is a complete identity
+    (:func:`configuration_identity_problems` finds nothing), or None when
+    there is no file, it is not JSON, or it lacks a field or carries one of
+    the wrong type — a warning naming the problems in every case; the
+    validity rules then apply (a ``controller_restart`` run needs its
+    identity). Nothing is fabricated: a document that cannot be read, or
+    that does not say what the run rested on, is not an identity.
+    """
+    dest = run_dir / CONFIG_IDENTITY_FILENAME
+    if config_identity_from is not None:
+        src = Path(config_identity_from)
+        if src.is_file():
+            ingest_copy(src, dest, run_dir)
+        else:
+            warnings.append(f"--config-identity-from file not found: {src}")
+    if not dest.is_file():
+        return None
+    try:
+        doc = json.loads(dest.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        warnings.append(
+            f"{CONFIG_IDENTITY_FILENAME} in the run directory is not readable "
+            f"JSON ({exc}); no configuration identity is embedded"
+        )
+        return None
+    problems = configuration_identity_problems(doc)
+    if problems:
+        warnings.append(
+            f"{CONFIG_IDENTITY_FILENAME} in the run directory is not a "
+            "configuration identity (" + "; ".join(problems) + "); no "
+            "configuration identity is embedded"
+        )
+        return None
+    return doc
+
+
+#: The facts of the derivation (egw_experiments.proved_down) and the outcomes
+#: of the validator (resources.proved_down_outcomes) the manifest's
+#: 'resources_proved_down' record carries, each present and null when it was
+#: not established: the container and its id; D, S and E in integer
+#: nanoseconds and as UTC text; 'capped'; StartedAt and S - StartedAt; the
+#: interval (S - D) and exempt (E - D) lengths in seconds; the capture's
+#: window and its die and start counts; the last row before D, the first row
+#: after S, both edge gaps and the rows the interval rejected.
+PROVED_DOWN_RECORD_KEYS: tuple[str, ...] = (
+    "container",
+    "container_id",
+    "die_ns",
+    "die_utc",
+    "die_exit_code",
+    "start_ns",
+    "start_utc",
+    "effective_end_ns",
+    "effective_end_utc",
+    "capped",
+    "interval_s",
+    "exempt_s",
+    "started_at",
+    "started_at_ns",
+    "start_minus_started_at_s",
+    "started_at_read_guest_epoch",
+    "capture_since_guest_epoch",
+    "capture_until_guest_epoch",
+    "die_events_in_window",
+    "start_events_in_window",
+    "last_row_before_die",
+    "first_row_after_start",
+    "edge_gap_before_s",
+    "edge_gap_after_s",
+    "rows_between",
+    "rows_in_start_second",
+    "rejected_rows",
+)
+
+
+def proved_down_record(
+    interval: ProvedDownInterval | None,
+    why_not: str | None,
+    facts: dict[str, Any],
+    *,
+    outcome: dict[str, Any],
+    resources_ingested: bool,
+) -> dict[str, Any]:
+    """The manifest's ``resources_proved_down`` record (decision 1a, adopted
+    2026-09-30): ``applies`` and ``why_not``, the derivation's ``facts``, the
+    validator's ``outcome`` for the restarted container (empty when the
+    collector's file was missing or refused before its rows were read) and
+    whether the file was then ingested. The interval applies only when it
+    was derived AND the container has a row on both sides of it; it is
+    reported, and no delivery, recovery or C12 figure reads it."""
+    record: dict[str, Any] = {key: None for key in PROVED_DOWN_RECORD_KEYS}
+    record.update({k: v for k, v in facts.items() if k in record})
+    if interval is None:
+        applies, reason = False, why_not
+    elif not outcome:
+        applies, reason = False, (
+            "the collector's file was missing or was refused before its rows "
+            "were read, so the interval was not applied"
+        )
+    else:
+        applies, reason = bool(outcome.get("applies")), outcome.get("why_not")
+        record.update({k: v for k, v in outcome.items() if k in record and k != "container"})
+    record.update(
+        {"applies": applies, "why_not": reason, "resources_ingested": resources_ingested}
+    )
+    return record
+
+
+#: The keys of the manifest's 'resources_transition_rows' record (the restart
+#: transition rule, adopted 2026-10-05), each present and null when it was not
+#: established: the rule's name; the restarted container and its id; whether
+#: the rule admitted its transition rows or why not; the bounds sec(D)
+#: (excluded) and min(sec(S), sec(E)) (included); the candidate rows - their
+#: count, instants and raw cells, admitted or not; the lifecycle pair's two
+#: stamps; the collector's lifecycle record read (path in the run directory
+#: and sha256); and the fixed note on what the rows are.
+TRANSITION_RECORD_KEYS: tuple[str, ...] = (
+    "rule",
+    "container",
+    "container_id",
+    "admitted",
+    "why_not",
+    "resources_ingested",
+    "after_second_utc",
+    "through_second_utc",
+    "count",
+    "instants",
+    "rows",
+    "disappeared_utc",
+    "appeared_utc",
+    "lifecycle_file",
+    "lifecycle_sha256",
+    "note",
+)
+
+#: What every 'resources_transition_rows' record says of the rows it reports
+#: (the Project Manager's conditions of 2026-10-05).
+TRANSITION_NOTE = (
+    "cgroup readings of the restarted container during its restart "
+    "transition, kept byte for byte: once admitted they count for the "
+    "distinct sample instants, take part in the existing coverage "
+    "calculations and enter the existing CPU/RAM aggregates, like every other "
+    "row; they are not evidence that the application was ready, the outage "
+    "is not declared measured, no row is added, filled or removed, and the "
+    "lifecycle witness is the collector's own record (the same instrument), "
+    "not independent proof"
+)
+
+
+def transition_record(
+    rule: str,
+    interval: ProvedDownInterval | None,
+    why_not: str | None,
+    facts: dict[str, Any],
+    *,
+    outcome: dict[str, Any],
+    lifecycle_path: Path | None,
+    run_dir: Path,
+    resources_ingested: bool = False,
+) -> dict[str, Any]:
+    """The manifest's ``resources_transition_rows`` record: ``rule`` names
+    the rule that judged the run; without a proved-down interval, or when
+    the collector's file was missing or refused before its rows were read
+    (``outcome`` empty), nothing is admitted and ``why_not`` says so;
+    otherwise the validator's ``outcome``
+    (``resources.transition_outcomes``). Reported only: no delivery,
+    recovery or C12 figure reads it."""
+    record: dict[str, Any] = {key: None for key in TRANSITION_RECORD_KEYS}
+    record.update(
+        {
+            "rule": rule,
+            "container": facts.get("container"),
+            "container_id": facts.get("container_id"),
+            "admitted": False,
+            # whether the collector's file was ingested at all: rows the rule
+            # admitted in a file another check rejected were never counted
+            "resources_ingested": resources_ingested,
+            "count": 0,
+            "instants": [],
+            "rows": [],
+            "note": TRANSITION_NOTE,
+        }
+    )
+    if lifecycle_path is not None and lifecycle_path.is_file():
+        record["lifecycle_file"] = (
+            lifecycle_path.relative_to(run_dir).as_posix()
+            if lifecycle_path.is_relative_to(run_dir)
+            else lifecycle_path.name
+        )
+        record["lifecycle_sha256"] = sha256_file(lifecycle_path)
+    if interval is None:
+        record["why_not"] = f"no proved-down interval (decision 1a): {why_not}"
+    elif not outcome:
+        record["why_not"] = (
+            "the collector's file was missing or was refused before its rows "
+            "were read, so the rule was not applied"
+        )
+    else:
+        record.update({k: v for k, v in outcome.items() if k in record})
+    return record
+
+
+def transition_console_line(rule: str, record: dict[str, Any]) -> str:
+    """The harness's console line for the ``resources_transition_rows``
+    record: how many rows the rule admitted, and whether they were ingested
+    (an admitted row in a file another check rejected counts for nothing)."""
+    head = f"[harness] restart transition rule {rule}: "
+    if not record["admitted"]:
+        return head + f"nothing admitted ({record['why_not']})"
+    line = head + f"{record['count']} transition row(s) admitted"
+    if not record.get("resources_ingested"):
+        line += (" by the rule, but the file was rejected for other reasons: "
+                 "nothing was ingested")
+    return line
+
+
+def ingest_resources(
+    run_dir: Path,
+    resources_from: str | Path | None,
+    warnings: list[str],
+    *,
+    expected_window_s: float | None = None,
+    expected_window_start_utc: str | None = None,
+    expected_window_end_utc: str | None = None,
+    source_label: str = "--resources-from",
+    proved_down: ProvedDownInterval | None = None,
+    proved_down_outcome: dict[str, Any] | None = None,
+    transition_witness: LifecycleWitness | None = None,
+    transition_outcome: dict[str, Any] | None = None,
+) -> bool:
+    """Validate and copy the fetched SUT resources.csv into the run dir.
+
+    Work order P1 fix 3: file presence alone is NOT evidence. The source is
+    content-validated (:func:`egw_experiments.resources.validate_resources_csv`):
+    exact 6-column header including ``host`` provenance, at least
+    MIN_RESOURCE_SAMPLES data rows, and — when the run dir already holds a
+    sut_environment.json with a node/hostname — every distinct ``host``
+    value must equal it. Sprint P5 (report 5.4) adds the SEMANTIC checks:
+    parseable RFC 3339 timestamps, non-decreasing time, numeric cpu/mem
+    fields, per-row column completeness, a minimum number of DISTINCT
+    sample instants and — when the real measured-window UTC bounds are given
+    — actual overlap, coverage and sampling continuity inside that window.
+    ``expected_window_s`` remains the fallback for historical manifests that
+    do not have those bounds. Any problem rejects the ingest with a clear
+    warning and the run's resources are treated as missing (the validity
+    rules then apply). Returns True only on a successful, validated copy.
+    An existing ``resources.csv`` is never overwritten with different
+    content (raises :class:`SealedRunError`); an identical re-copy is a
+    no-op (work order P1 item 11). ``source_label`` names where the file
+    came from in the warnings (``--resources-from`` or the output of the
+    ``--collector-fetch-cmd`` hook).
+
+    ``proved_down`` (decision 1a, adopted 2026-09-30): the proved-down
+    interval :func:`execute_run` derived for a ``controller_restart`` run
+    given the StartedAt read, handed to the validator with the dict
+    ``proved_down_outcome`` it fills; the file ingested is still the
+    collector's, byte for byte. Only then is either passed on: without an
+    interval the validator is called exactly as it always was.
+
+    ``transition_witness`` (the restart transition rule, adopted
+    2026-10-05): the collector's lifecycle record of the run, handed on with
+    the dict ``transition_outcome`` only beside an interval and only when
+    given (``run --restart-transition-rule``).
+    """
+    if resources_from is None:
+        return False
+    src = Path(resources_from)
+    if not src.is_file():
+        warnings.append(f"{source_label} file not found: {src}")
+        return False
+    expected_host = sut_env_node(read_sut_environment(run_dir))
+    interval_kwargs: dict[str, Any] = (
+        {"proved_down": proved_down, "proved_down_outcome": proved_down_outcome}
+        if proved_down is not None
+        else {}
+    )
+    if proved_down is not None and transition_witness is not None:
+        interval_kwargs.update(
+            {"transition_witness": transition_witness, "transition_outcome": transition_outcome}
+        )
+    problems = validate_resources_csv(
+        src,
+        expected_host=expected_host,
+        expected_window_s=expected_window_s,
+        expected_window_start_utc=expected_window_start_utc,
+        expected_window_end_utc=expected_window_end_utc,
+        **interval_kwargs,
+    )
+    if problems:
+        warnings.append(
+            f"{source_label} {src} REJECTED (SUT resources treated as "
+            "missing): " + "; ".join(problems)
+        )
+        return False
+    ingest_copy(src, run_dir / "resources.csv", run_dir)
+    return True
+
+
+# ---------------------------------------------------------------------------
+# G4 core provenance (plan 655-661)
+# ---------------------------------------------------------------------------
+
+
+def run_provenance_record(
+    run_dir: Path, execution_mode: str | None, broker: Any, port: Any
+) -> dict[str, Any]:
+    """The manifest's ``provenance`` record of a run: the declared execution
+    mode checked against the run's OWN files (``sut_environment.json``,
+    ``loadgen_environment.json``, ``hypervisor_environment.json``) and the
+    generator's target (``broker``, ``port``), so that ``run`` and ``collect``
+    judge the same sealed evidence; a file absent or unreadable is passed as
+    None and fails the checks that read it. ``problems`` holds one validity
+    reason per failed check."""
+    checks = provenance_checks(
+        execution_mode=execution_mode,
+        sut_env=read_sut_environment(run_dir),
+        loadgen_env=read_environment_record(run_dir, LOADGEN_ENVIRONMENT_FILENAME),
+        hypervisor_env=read_environment_record(run_dir, HYPERVISOR_ENVIRONMENT_FILENAME),
+        broker=broker if isinstance(broker, str) else None,
+        port=port if _is_int(port) else None,
+    )
+    return {
+        "rule": PROVENANCE_RULE,
+        "declared_by": "--execution-mode",
+        "execution_mode": execution_mode,
+        "checks": checks,
+        "problems": provenance_problems(checks),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Validity (audit: warning-only is not acceptable)
+# ---------------------------------------------------------------------------
+
+
+def compute_validity(
+    *,
+    timed: bool,
+    sut_env_present: bool,
+    allow_missing_sut_env: bool,
+    resource_source: str,
+    allow_missing_resources: bool,
+    restart_required: bool,
+    restart_ok: bool,
+    sut_env_missing_fields: list[str] | None = None,
+    simulator_returncode: int | None = 0,
+    warmup_returncode: int | None = None,
+    allow_warmup_failure: bool = False,
+    skip_warmup: bool = False,
+    condition_id: str | None = None,
+    allow_protocol_deviation: bool = False,
+    confirmation_marker_ok: bool = True,
+    allow_missing_controller_marker: bool = False,
+    collector_hooks: list[dict[str, Any]] | None = None,
+    missing_artifacts: list[str] | None = None,
+    collector_problems: list[str] | None = None,
+    sut_log_fetches: list[dict[str, Any]] | None = None,
+    twin_snapshots: list[dict[str, Any]] | None = None,
+    drain: dict[str, Any] | None = None,
+    events_post_drain_fetch: dict[str, Any] | None = None,
+    config_identity_ok: bool = True,
+    metrics_write_error: str | None = None,
+    provenance_problems: list[str] | None = None,
+) -> tuple[str, list[str]]:
+    """Evaluate the run-validity rules; returns (validity, reasons).
+
+    Timed runs (every simulator-driven condition) without a USABLE SUT
+    environment manifest or without SUT-collector resources are INVALID —
+    CPU/RAM on the SUT are essential for RQ3 and an environment file
+    captured on the wrong host describes the wrong system (audit 9.1/9.2).
+    Work order P1 hardening:
+
+    - ``resource_source`` must be exactly ``'sut-collector'``: the
+      ``--local-resources`` dev sampler measures the LOAD GENERATOR host
+      and never evidences the SUT (override: --allow-missing-resources,
+      recorded as a deviation);
+    - a present sut_environment.json failing REQUIRED_SUT_FIELDS
+      validation is as invalid as a missing one (override:
+      --allow-missing-sut-env, recorded as a deviation);
+    - a non-zero simulator exit invalidates the run outright (no
+      override: the measured run itself failed);
+    - a non-zero warm-up exit invalidates the run unless
+      --allow-warmup-failure (recorded as a deviation);
+    - --skip-warmup on the SKIP_WARMUP_STRICT_CONDITIONS invalidates the
+      run unless --allow-protocol-deviation (recorded as a deviation).
+
+    Sprint P5 hardening:
+
+    - the confirmation deadline must be anchored in the CONTROLLER's clock
+      domain (``confirmation_marker_ok``, report 5.2): without the marker
+      the 60 s window cannot be verified, so the run is invalid unless
+      --allow-missing-controller-marker (recorded as a deviation);
+    - every configured collector hook must exit 0 (report 5.3): a failed
+      start/stop/fetch hook is never a silent warning;
+    - the mandatory artefacts of the condition kind must be present
+      (report 5.4): a run missing one is INVALID and is not sealed.
+
+    Collector output accounting (2026-09-19): every ``collector_problems``
+    entry (:func:`inspect_collector_outputs`) is a reason of a timed run —
+    a missing companion, a self-test marker, no ``--expect-services``, an
+    expected service without rows, an inventory naming a missing service, a
+    collector that did not stop cleanly, a closing ``stop:`` record that is
+    absent, duplicated, misplaced or without its sample count. Of the
+    closing record's other figures (2026-09-20): one the collector could not
+    compute (``unknown``) or does not state, elapsed time in neither count
+    (``withheld_runs_unmeasured`` above zero, or ``withheld_open_at_stop``
+    above zero unless :func:`judge_open_run_at_stop` accepts the
+    collector's own line measuring it), a
+    ``withheld_elapsed_s`` above zero while ``withheld_samples`` reads zero,
+    a record whose leading token is not a strictly valid UTC timestamp, a
+    reconciliation with the CSV that could not be made (its bounds unusable,
+    its window reversed or empty, more rounds withheld than taken, or the
+    CSV's instants unreadable), and a record that contradicts itself — more
+    stamped rounds than the seconds of the collector's own window can hold,
+    more distinct instants inside that window than the rounds the record
+    accounts for, or no instant at all beside stamped rounds. What is NOT a
+    reason, and is recorded in
+    ``collector.observations`` instead: a forward ``utc_gap_seconds`` (a wall
+    clock stepped forward adds to it although no time passed unsampled),
+    ``withheld_samples`` on their own, a window shorter than the declared
+    duration, a rate below the declared interval, more rounds than that
+    window and interval imply, and rounds that wrote no row — the spacing and
+    the coverage of the evidence are judged on the real instants, by the
+    ingest validation against the protocol's
+    :data:`~egw_experiments.protocol.MAX_SAMPLE_GAP_S`, not against a
+    threshold of the inspection's own (2026-09-20). No allow flag suppresses
+    the reasons. They
+    do NOT withhold SHA256SUMS: the fetched files are sealed as they are, so
+    the invalid run's evidence stays verifiable.
+
+    ADR 0011 item 18: every configured SUT log fetch (``sut_log_fetches``)
+    must exit 0 and write its file; for ``controller_restart``
+    (``restart_required``) the configuration identity must be present
+    (``config_identity_ok``) and the restart evidence must be complete and
+    verified (:func:`restart_evidence_failures`): the before snapshot and
+    the drain, taken by their hooks or ingested from files, and — when the
+    drain's outcome is 'quiet' — the after snapshot and the post-drain copy
+    of the events as well. Every configured hook that failed and every
+    ingested file that was refused or missing is a reason naming it; a step
+    with no record at all is a reason too, and no flag excuses it (the
+    runbook's test 6 ingests the helpers' files with 'collect'). A drain
+    whose outcome is 'gave-up' is NOT a reason: exclusion follows the
+    validity of the evidence, never the outcome, so a valid run that shows
+    a failed recovery is retained and analysed.
+
+    Work order of 2026-09-29 (A2): a file of the controller /metrics
+    sampler that could not be opened, written, flushed or closed, or its
+    thread still running after the join (``metrics_write_error``), is a
+    reason on every run, with no override:
+    the instrumentation failed, so its evidence stops at the last row
+    written. Failed polls (the controller not answering) are an observation
+    and stay warnings.
+
+    G4 core provenance (plan 655-661): ``provenance_problems`` is what
+    :func:`egw_experiments.environment.provenance_problems` gives for the
+    run's checks. None means the rule does not apply: the manifest carries no
+    ``provenance`` record (every run sealed before manifest 1.5, and every
+    external run). A list adds one reason per entry, on every run, timed or
+    not (an unset execution mode is one of them). No allow flag suppresses
+    them and no deviation is recorded; like the collector problems they do
+    not withhold SHA256SUMS, so the invalid run stays sealed evidence.
+
+    The explicit allow flags suppress the corresponding reason but are
+    recorded in the manifest (``deviations``) as a deliberate decision.
+    """
+    reasons: list[str] = []
+    missing_fields = list(sut_env_missing_fields or [])
+    if timed:
+        if not sut_env_present and not allow_missing_sut_env:
+            reasons.append(
+                "sut_environment.json missing: timed runs require the SUT "
+                "environment captured ON the VM "
+                "(deployment/scripts/capture-sut-environment.sh, ingested "
+                "via --sut-env-from); override only with "
+                "--allow-missing-sut-env"
+            )
+        elif sut_env_present and missing_fields and not allow_missing_sut_env:
+            reasons.append(
+                "sut_environment.json unusable, missing required field(s): "
+                + ", ".join(missing_fields)
+                + " (REQUIRED_SUT_FIELDS, egw_experiments/environment.py); "
+                "a SUT manifest without host identity, CPU count and OS "
+                "identification cannot support RQ3; override only with "
+                "--allow-missing-sut-env"
+            )
+        if resource_source != "sut-collector" and not allow_missing_resources:
+            if resource_source == "local-dev":
+                reasons.append(
+                    "resource_source 'local-dev': --local-resources samples "
+                    "docker stats on the LOAD GENERATOR host, not the SUT "
+                    "(dev only, audit 9.1); timed runs require the VM-side "
+                    "collector output "
+                    "(deployment/scripts/collect-resources.sh, ingested via "
+                    "--resources-from); override only with "
+                    "--allow-missing-resources"
+                )
+            else:
+                reasons.append(
+                    "no SUT resources: timed runs require the VM-side "
+                    "collector output "
+                    "(deployment/scripts/collect-resources.sh, ingested "
+                    "via --resources-from); CPU/RAM on the SUT are "
+                    "essential for RQ3; override only with "
+                    "--allow-missing-resources"
+                )
+        if restart_required and not restart_ok:
+            reasons.append(
+                "controller_restart condition without a successfully "
+                "executed --restart-cmd: the run cannot evidence claim C12"
+            )
+        if simulator_returncode not in (0, None):
+            reasons.append(
+                f"simulator exited with code {simulator_returncode}: the "
+                "measured run did not complete cleanly; there is no "
+                "override for a failed measured run"
+            )
+        if warmup_returncode not in (0, None) and not allow_warmup_failure:
+            reasons.append(
+                f"warm-up exited with code {warmup_returncode}: the twins "
+                "were not warmed as the protocol prescribes; override only "
+                "with --allow-warmup-failure (records a protocol deviation)"
+            )
+        if (
+            skip_warmup
+            and condition_id in SKIP_WARMUP_STRICT_CONDITIONS
+            and not allow_protocol_deviation
+        ):
+            reasons.append(
+                f"--skip-warmup on condition {condition_id!r}: the frozen "
+                "protocol (plan 7.1) prescribes this condition's "
+                "warm-up/cooldown structure; override only with "
+                "--allow-protocol-deviation (records a protocol deviation)"
+            )
+        if not confirmation_marker_ok and not allow_missing_controller_marker:
+            reasons.append(
+                "no controller confirmation marker: the run end was not "
+                "stamped in the controller's clock domain (GET /metrics "
+                "'monotonic_ns' via --controller-url), so the "
+                f"{CONFIRMATION_WINDOW_S} s confirmation deadline cannot be "
+                "verified independently of the events themselves (report "
+                "5.2); override only with --allow-missing-controller-marker "
+                "(records a protocol deviation and leaves the analysis on "
+                "the legacy event-derived deadline)"
+            )
+        reasons.extend(collector_hook_failures(collector_hooks))
+        reasons.extend(collector_problem_reasons(collector_problems))
+        reasons.extend(sut_log_fetch_failures(sut_log_fetches))
+        if restart_required:
+            reasons.extend(
+                restart_evidence_failures(
+                    twin_snapshots, drain, events_post_drain_fetch
+                )
+            )
+            if not config_identity_ok:
+                reasons.append(
+                    "controller_restart condition without its configuration "
+                    f"identity ({CONFIG_IDENTITY_FILENAME}, ingested via "
+                    "--config-identity-from): the broker configuration, the "
+                    "stop allowance, the controller image and the paho "
+                    "version the run rests on are not recorded, so the run "
+                    "cannot evidence the restart recovery (ADR 0011)"
+                )
+    if missing_artifacts:
+        reasons.append(
+            "mandatory artefact(s) missing from the run directory: "
+            + ", ".join(missing_artifacts)
+            + " — the run is incomplete for its condition kind, so it is "
+            "marked invalid and NOT sealed (no SHA256SUMS); recover the "
+            "missing evidence with 'collect' or repeat the run under a new "
+            "run identity"
+        )
+    if metrics_write_error is not None:
+        reasons.append(
+            "controller metrics sampler could not record its evidence "
+            f"({metrics_write_error}): sampling stopped there, so "
+            "controller_metrics.csv (and the attempts log, if any) holds only "
+            "the rows written before the failure. This is a failure of the "
+            "harness's instrumentation, whatever set it off (a value the "
+            "controller sent that the CSV cannot hold included), and not a "
+            "failed poll, which poll_errors counts instead; there is no "
+            "override: repeat the run under a new run identity"
+        )
+    if provenance_problems is not None:
+        reasons.extend(provenance_problems)
+    return ("valid" if not reasons else "invalid"), reasons
+
+
+def _append_deviation(
+    deviations: list[dict[str, Any]],
+    kind: str,
+    detail: str,
+    authorized_by_flag: str | None,
+) -> None:
+    """Append a protocol-deviation record, once per kind (work order P1).
+
+    Entries are ``{kind, detail, authorized_by_flag}``;
+    ``authorized_by_flag`` is None for a deviation that happened WITHOUT an
+    explicit authorizing flag (those normally also produce a validity
+    reason). Deduplicated by ``kind`` so repeated 'collect' passes never
+    stack duplicates.
+    """
+    if any(d.get("kind") == kind for d in deviations):
+        return
+    deviations.append(
+        {"kind": kind, "detail": detail, "authorized_by_flag": authorized_by_flag}
+    )
+
+
+def update_plan_status(
+    plan_path: str | Path, run_id: str, status: str, **extra: Any
+) -> bool:
+    """Best-effort update of the run's status inside campaign_plan.json."""
+    try:
+        plan = load_campaign_plan(plan_path)
+        for entry in plan.get("runs", []):
+            if entry.get("run_id") == run_id:
+                entry["status"] = status
+                entry.update(extra)
+                break
+        else:
+            return False
+        Path(plan_path).write_text(plan_to_json(plan), encoding="utf-8")
+        return True
+    except (OSError, json.JSONDecodeError):
+        return False
+
+
+def _simulator_cmd(
+    *,
+    scenario: str,
+    seed: int,
+    duration_s: int,
+    rate_msg_s: float,
+    output_dir: Path,
+    run_id: str,
+    broker: str,
+    port: int,
+    egw_id: str,
+    qos: int,
+    username: str | None,
+    password: str | None,
+    ca_cert: str | None,
+    no_tls: bool,
+) -> list[str]:
+    """Build the simulator invocation exactly per CONTRACTS 7."""
+    cmd = [
+        sys.executable,
+        "-m",
+        "egw_simulator",
+        "run",
+        "--scenario",
+        scenario,
+        "--seed",
+        str(seed),
+        "--broker",
+        broker,
+        "--port",
+        str(port),
+        "--duration",
+        str(duration_s),
+        "--rate",
+        str(rate_msg_s),
+        "--output",
+        str(output_dir),
+        "--egw-id",
+        egw_id,
+        "--run-id",
+        run_id,
+        "--qos",
+        str(qos),
+    ]
+    if no_tls:
+        cmd.append("--no-tls")
+    else:
+        if username:
+            cmd += ["--username", username]
+        if password:
+            cmd += ["--password", password]
+        if ca_cert:
+            cmd += ["--ca-cert", ca_cert]
+    return cmd
+
+
+def _run_subprocess(cmd: list[str], log_path: Path, timeout_s: float) -> int:
+    """Run a subprocess, teeing stdout+stderr into a log file."""
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(log_path, "w", encoding="utf-8") as log_fh:
+        try:
+            proc = subprocess.run(
+                cmd,
+                stdout=log_fh,
+                stderr=subprocess.STDOUT,
+                cwd=str(SRC_DIR),
+                timeout=timeout_s,
+                check=False,
+            )
+            return proc.returncode
+        except subprocess.TimeoutExpired:
+            log_fh.write("\n[harness] simulator subprocess timed out and was killed\n")
+            return -1
+        except FileNotFoundError:
+            log_fh.write("\n[harness] python executable not found\n")
+            return -2
+
+
+# ---------------------------------------------------------------------------
+# Controller restart hook (audit 9.5, claim C12)
+# ---------------------------------------------------------------------------
+
+
+def _execute_restart_cmd(template: str, run_id: str, record: dict[str, Any]) -> None:
+    """Execute the restart command once and record the outcome in-place."""
+    cmd_str = format_cmd_template(template, run_id)
+    record["command"] = cmd_str
+    record["executed"] = True
+    record["started_utc"] = utc_now_iso()
+    record["started_monotonic_ns"] = time.monotonic_ns()
+    try:
+        proc = subprocess.run(
+            shlex.split(cmd_str, posix=True),
+            capture_output=True,
+            text=True,
+            timeout=FETCH_TIMEOUT_S,
+            check=False,
+        )
+        record["returncode"] = proc.returncode
+        stderr_tail = (proc.stderr or "").strip()
+        if stderr_tail:
+            record["stderr_tail"] = stderr_tail[-500:]
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        record["returncode"] = None
+        record["error"] = str(exc)
+    record["finished_utc"] = utc_now_iso()
+
+
+# ---------------------------------------------------------------------------
+# External conditions ingestion (audit 9.6, claim C15)
+# ---------------------------------------------------------------------------
+
+
+def _duration_defect(value: Any) -> str | None:
+    """Classify a ``duration_s`` value; None means it is acceptable.
+
+    Strict rule (sprint P5.4 defect 4, extended to this third path): a
+    duration must be a REAL number — ``bool`` is a subclass of ``int``, so
+    ``isinstance(value, (int, float))`` alone accepts ``True``/``False`` —
+    that is FINITE (``json.loads`` reads the bare ``NaN``/``Infinity``
+    tokens a hand-written file may carry, and neither ``nan < 0`` nor
+    ``inf < 0`` is True, so a bare comparison lets both through) and
+    NON-NEGATIVE. The analysis readers and the resources ingest already
+    apply exactly these semantics.
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return "not a number"
+    try:
+        number = float(value)
+    except (OverflowError, ValueError):
+        # JSON integers are unbounded; one too large for a float is not a
+        # duration either (and float() on it raises rather than returning inf).
+        return "not finite (too large)"
+    if not math.isfinite(number):
+        return "not finite"
+    if number < 0:
+        return "negative"
+    return None
+
+
+def _is_functional_external_condition(condition: Any) -> bool:
+    """True when ``condition`` names a functional (outcome-measured) one.
+
+    Accepts the plan condition_id and its run-id prefix alike (the operator
+    files say ``qemu_boot``, the plan says ``qemu_boots``), reusing the same
+    tolerance as the condition match itself.
+    """
+    return any(
+        _condition_matches(condition, functional_id)
+        for functional_id in FUNCTIONAL_EXTERNAL_CONDITION_IDS
+    )
+
+
+def load_external_timings(
+    path: str | Path, *, condition_id: str | None = None
+) -> dict[str, Any]:
+    """Load and validate an operator-produced timings.json.
+
+    Expected shape (documented in the experiments README)::
+
+        {"run_id": "...", "condition": "...",
+         "samples": [{"label": "...", "started_utc": "...",
+                      "ended_utc": "...", "duration_s": 12.3}, ...],
+         "method": "...", "notes": "..."}
+
+    Every sample needs a real, finite, non-negative ``duration_s``
+    (:func:`_duration_defect`). Samples of a FUNCTIONAL external condition
+    (:data:`FUNCTIONAL_EXTERNAL_CONDITION_IDS` — QEMU boots, which plan 5.1
+    keeps functional-only, so pass/fail IS the measurement) additionally
+    need an ``outcome`` from :data:`EXTERNAL_FUNCTIONAL_OUTCOMES`; without
+    one the run carries no boot result and must never be sealed as evidence
+    of a boot. ``condition_id`` is the PLAN's condition for this run and
+    takes precedence over the file's own ``condition`` field; when it is
+    omitted (direct calls) the file's field decides.
+
+    Raises ValueError with a human-readable message on any problem: the
+    message names the offending sample and value.
+    """
+    path = Path(path)
+    try:
+        obj = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"cannot read timings file {path}: {exc}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"timings file {path} is not valid JSON: {exc}") from exc
+    if not isinstance(obj, dict):
+        raise ValueError("timings.json must be a JSON object")
+    for key in ("run_id", "condition", "samples"):
+        if key not in obj:
+            raise ValueError(f"timings.json missing required key {key!r}")
+    samples = obj["samples"]
+    if not isinstance(samples, list) or not samples:
+        raise ValueError("timings.json 'samples' must be a non-empty list")
+    condition = condition_id if condition_id is not None else obj["condition"]
+    functional = _is_functional_external_condition(condition)
+    for i, sample in enumerate(samples):
+        if not isinstance(sample, dict):
+            raise ValueError(f"timings.json sample {i} is not an object")
+        duration = sample.get("duration_s")
+        defect = _duration_defect(duration)
+        if defect is not None:
+            raise ValueError(
+                f"timings.json sample {i} needs a numeric duration_s >= 0: "
+                f"{duration!r} is {defect}"
+            )
+        if functional:
+            outcome = sample.get("outcome")
+            if outcome not in EXTERNAL_FUNCTIONAL_OUTCOMES:
+                raise ValueError(
+                    f"timings.json sample {i} "
+                    f"(label {sample.get('label')!r}) of functional condition "
+                    f"{condition!r} needs an 'outcome' of "
+                    + "/".join(repr(o) for o in EXTERNAL_FUNCTIONAL_OUTCOMES)
+                    + f", got {outcome!r}: the boot result IS the measurement "
+                    "(plan 5.1), and any other value is read by the analysis "
+                    "as 'unspecified', i.e. as no result at all"
+                )
+    return obj
+
+
+def _condition_matches(timings_condition: Any, condition_id: str) -> bool:
+    """Accept the plan condition_id or its run-id prefix (qemu_boot[s])."""
+    if not isinstance(timings_condition, str):
+        return False
+    if timings_condition == condition_id:
+        return True
+    # plan condition 'qemu_boots' enumerates run_ids 'qemu_boot-rNN'.
+    return timings_condition.rstrip("s") == condition_id.rstrip("s")
+
+
+def execute_external_run(
+    plan_path: Path,
+    entry: dict[str, Any],
+    *,
+    base_dir: Path,
+    external_timings: str | Path,
+    external_logs: str | Path | None,
+    sut_env_from: str | Path | None,
+) -> int:
+    """Ingest an operator-measured external run (audit 9.6).
+
+    Copies timings.json (+ optional logs/) into the standard raw run
+    directory, captures the load-generator environment, writes the
+    standard manifest and SHA256SUMS, and marks the plan entry completed.
+    """
+    run_id = entry["run_id"]
+    condition_id = entry.get("condition_id")
+    try:
+        # The PLAN's condition decides which rules apply to the samples: a
+        # functional condition (QEMU boots) needs a pass/fail outcome per
+        # sample, a timed one (cold_start, twin_creation) does not.
+        timings = load_external_timings(
+            external_timings,
+            condition_id=condition_id if isinstance(condition_id, str) else None,
+        )
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    if timings["run_id"] != run_id:
+        print(
+            f"error: timings.json run_id {timings['run_id']!r} does not "
+            f"match --run-id {run_id!r}",
+            file=sys.stderr,
+        )
+        return 2
+    if not _condition_matches(timings["condition"], str(condition_id)):
+        print(
+            f"error: timings.json condition {timings['condition']!r} does "
+            f"not match the plan condition {condition_id!r} for run "
+            f"{run_id!r}",
+            file=sys.stderr,
+        )
+        return 2
+
+    run_dir = base_dir / "raw" / run_id
+    if run_dir.exists():
+        sealed_note = (
+            f" The directory is sealed ({SUMS_FILENAME} present)."
+            if run_dir_is_sealed(run_dir)
+            else ""
+        )
+        print(
+            f"error: {run_dir} already exists.{sealed_note} Raw run "
+            "directories are immutable evidence (plan 5.8); a repeat "
+            "requires a NEW run identity: use a new versioned run_id and "
+            "document the exclusion of the old one.",
+            file=sys.stderr,
+        )
+        return 2
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir(parents=True)
+    warnings: list[str] = []
+
+    print(f"[harness] external run {run_id}: created {run_dir}", flush=True)
+    update_plan_status(plan_path, run_id, "running")
+
+    write_loadgen_environment(run_dir / LOADGEN_ENVIRONMENT_FILENAME)
+    sut_env_present = ingest_sut_environment(run_dir, sut_env_from, warnings)
+    shutil.copyfile(external_timings, run_dir / "timings.json")
+    if external_logs is not None:
+        logs_src = Path(external_logs)
+        if logs_src.is_dir():
+            shutil.copytree(logs_src, logs_dir, dirs_exist_ok=True)
+        else:
+            warnings.append(f"--external-logs directory not found: {logs_src}")
+
+    commit = read_git_commit()
+    if commit is None:
+        warnings.append("git commit unavailable")
+    image_digests = parse_images_lock()
+    if not image_digests:
+        warnings.append(f"images.lock.env missing or empty at {IMAGES_LOCK_PATH}")
+
+    # Mandatory artefacts of an external run (sprint P5, report 5.4):
+    # manifest.json plus the ingested timings file. Both are produced above
+    # by construction; the check guards against a failed copy leaving a
+    # directory that would otherwise be sealed as if it were complete.
+    missing_artifacts = missing_mandatory_artifacts(
+        run_dir, condition_id, runner="external"
+    )
+    external_reasons = (
+        [
+            "mandatory artefact(s) missing from the run directory: "
+            + ", ".join(missing_artifacts)
+            + " — an incomplete external run is never sealed"
+        ]
+        if missing_artifacts
+        else []
+    )
+
+    manifest: dict[str, Any] = {
+        "manifest_version": MANIFEST_VERSION,
+        "protocol_version": PROTOCOL_VERSION,
+        "run_id": run_id,
+        "condition_id": condition_id,
+        "runner": "external",
+        "scenario": None,
+        "repetition": entry.get("repetition"),
+        "seed": entry.get("seed"),
+        "commit": commit,
+        "image_digests": image_digests,
+        "environment_refs": {
+            "loadgen": LOADGEN_ENVIRONMENT_FILENAME,
+            "sut": SUT_ENVIRONMENT_FILENAME if sut_env_present else None,
+        },
+        "sut_environment_present": sut_env_present,
+        "external_timings_ref": "timings.json",
+        "external_method": timings.get("method"),
+        "external_notes": timings.get("notes"),
+        "external_sample_count": len(timings["samples"]),
+        "ingested_utc": utc_now_iso(),
+        # External runs are operator-measured; the timed-run SUT
+        # env/resource requirements do not apply (audit 9.6). The SUT
+        # environment is still recommended for cold_start/twin_creation.
+        "validity": "invalid" if external_reasons else "valid",
+        "validity_reasons": external_reasons,
+        "missing_mandatory_artifacts": missing_artifacts,
+        "exclusion": None,
+        "warnings": warnings,
+    }
+    (run_dir / MANIFEST_FILENAME).write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+    if missing_artifacts:
+        for reason in external_reasons:
+            print(f"[harness] INVALID: {reason}", file=sys.stderr, flush=True)
+        update_plan_status(
+            plan_path,
+            run_id,
+            "failed",
+            result_dir=str(run_dir),
+            finished_utc=manifest["ingested_utc"],
+            validity="invalid",
+        )
+        return 1
+    # Collection succeeded (the timings file is the evidence), so
+    # SHA256SUMS is written now.
+    write_sha256sums(run_dir)
+    update_plan_status(
+        plan_path,
+        run_id,
+        "completed",
+        result_dir=str(run_dir),
+        finished_utc=manifest["ingested_utc"],
+        validity="valid",
+    )
+    print(f"[harness] external run {run_id} completed", flush=True)
+    return 0
+
+
+# ---------------------------------------------------------------------------
+# Timed (simulator-driven) runs
+# ---------------------------------------------------------------------------
+
+
+def execute_run(
+    plan_path: str | Path,
+    run_id: str,
+    *,
+    base_dir: str | Path | None = None,
+    broker: str = "localhost",
+    port: int = 8883,
+    username: str | None = None,
+    password: str | None = None,
+    ca_cert: str | None = None,
+    no_tls: bool = False,
+    qos: int = 1,
+    egw_id: str | None = None,
+    event_log_dir: str | Path | None = None,
+    post_run_wait_s: float | None = None,
+    skip_warmup: bool = False,
+    skip_cooldown: bool = False,
+    fetch_events_cmd: str | None = None,
+    sut_env_from: str | Path | None = None,
+    resources_from: str | Path | None = None,
+    local_resources: bool = False,
+    allow_missing_sut_env: bool = False,
+    allow_missing_resources: bool = False,
+    allow_warmup_failure: bool = False,
+    allow_protocol_deviation: bool = False,
+    allow_missing_controller_marker: bool = False,
+    controller_url: str | None = None,
+    restart_cmd: str | None = None,
+    restart_at_s: float | None = None,
+    collector_start_cmd: str | None = None,
+    collector_stop_cmd: str | None = None,
+    collector_fetch_cmd: str | None = None,
+    expect_services: list[str] | None = None,
+    fetch_broker_log_cmd: str | None = None,
+    fetch_controller_log_cmd: str | None = None,
+    fetch_docker_events_cmd: str | None = None,
+    fetch_started_at_cmd: str | None = None,
+    restart_transition_rule: str | None = None,
+    twin_snapshot_cmd: str | None = None,
+    drain_cmd: str | None = None,
+    post_drain_fetch_cmd: str | None = None,
+    twins_before_from: str | Path | None = None,
+    twins_after_from: str | Path | None = None,
+    post_drain_events_from: str | Path | None = None,
+    drain_transcript_from: str | Path | None = None,
+    config_identity_from: str | Path | None = None,
+    external_timings: str | Path | None = None,
+    external_logs: str | Path | None = None,
+    extra_deviations: list[dict[str, Any]] | None = None,
+    metrics_fast_retry: bool = False,
+    execution_mode: str | None = None,
+) -> int:
+    """Execute one planned run end-to-end. Returns a process exit code.
+
+    ``extra_deviations`` lets a caller that manages protocol structure
+    ACROSS runs (the campaign batch runner, work order P1 item 12) record
+    deviations it is responsible for — e.g. the skipped cooldown BEFORE
+    this run — in this run's manifest; entries are {kind, detail,
+    authorized_by_flag} and are deduplicated by kind like every other
+    deviation.
+
+    The optional collector hooks (sprint P5, report 5.3) make a single run
+    — and therefore the campaign batch runner, which uses this same code
+    path — end-to-end: ``collector_start_cmd`` runs BEFORE the warm-up,
+    ``collector_stop_cmd`` AFTER the measured run and before the
+    confirmation window, ``collector_fetch_cmd`` AFTER the confirmation
+    window, producing the local resources.csv that then goes through the
+    EXISTING validated ingest path. Each template accepts the ``{run_id}``,
+    ``{duration_s}``, ``{dest}`` and ``{expect_services}`` placeholders.
+
+    ``expect_services`` (``--expect-services``) names the services the
+    collector must account for (an invalid list is refused with exit 2
+    before anything is written). Whenever the SUT resources come from the
+    collector — a fetch hook, ``--resources-from`` (the manual path, whose
+    file and companions are first copied to
+    ``logs/collector/resources-from/``) or start/stop hooks without a fetch
+    hook — :func:`inspect_collector_outputs` runs right after the fetch
+    point and its ``problems`` invalidate the timed run; a missing
+    ``expect_services`` is one of them. ``--local-resources`` (dev only)
+    is not inspected.
+
+    ADR 0011 item 18: ``fetch_broker_log_cmd``, ``fetch_controller_log_cmd``
+    and ``fetch_docker_events_cmd`` run through the collector-hook machinery
+    after the harness events fetch (last of all on ``controller_restart``,
+    so they cover the drain), each writing ``{dest}`` under ``logs/sut/``;
+    ``config_identity_from`` is copied to ``configuration_identity.json`` and
+    embedded in the manifest. For the ``controller_restart`` condition only,
+    ``twin_snapshot_cmd`` runs before the measured run (``twins.before.json``)
+    and after the drain (``twins.after.json``), ``drain_cmd`` blocks after
+    the events fetch, and ``post_drain_fetch_cmd`` fetches the second copy
+    of the events into ``events.post-drain.jsonl``; on any other condition
+    the three are ignored with a warning. Every hook failure is a validity
+    reason; the drain's outcome is classified (``drain.outcome``: quiet,
+    gave-up or error) and only 'error' is a reason; the templates accept
+    the collector hooks' placeholders. The same artefacts may instead be
+    ingested from files taken outside the harness (``twins_before_from``,
+    ``twins_after_from``, ``post_drain_events_from``,
+    ``drain_transcript_from``; one source per artefact, a hook AND a file
+    for the same one is a usage error, exit 2), each verified against this
+    run before it counts and recorded with its provenance.
+
+    ``fetch_started_at_cmd`` (decision 1a, adopted 2026-09-30, prospective;
+    opt-in): the StartedAt read (``tools/session/fetch_started_at.sh``), run
+    like ``fetch_docker_events_cmd`` right after it and before the resources
+    are ingested, writing ``{dest}`` = ``logs/sut/controller-started-at.txt``;
+    its record joins ``sut_log_fetches`` and a failure is a validity reason.
+    For a ``controller_restart`` run given it, the proved-down interval is
+    derived from the run directory (``egw_experiments.proved_down``) and, when
+    it exists, handed to the ingest of the collector's file; the manifest
+    records ``resources_proved_down`` (whether it applied or why not, and its
+    outcomes). Without the option nothing of this runs or is recorded.
+    ``collect`` never applies the interval.
+
+    ``restart_transition_rule`` (the restart transition rule, adopted
+    2026-10-05, prospective; opt-in): the rule's name,
+    ``resources.TRANSITION_RULE`` and nothing else, and only with
+    ``fetch_started_at_cmd`` (exit 2 before anything is written otherwise).
+    On a ``controller_restart`` run whose interval is established, the
+    collector's lifecycle record beside the CSV the run holds
+    (``<...>/resources-<run_id>.csv.lifecycle.csv``) is read
+    (``egw_experiments.proved_down.read_lifecycle_witness``) and handed to the
+    ingest with the interval; the manifest records ``resources_transition_rows``
+    (the rule's name, whether it admitted the controller's transition rows or
+    why not, and the rows). Without it nothing of this runs or is recorded.
+
+    ``execution_mode`` (G4 core provenance, plan 655-661): the operator's
+    declaration, one of ``environment.EXECUTION_MODES``, with no default and
+    no environment fallback. Any other value is refused with exit 2 before
+    anything is written; None is accepted and recorded, and the run is then
+    invalid (check P0). A simulator run records the load generator's
+    invocations (password redacted) in ``loadgen_environment.json``, takes a
+    snapshot of this host's QEMU process before the collector start hook and
+    another after the collector stop hook (never between the run-end stamp
+    and the controller marker), writes both once to
+    ``hypervisor_environment.json``, and checks the declaration against its
+    three records (:func:`run_provenance_record`); every failed check is a
+    validity reason with no override, and the run is still sealed. An
+    external run records none of this.
+    """
+    plan_path = Path(plan_path)
+    try:
+        plan = load_campaign_plan(plan_path)
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"error: cannot read campaign plan {plan_path}: {exc}", file=sys.stderr)
+        return 2
+
+    entry = next(
+        (r for r in plan.get("runs", []) if r.get("run_id") == run_id), None
+    )
+    if entry is None:
+        print(f"error: run_id {run_id!r} not found in {plan_path}", file=sys.stderr)
+        return 2
+    # The declared execution mode (G4 core provenance): a documented token,
+    # or None (recorded, and the run is invalid); anything else is a usage
+    # error, refused before anything is written.
+    if execution_mode is not None and execution_mode not in EXECUTION_MODES:
+        print(
+            f"error: execution mode {execution_mode!r} is not one of "
+            f"{', '.join(EXECUTION_MODES)} (--execution-mode has no default).",
+            file=sys.stderr,
+        )
+        return 2
+
+    base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
+
+    if entry.get("runner") != "simulator":
+        if external_timings is None:
+            print(
+                f"error: run {run_id!r} belongs to condition "
+                f"{entry.get('condition_id')!r}, which is not driven by the "
+                "simulator. External runs (cold starts, twin creations, "
+                "QEMU boots) are measured by the deployment/platform "
+                "procedures and ingested with --external-timings "
+                "<timings.json> [--external-logs <dir>] so the single "
+                "analysis script covers them (see the experiments README "
+                "and deployment/scripts/measure-cold-start.sh).",
+                file=sys.stderr,
+            )
+            return 2
+        if execution_mode is not None:
+            print(
+                f"[harness] note: --execution-mode {execution_mode} is not recorded "
+                "for an external run: external runs carry no provenance record "
+                "(the analysis reads them as unrecorded)",
+                flush=True,
+            )
+        return execute_external_run(
+            plan_path,
+            entry,
+            base_dir=base,
+            external_timings=external_timings,
+            external_logs=external_logs,
+            sut_env_from=(
+                sut_env_from
+                if sut_env_from is not None
+                else os.environ.get(SUT_ENV_FILE_ENV)
+            ),
+        )
+    if external_timings is not None:
+        print(
+            f"error: --external-timings is only valid for external "
+            f"conditions; run {run_id!r} is simulator-driven.",
+            file=sys.stderr,
+        )
+        return 2
+    resource_inputs = [
+        flag
+        for flag, configured in (
+            ("--resources-from", resources_from is not None),
+            ("--collector-fetch-cmd", collector_fetch_cmd is not None),
+            ("--local-resources", local_resources),
+        )
+        if configured
+    ]
+    if len(resource_inputs) > 1:
+        print(
+            "error: " + " and ".join(resource_inputs) + " are mutually "
+            "exclusive (the manifest records exactly one resource_source).",
+            file=sys.stderr,
+        )
+        return 2
+    # One source per restart evidence artefact (ADR 0011 item 18): the hook
+    # takes it, or a file taken outside the harness is ingested — never both.
+    for hook_flag, hook_template, from_flag, from_file in (
+        ("--twin-snapshot-cmd", twin_snapshot_cmd, "--twins-before-from", twins_before_from),
+        ("--twin-snapshot-cmd", twin_snapshot_cmd, "--twins-after-from", twins_after_from),
+        ("--drain-cmd", drain_cmd, "--drain-transcript-from", drain_transcript_from),
+        (
+            "--post-drain-fetch-cmd",
+            post_drain_fetch_cmd,
+            "--post-drain-events-from",
+            post_drain_events_from,
+        ),
+    ):
+        if hook_template and from_file is not None:
+            print(
+                f"error: {hook_flag} and {from_flag} are mutually exclusive: "
+                "one source per restart evidence artefact (the hook takes it, "
+                "or a file taken outside the harness is ingested).",
+                file=sys.stderr,
+            )
+            return 2
+    # The restart transition rule (adopted 2026-10-05) is named explicitly and
+    # works inside decision 1a's interval, which the StartedAt read establishes.
+    if restart_transition_rule is not None and restart_transition_rule != TRANSITION_RULE:
+        print(
+            f"error: --restart-transition-rule {restart_transition_rule!r} is not a "
+            f"rule of this harness; the one adopted (2026-10-05) is {TRANSITION_RULE!r}.",
+            file=sys.stderr,
+        )
+        return 2
+    if restart_transition_rule is not None and not fetch_started_at_cmd:
+        print(
+            "error: --restart-transition-rule needs --fetch-started-at-cmd: the "
+            "rule applies inside the proved-down interval of decision 1a, which "
+            "the StartedAt read establishes.",
+            file=sys.stderr,
+        )
+        return 2
+    collector_hooks_in_use = any(
+        (collector_start_cmd, collector_stop_cmd, collector_fetch_cmd)
+    )
+    if expect_services is not None:
+        try:
+            expect_services = (
+                parse_expected_services(expect_services)
+                if isinstance(expect_services, str)
+                else validate_expected_services(list(expect_services))
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+
+    if fetch_events_cmd is None:
+        fetch_events_cmd = os.environ.get(FETCH_EVENTS_CMD_ENV) or None
+    if sut_env_from is None:
+        sut_env_from = os.environ.get(SUT_ENV_FILE_ENV) or None
+
+    egw_id = egw_id or os.environ.get("EGW_ID", "egw-01")
+    event_log_dir = Path(
+        event_log_dir
+        if event_log_dir is not None
+        else os.environ.get("EGW_EVENT_LOG_DIR", "./data/events")
+    )
+    if post_run_wait_s is None:
+        post_run_wait_s = float(CONFIRMATION_WINDOW_S)
+
+    run_dir = base / "raw" / run_id
+    if run_dir.exists():
+        sealed_note = (
+            f" The directory is sealed ({SUMS_FILENAME} present)."
+            if run_dir_is_sealed(run_dir)
+            else ""
+        )
+        print(
+            f"error: {run_dir} already exists.{sealed_note} Raw run "
+            "directories are immutable evidence (plan 5.8); a repeat "
+            "requires a NEW run identity: use a new versioned run_id and "
+            "document the exclusion of the old one. To re-attempt "
+            "COLLECTION for this existing run use: "
+            f"python -m egw_experiments collect --run-id {run_id}",
+            file=sys.stderr,
+        )
+        return 2
+
+    logs_dir = run_dir / "logs"
+    logs_dir.mkdir(parents=True)
+    warnings: list[str] = []
+
+    print(f"[harness] run {run_id}: created {run_dir}", flush=True)
+    update_plan_status(plan_path, run_id, "running")
+
+    # Environments (audit 9.2): the SUT capture comes from the VM via
+    # --sut-env-from; the harness host capture, the LOAD GENERATOR's, is
+    # written below with the simulator invocations it records.
+    sut_env_present = ingest_sut_environment(run_dir, sut_env_from, warnings)
+    # SUT environment QUALITY (work order P1 fix 4): presence alone is not
+    # enough; a manifest without the REQUIRED_SUT_FIELDS is unusable.
+    sut_env_missing_fields: list[str] = []
+    if sut_env_present:
+        sut_env_missing_fields = validate_sut_environment(
+            read_sut_environment(run_dir)
+        )
+        if sut_env_missing_fields:
+            warnings.append(
+                "sut_environment.json missing required field(s): "
+                + ", ".join(sut_env_missing_fields)
+            )
+    # Configuration identity (ADR 0011 item 18): the guest-side capture of
+    # what the run rests on, copied write-once and embedded in the manifest.
+    configuration_identity = ingest_configuration_identity(
+        run_dir, config_identity_from, warnings
+    )
+
+    commit = read_git_commit()
+    if commit is None:
+        warnings.append("git commit unavailable")
+    image_digests = parse_images_lock()
+    if not image_digests:
+        warnings.append(f"images.lock.env missing or empty at {IMAGES_LOCK_PATH}")
+
+    scenario: str = entry["scenario"]
+    seed: int = int(entry["seed"])
+    duration_s: int = int(entry["duration_s"])
+    rate_msg_s: float = float(entry["rate_msg_s"])
+    warmup_s: int = int(entry.get("warmup_s") or 0)
+    cooldown_s: int = int(entry.get("cooldown_s") or 0)
+    condition_id = entry.get("condition_id")
+    timed = condition_id in TIMED_CONDITION_IDS or entry.get("runner") == "simulator"
+    restart_required = condition_id == "controller_restart"
+
+    # The simulator invocations, built once (CONTRACTS 7): the measured run's
+    # and the warm-up's (None without one), run below exactly as built and
+    # recorded, the password redacted, in the LOAD GENERATOR's environment
+    # record (audit 9.2; G4 core provenance, plan 655-661).
+    sim_output_dir = logs_dir / "simulator"
+    simulator_options: dict[str, Any] = dict(
+        scenario=scenario,
+        seed=seed,
+        rate_msg_s=rate_msg_s,
+        broker=broker,
+        port=port,
+        egw_id=egw_id,
+        qos=qos,
+        username=username,
+        password=password,
+        ca_cert=ca_cert,
+        no_tls=no_tls,
+    )
+    simulator_argv = _simulator_cmd(
+        duration_s=duration_s,
+        output_dir=sim_output_dir,
+        run_id=run_id,
+        **simulator_options,
+    )
+    warmup_argv = (
+        _simulator_cmd(
+            duration_s=warmup_s,
+            output_dir=logs_dir / "warmup",
+            run_id=f"{run_id}.warmup",
+            **simulator_options,
+        )
+        if warmup_s > 0 and not skip_warmup
+        else None
+    )
+    write_loadgen_environment(
+        run_dir / LOADGEN_ENVIRONMENT_FILENAME,
+        simulator_argv=simulator_argv,
+        warmup_argv=warmup_argv,
+    )
+
+    # Restart evidence (ADR 0011 item 18) belongs to the controller_restart
+    # condition: on any other run the three templates are ignored, so a
+    # campaign-wide flag never drains or snapshots a nominal run. The flags
+    # as given are still echoed in config.cli.
+    ignored_restart_flags = [
+        flag
+        for flag, value in (
+            ("--twin-snapshot-cmd", twin_snapshot_cmd),
+            ("--drain-cmd", drain_cmd),
+            ("--post-drain-fetch-cmd", post_drain_fetch_cmd),
+            ("--twins-before-from", twins_before_from),
+            ("--twins-after-from", twins_after_from),
+            ("--post-drain-events-from", post_drain_events_from),
+            ("--drain-transcript-from", drain_transcript_from),
+        )
+        if value and not restart_required
+    ]
+    if ignored_restart_flags:
+        warnings.append(
+            ", ".join(ignored_restart_flags)
+            + f" ignored on condition {condition_id!r}: the twin snapshots, "
+            "the drain and the post-drain events apply to the "
+            "controller_restart condition only"
+        )
+    snapshot_template = twin_snapshot_cmd if restart_required else None
+    drain_template = drain_cmd if restart_required else None
+    post_drain_template = post_drain_fetch_cmd if restart_required else None
+    before_source = twins_before_from if restart_required else None
+    after_source = twins_after_from if restart_required else None
+    drain_source = drain_transcript_from if restart_required else None
+    post_drain_source = post_drain_events_from if restart_required else None
+
+    started_utc = utc_now_iso()
+    sim_returncode: int | None = None
+    warmup_returncode: int | None = None
+
+    # Restart hook (claim C12): scheduled relative to the measured run start.
+    restart_record: dict[str, Any] | None = None
+    restart_timer: threading.Timer | None = None
+    if restart_cmd is not None:
+        if restart_at_s is None:
+            restart_at_s = duration_s / 2.0
+        restart_record = {
+            "template": restart_cmd,
+            "requested_at_s": restart_at_s,
+            "executed": False,
+            "returncode": None,
+        }
+
+    # Resource sampling: SUT collector output is ingested AFTER the run
+    # (--resources-from or the --collector-fetch-cmd hook); the local
+    # sampler measures THIS host and is a dev-only opt-in (audit 9.1).
+    local_sampler = (
+        ResourceSampler(run_dir / "resources.csv") if local_resources else None
+    )
+    # The finite proof's failed-poll retry: the sampler gets its settings
+    # only when the run asks for them, so every other run builds it exactly
+    # as before (egw_experiments.controller_metrics).
+    fast_retry = (
+        {
+            "fast_retry_s": FAST_RETRY_S,
+            "fast_retry_cap_s": FAST_RETRY_CAP_S,
+            "attempts_path": run_dir / "controller_metrics.attempts.csv",
+        }
+        if metrics_fast_retry
+        else {}
+    )
+    metrics_sampler = (
+        ControllerMetricsSampler(run_dir / "controller_metrics.csv", controller_url, **fast_retry)
+        if controller_url
+        else None
+    )
+
+    # SUT collector hooks (sprint P5, report 5.3). The collector must cover
+    # the whole protocol structure of this run: warm-up + measured window +
+    # confirmation window (plus a start-up margin), which is what the
+    # {duration_s} placeholder carries to a self-terminating collector. With
+    # a twin snapshot configured (controller_restart) the before-snapshot
+    # blocks between the collector start hook and the measured run for up
+    # to SNAPSHOT_TIMEOUT_S, so that allowance is added as well: otherwise
+    # a snapshot that legitimately outlasts the margin would let the
+    # collector end before the measured window (review finding F5). The
+    # stop hook still ends the collector right after the measured run.
+    collector_hooks: list[dict[str, Any]] = []
+    collector_window_s = (
+        (0 if skip_warmup else warmup_s)
+        + duration_s
+        + int(post_run_wait_s)
+        + COLLECTOR_DURATION_MARGIN_S
+        + (int(SNAPSHOT_TIMEOUT_S) if snapshot_template else 0)
+    )
+    collector_dest = (
+        logs_dir / COLLECTOR_FETCH_SUBDIR / f"resources-{run_id}.csv"
+    )
+
+    def _run_collector_hook(hook: str, template: str | None) -> None:
+        if not template:
+            return
+        print(
+            f"[harness] collector hook {COLLECTOR_HOOK_FLAGS[hook]}",
+            flush=True,
+        )
+        record = execute_collector_hook(
+            hook,
+            template,
+            run_id,
+            duration_s=collector_window_s,
+            dest=collector_dest,
+            expect_services=expect_services,
+            log_dir=collector_dest.parent,
+        )
+        # The full hook output is kept beside the fetched files (sealed with
+        # them); the manifest names it relative to the run directory.
+        for stream in ("stdout", "stderr"):
+            path = record.pop(f"{stream}_path", None)
+            if path is not None:
+                record[f"{stream}_file"] = (
+                    Path(path).relative_to(run_dir).as_posix()
+                )
+        collector_hooks.append(record)
+        if record.get("returncode") != 0:
+            print(
+                f"[harness] collector hook {COLLECTOR_HOOK_FLAGS[hook]} "
+                f"FAILED (exit {record.get('returncode')})",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    # Item-18 hooks (ADR 0011): the SUT log fetches, the twin snapshots and
+    # the drain go through the same machinery as the collector hooks (no
+    # shell, process-group timeout, full output kept), with their output
+    # under logs/sut/ and, where the hook must write a file, whether it did
+    # recorded beside its exit code. Every record lands in the manifest and
+    # every failure is a validity reason.
+    sut_log_dir = logs_dir / SUT_LOG_SUBDIR
+    sut_log_fetches: list[dict[str, Any]] = []
+    twin_snapshots: list[dict[str, Any]] = []
+    drain_record: dict[str, Any] | None = None
+    events_post_drain_fetch: dict[str, Any] | None = None
+
+    def _run_sut_hook(
+        hook: str,
+        template: str,
+        dest: Path,
+        *,
+        timeout_s: float | None = None,
+        report_failure: bool = True,
+    ) -> dict[str, Any]:
+        print(f"[harness] {HOOK_FLAGS[hook]}", flush=True)
+        record = execute_collector_hook(
+            hook,
+            template,
+            run_id,
+            duration_s=collector_window_s,
+            dest=dest,
+            expect_services=expect_services,
+            log_dir=sut_log_dir,
+            timeout_s=timeout_s,
+        )
+        for stream in ("stdout", "stderr"):
+            path = record.pop(f"{stream}_path", None)
+            if path is not None:
+                record[f"{stream}_file"] = (
+                    Path(path).relative_to(run_dir).as_posix()
+                )
+        record["dest_exists"] = dest.is_file()
+        if report_failure and record.get("returncode") != 0:
+            print(
+                f"[harness] {HOOK_FLAGS[hook]} FAILED "
+                f"(exit {record.get('returncode')})",
+                file=sys.stderr,
+                flush=True,
+            )
+        return record
+
+    def _take_twin_snapshot(hook: str) -> None:
+        """The snapshot ``hook``: through --twin-snapshot-cmd (under
+        SNAPSHOT_TIMEOUT_S, its file then verified like an ingested one) or
+        ingested from the --twins-*-from file; either way recorded with its
+        source."""
+        if snapshot_template:
+            record = _run_sut_hook(
+                hook,
+                snapshot_template,
+                run_dir / TWIN_SNAPSHOT_FILES[hook],
+                timeout_s=SNAPSHOT_TIMEOUT_S,
+            )
+            record["file"] = TWIN_SNAPSHOT_FILES[hook]
+            record["source"] = "hook"
+            verify_twin_snapshot_record(
+                record, run_dir, seed=seed, twin_snapshots=twin_snapshots
+            )
+            twin_snapshots.append(record)
+            return
+        source = before_source if hook == "twin_snapshot_before" else after_source
+        if source is None:
+            return
+        print(f"[harness] {RESTART_EVIDENCE_FROM_FLAGS[hook]}", flush=True)
+        twin_snapshots.append(
+            ingest_twin_snapshot(
+                run_dir,
+                hook,
+                source,
+                seed=seed,
+                warnings=warnings,
+                twin_snapshots=twin_snapshots,
+            )
+        )
+
+    if any(
+        (
+            fetch_broker_log_cmd,
+            fetch_controller_log_cmd,
+            fetch_docker_events_cmd,
+            fetch_started_at_cmd,
+            snapshot_template,
+            drain_template,
+        )
+    ):
+        # The fetches write into logs/sut/ themselves (scp, a helper): the
+        # directory must exist before the first of them runs.
+        sut_log_dir.mkdir(parents=True, exist_ok=True)
+
+    if collector_hooks_in_use:
+        collector_dest.parent.mkdir(parents=True, exist_ok=True)
+    # The hypervisor's start snapshot (G4 core provenance): this host's QEMU
+    # process, read from /proc BEFORE the collector starts, beside the load
+    # generator's record (co-location) and the generator's target.
+    loadgen_env = read_environment_record(run_dir, LOADGEN_ENVIRONMENT_FILENAME)
+    hypervisor_start = capture_hypervisor_snapshot(
+        loadgen_env=loadgen_env, broker=broker, port=port
+    )
+    # Started BEFORE the warm-up so the collector covers the whole run.
+    _run_collector_hook("start", collector_start_cmd)
+
+    try:
+        if local_sampler is not None:
+            local_sampler.__enter__()
+        if metrics_sampler is not None:
+            metrics_sampler.__enter__()
+
+        if warmup_argv is not None:
+            print(f"[harness] warm-up: {warmup_s} s", flush=True)
+            warmup_returncode = _run_subprocess(
+                warmup_argv,
+                logs_dir / "warmup.log",
+                timeout_s=warmup_s + SUBPROCESS_GRACE_S,
+            )
+            if warmup_returncode != 0:
+                warnings.append(f"warm-up exited with code {warmup_returncode}")
+
+        # Twin snapshot BEFORE the measured run (controller_restart only): the
+        # twins as the warm-up left them, taken before the restart timer can
+        # fire; the second snapshot follows the drain.
+        _take_twin_snapshot("twin_snapshot_before")
+
+        print(f"[harness] measured run: {duration_s} s at {rate_msg_s} msg/s", flush=True)
+        # Measured window (audit 9.4): wall-clock stamps immediately around
+        # the measured simulator invocation; see MEASURED_WINDOW_CLOCK_NOTE.
+        measured_start_utc = utc_now_iso()
+        measured_started_monotonic_ns = time.monotonic_ns()
+        if restart_record is not None:
+            restart_timer = threading.Timer(
+                float(restart_at_s),
+                _execute_restart_cmd,
+                args=(restart_cmd, run_id, restart_record),
+            )
+            restart_timer.daemon = True
+            restart_timer.start()
+        sim_returncode = _run_subprocess(
+            simulator_argv,
+            logs_dir / "simulator.log",
+            timeout_s=duration_s + SUBPROCESS_GRACE_S,
+        )
+        if restart_timer is not None:
+            restart_timer.cancel()
+            restart_timer.join(timeout=FETCH_TIMEOUT_S + 30.0)
+        finished_monotonic_ns = time.monotonic_ns()
+        finished_utc = utc_now_iso()
+        measured_end_utc = finished_utc
+
+        # Confirmation marker (sprint P5, report 5.2; timing corrected in
+        # P5.4 defect 5): stamp the run end in the CONTROLLER's clock domain
+        # HERE — immediately after finished_utc, still inside the try, BEFORE
+        # the samplers are joined and before any hook. Anything done first
+        # would push the marker later and silently widen the confirmation
+        # window: joining the samplers alone can wait on an in-flight 20 s
+        # docker-stats call or a 5 s /metrics fetch (each __exit__ joins with
+        # a 30 s timeout), and the analysis trusts the resulting deadline
+        # verbatim. The 60 s value itself is unchanged; only the instant it
+        # is counted from is fixed correctly.
+        controller_marker = poll_controller_marker(controller_url)
+        controller_marker_polled_monotonic_ns = time.monotonic_ns()
+    finally:
+        if metrics_sampler is not None:
+            metrics_sampler.__exit__(None, None, None)
+        if local_sampler is not None:
+            local_sampler.__exit__(None, None, None)
+
+    if restart_record is not None and not restart_record["executed"]:
+        warnings.append(
+            f"--restart-cmd was scheduled at {restart_at_s} s but the "
+            "measured run ended before it fired; no restart was executed"
+        )
+    if local_sampler is not None and local_sampler.error:
+        warnings.append(f"local resource sampling degraded: {local_sampler.error}")
+        print(f"[harness] warning: {local_sampler.error}", flush=True)
+    if metrics_sampler is not None and metrics_sampler.poll_errors:
+        warnings.append(
+            f"controller metrics sampler had {metrics_sampler.poll_errors} "
+            f"failed poll(s); last error: {metrics_sampler.last_error}"
+        )
+    if metrics_sampler is not None and metrics_sampler.invalid_values:
+        # Strict numeric rule (P5.4 defect 4): refused counter values are
+        # empty cells in controller_metrics.csv, never 'inf'/'nan'/'-1'.
+        warnings.append(
+            f"controller metrics sampler refused "
+            f"{metrics_sampler.invalid_values} counter value(s) that are not "
+            f"non-negative integers; last: {metrics_sampler.last_invalid}"
+        )
+    # One snapshot of the sampler's file failures, taken once __exit__ has
+    # returned (after which nothing more is recorded; a thread that outlived
+    # its join is itself one), serves both the validity and the manifest.
+    metrics_write_error = (
+        metrics_sampler.write_error if metrics_sampler is not None else None
+    )
+    metrics_write_errors = (
+        list(metrics_sampler.write_errors) if metrics_sampler is not None else []
+    )
+    if metrics_write_error is not None:
+        # An instrumentation failure (work order of 2026-09-29, A2), unlike
+        # the failed polls above: a validity reason, not only a warning.
+        warnings.append(
+            "controller metrics sampler stopped on an instrumentation failure: "
+            f"{metrics_write_error}; its files hold only the rows written "
+            "before it"
+        )
+        print(
+            f"[harness] error: controller metrics sampler stopped on a file "
+            f"failure: {metrics_write_error}",
+            file=sys.stderr,
+            flush=True,
+        )
+    if sim_returncode != 0:
+        warnings.append(f"simulator exited with code {sim_returncode}")
+
+    # Marker lag (P5.4 defect 5): how long after the end of the measured
+    # window the marker was actually read. The window it anchors is
+    # effectively CONFIRMATION_WINDOW_S + lag, so the lag is recorded with
+    # the marker and an excess is reported as a warning AND a deviation.
+    # Measured on the harness monotonic clock (same domain as
+    # finished_monotonic_ns), which is the elapsed wall time between
+    # finished_utc and the marker poll without wall-clock step risk.
+    controller_marker_lag_s = max(
+        0.0,
+        (controller_marker_polled_monotonic_ns - finished_monotonic_ns) / 1e9,
+    )
+    controller_marker["lag_s"] = round(controller_marker_lag_s, 6)
+    controller_marker["lag_tolerance_s"] = CONTROLLER_MARKER_LAG_TOLERANCE_S
+    marker_lag_exceeded = (
+        controller_marker_lag_s > CONTROLLER_MARKER_LAG_TOLERANCE_S
+    )
+    if marker_lag_exceeded:
+        warnings.append(
+            f"the confirmation marker was polled {controller_marker_lag_s:.3f} "
+            f"s after the end of the measured window, above the "
+            f"{CONTROLLER_MARKER_LAG_TOLERANCE_S:.3f} s tolerance "
+            f"(CONTROLLER_MARKER_LAG_TOLERANCE_S): the {CONFIRMATION_WINDOW_S} "
+            "s confirmation window is anchored on that later instant, so its "
+            "effective grace was longer than the protocol prescribes"
+        )
+    if controller_marker["ok"]:
+        controller_monotonic_at_run_end_ns = int(controller_marker["monotonic_ns"])
+        confirmation_deadline_monotonic_ns: int | None = (
+            controller_monotonic_at_run_end_ns
+            + CONFIRMATION_WINDOW_S * 1_000_000_000
+        )
+        confirmation_deadline_clock_domain = "controller"
+    else:
+        controller_monotonic_at_run_end_ns = None
+        confirmation_deadline_monotonic_ns = None
+        confirmation_deadline_clock_domain = "unavailable"
+        warnings.append(
+            "controller confirmation marker unavailable: "
+            f"{controller_marker['error']}"
+        )
+
+    # Collector stop hook: AFTER the measured run, BEFORE the confirmation
+    # window (the collector must not keep sampling the idle system).
+    _run_collector_hook("stop", collector_stop_cmd)
+
+    # The hypervisor's end snapshot (G4 core provenance), after the collector
+    # stop hook: never between the run-end stamp and the controller marker
+    # (P5.4 defect 5). The record holds both snapshots, is written once and is
+    # sealed with the run; a record that cannot be written leaves the run
+    # without it (environment_refs.hypervisor null), which the checks name.
+    hypervisor_end = capture_hypervisor_snapshot(
+        loadgen_env=loadgen_env, broker=broker, port=port
+    )
+    hypervisor_ref: str | None = HYPERVISOR_ENVIRONMENT_FILENAME
+    try:
+        write_hypervisor_environment(
+            run_dir / HYPERVISOR_ENVIRONMENT_FILENAME, hypervisor_start, hypervisor_end
+        )
+    except OSError as exc:
+        hypervisor_ref = None
+        warnings.append(
+            f"{HYPERVISOR_ENVIRONMENT_FILENAME} could not be written ({exc}): the "
+            "run has no hypervisor record"
+        )
+        print(
+            f"[harness] error: {HYPERVISOR_ENVIRONMENT_FILENAME} could not be "
+            f"written: {exc}",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    # Confirmation window (plan 7.3): confirmations arriving up to 60 s after
+    # the end of the run still count; wait before collecting the event log.
+    if post_run_wait_s > 0:
+        print(
+            f"[harness] waiting {post_run_wait_s:.0f} s confirmation window",
+            flush=True,
+        )
+        time.sleep(post_run_wait_s)
+
+    # Collector fetch hook: AFTER the confirmation window, producing the
+    # local CSV that goes through the EXISTING validated ingest path below,
+    # with the collector's companions beside it in logs/collector/. The
+    # helper it runs is identified by its sha256 first (manifest 1.4).
+    fetch_helper: dict[str, Any] | None = None
+    if collector_fetch_cmd:
+        fetch_helper = identify_hook_helper(
+            format_collector_template(
+                collector_fetch_cmd,
+                run_id,
+                duration_s=collector_window_s,
+                dest=collector_dest,
+                expect_services=expect_services,
+            )
+        )
+        if fetch_helper["sha256"] is None:
+            warnings.append(
+                "the helper run by --collector-fetch-cmd "
+                f"({fetch_helper['path']!r}) is not a readable local file, "
+                "so its sha256 is not recorded and the fetch helper that ran "
+                "cannot be identified"
+            )
+    _run_collector_hook("fetch", collector_fetch_cmd)
+    resources_ingest_from: str | Path | None = resources_from
+    resources_source_label = "--resources-from"
+    if collector_fetch_cmd:
+        resources_source_label = "--collector-fetch-cmd output"
+        if collector_dest.is_file():
+            resources_ingest_from = collector_dest
+        else:
+            warnings.append(
+                f"--collector-fetch-cmd produced no file at {collector_dest}"
+            )
+
+    # Collector output accounting (2026-09-19), right after the fetch and
+    # long before the seal: which files arrived, which collector produced
+    # them, whether it stopped cleanly and whether every expected service
+    # has rows. Every problem is a validity reason of the timed run. The
+    # manual path (--resources-from) is accounted for exactly like the fetch
+    # hook: its file and the companions beside it are copied (write-once)
+    # into logs/collector/resources-from/ so the seal covers them, then
+    # inspected. --local-resources (dev only) has no collector output.
+    collector_record: dict[str, Any] = {
+        "expected_services": expect_services,
+        "hooks_in_use": collector_hooks_in_use,
+        "source": None,
+    }
+    collector_problems: list[str] = []
+    inspect_target: Path | None = None
+    if collector_fetch_cmd:
+        collector_record["source"] = "--collector-fetch-cmd"
+        collector_record["fetch_helper_path"] = fetch_helper["path"]
+        collector_record["fetch_helper_sha256"] = fetch_helper["sha256"]
+        inspect_target = collector_dest
+    elif resources_from is not None:
+        collector_record["source"] = "--resources-from"
+        collector_record["source_path"] = str(resources_from)
+        inspect_target, copy_pairs = resources_from_copy_plan(
+            resources_from, run_dir, run_id
+        )
+        copy_resources_from_outputs(copy_pairs, run_dir)
+    elif collector_hooks_in_use:
+        inspect_target = collector_dest
+    if inspect_target is not None:
+        inspection = inspect_collector_outputs(
+            inspect_target, expect_services, run_dir=run_dir
+        )
+        if collector_record["source"] is None:
+            inspection["problems"].insert(
+                0,
+                "collector hooks are configured without --collector-fetch-cmd "
+                "or --resources-from: the collector's CSV and companions were "
+                f"not fetched into logs/{COLLECTOR_FETCH_SUBDIR}/",
+            )
+        collector_record.update(inspection)
+        collector_problems = list(inspection["problems"])
+        warnings.extend(collector_warnings(collector_record))
+        for problem in collector_problems:
+            print(
+                f"[harness] collector output problem: {problem}",
+                file=sys.stderr,
+                flush=True,
+            )
+
+    # Simulator outputs: sent_events.jsonl to the run root (the analysis
+    # joins on it); the simulator's own manifest stays where the simulator
+    # wrote it, logs/simulator/<run_id>/ (P1c fix F0: the simulator writes
+    # under <output>/<run_id>/, never directly into <output>/ — see
+    # simulator_run_dir and egw_simulator.runner).
+    sent_src = simulator_run_dir(sim_output_dir, run_id) / "sent_events.jsonl"
+    if sent_src.is_file():
+        shutil.copyfile(sent_src, run_dir / "sent_events.jsonl")
+    else:
+        warnings.append(f"simulator sent_events.jsonl not found at {sent_src}")
+
+    # Events collection (audit 9.3): fetch command first, local fallback.
+    fetch_info: dict[str, Any] = {}
+    events_source = collect_events(
+        run_id=run_id,
+        dest=run_dir / "events.jsonl",
+        fetch_events_cmd=fetch_events_cmd,
+        event_log_dir=event_log_dir,
+        warnings=warnings,
+        fetch_info=fetch_info,
+    )
+    if events_source is None:
+        print(
+            f"[harness] error: events.jsonl for {run_id!r} was NOT "
+            "collected; SHA256SUMS is withheld. Recover with: "
+            f"python -m egw_experiments collect --run-id {run_id} "
+            "--fetch-events-cmd '...'",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    # Restart evidence (ADR 0011 item 18; controller_restart only), AFTER the
+    # harness events fetch so the two event copies stay apart: the blocking
+    # drain (the runbook's `drained` helper, which returns once the
+    # controller has been quiet for its window or gives up), then the
+    # post-drain fetch of the events into events.post-drain.jsonl (the same
+    # retried fetch as events.jsonl), then the second twin snapshot.
+    if drain_template:
+        drain_record = _run_sut_hook(
+            "drain",
+            drain_template,
+            sut_log_dir / DRAIN_TRANSCRIPT_FILENAME,
+            timeout_s=DRAIN_TIMEOUT_S,
+            report_failure=False,
+        )
+        # The drain writes no file of its own; {dest} is only a placeholder.
+        drain_record.pop("dest_exists", None)
+        drain_record["source"] = "hook"
+        # The OUTCOME (review finding F2): from the exit code and the output
+        # the hook kept. 'gave-up' is a valid observation of failed recovery;
+        # only 'error' is a validity reason. The proof's evaluator reads
+        # drain.outcome and applies the ADR's rule itself.
+        drain_record["outcome"] = drain_hook_outcome(drain_record, run_dir)
+        drain_record["verified"] = drain_record["outcome"] != "error"
+        if drain_record["outcome"] == "error":
+            print(
+                f"[harness] --drain-cmd FAILED (exit {drain_record.get('returncode')}, "
+                "outcome error: an instrument failure)",
+                file=sys.stderr,
+                flush=True,
+            )
+        elif drain_record["outcome"] == "gave-up":
+            print(
+                "[harness] --drain-cmd gave up: the controller was not observed "
+                "quiet within the helper's limit (a failed recovery, retained)",
+                flush=True,
+            )
+    elif drain_source is not None:
+        print("[harness] --drain-transcript-from", flush=True)
+        drain_record = ingest_drain_transcript(
+            run_dir,
+            drain_source,
+            run_id=run_id,
+            window_end_utc=measured_end_utc,
+            warnings=warnings,
+        )
+    if post_drain_template:
+        print("[harness] --post-drain-fetch-cmd", flush=True)
+        post_drain_ok, post_drain_cmd, post_drain_attempts = fetch_events_via_cmd(
+            post_drain_template, run_id, run_dir / POST_DRAIN_EVENTS_FILENAME
+        )
+        events_post_drain_fetch = {
+            "template": post_drain_template,
+            "command": post_drain_cmd,
+            "attempts": post_drain_attempts,
+            "ok": post_drain_ok,
+            "file": POST_DRAIN_EVENTS_FILENAME,
+            "source": "hook",
+        }
+        verify_post_drain_record(events_post_drain_fetch, run_dir, run_id)
+        if not post_drain_ok:
+            warnings.append(
+                f"post-drain fetch failed after {len(post_drain_attempts)} "
+                f"attempt(s): {post_drain_cmd}"
+            )
+            print(
+                "[harness] --post-drain-fetch-cmd FAILED: no "
+                f"{POST_DRAIN_EVENTS_FILENAME}",
+                file=sys.stderr,
+                flush=True,
+            )
+        elif not events_post_drain_fetch["verified"]:
+            warnings.append(
+                f"post-drain fetch wrote {POST_DRAIN_EVENTS_FILENAME} but it is "
+                "not the post-drain copy of this run's events: "
+                + "; ".join(events_post_drain_fetch["problems"])
+            )
+    elif post_drain_source is not None:
+        print("[harness] --post-drain-events-from", flush=True)
+        events_post_drain_fetch = ingest_post_drain_events(
+            run_dir, run_id, post_drain_source, warnings=warnings
+        )
+    _take_twin_snapshot("twin_snapshot_after")
+    warnings.extend(
+        restart_evidence_notes(twin_snapshots, drain_record, events_post_drain_fetch)
+    )
+
+    # SUT log fetches (ADR 0011 item 18): the broker log, the controller
+    # container log and the docker events of the run, last so that on
+    # controller_restart they cover the drain as well; each must write its
+    # file under logs/sut/, which the seal then covers.
+    for hook, template in (
+        ("broker_log", fetch_broker_log_cmd),
+        ("controller_log", fetch_controller_log_cmd),
+        ("docker_events", fetch_docker_events_cmd),
+    ):
+        if not template:
+            continue
+        dest = sut_log_dir / SUT_LOG_FILES[hook]
+        record = _run_sut_hook(hook, template, dest)
+        record["dest_file"] = dest.relative_to(run_dir).as_posix()
+        sut_log_fetches.append(record)
+
+    # The StartedAt read of decision 1a (adopted 2026-09-30; opt-in), right
+    # after the docker-events fetch, which stopped and judged the run's
+    # capture, and before the resources are ingested, where the rule applies.
+    # Its record joins the SUT fetches: a failure is a reason like theirs.
+    if fetch_started_at_cmd:
+        dest = sut_log_dir / STARTED_AT_FILENAME
+        record = _run_sut_hook(STARTED_AT_HOOK, fetch_started_at_cmd, dest)
+        record["dest_file"] = dest.relative_to(run_dir).as_posix()
+        sut_log_fetches.append(record)
+
+    # The proved-down interval (decision 1a): for a controller_restart run
+    # given the StartedAt read only, derived from what the run directory now
+    # holds (the restart record, the capture, its verdict and the StartedAt
+    # record) and, when it exists, handed to the ingest below. Nothing of it
+    # runs, or is recorded, on any other run.
+    proved_down_interval: ProvedDownInterval | None = None
+    proved_down_derivation: tuple[str | None, dict[str, Any]] | None = None
+    proved_down_outcome: dict[str, Any] = {}
+    if fetch_started_at_cmd and restart_required:
+        proved_down_interval, why_not, facts = derive_proved_down(
+            run_dir,
+            {
+                "condition_id": condition_id,
+                "restart": restart_record,
+                "sut_log_fetches": sut_log_fetches,
+            },
+        )
+        proved_down_derivation = (why_not, facts)
+        print(
+            "[harness] proved-down interval (decision 1a): "
+            + (
+                f"{facts['die_utc']} to {facts['start_utc']}"
+                if proved_down_interval is not None
+                else f"none ({why_not})"
+            ),
+            flush=True,
+        )
+
+    # The restart transition rule (adopted 2026-10-05; opt-in, beside the
+    # StartedAt read): with an established interval, the collector's own
+    # lifecycle record of this run - the companion of the CSV the run holds,
+    # in logs/collector/ - is read as the rule's witness and handed to the
+    # ingest below. Nothing of it runs, or is recorded, without the option.
+    transition_witness: LifecycleWitness | None = None
+    transition_outcome: dict[str, Any] = {}
+    lifecycle_path: Path | None = None
+    if restart_transition_rule and proved_down_interval is not None:
+        lifecycle_path = (
+            inspect_target.with_name(inspect_target.name + LIFECYCLE_SUFFIX)
+            if inspect_target is not None
+            else None
+        )
+        transition_witness = read_lifecycle_witness(
+            lifecycle_path, proved_down_derivation[1].get("container_id")
+        )
+
+    # SUT resources ingestion (audit 9.1), content- AND semantically
+    # validated against this run's measured window (sprint P5, report 5.4).
+    measured_window_s = max(
+        0.0, (finished_monotonic_ns - measured_started_monotonic_ns) / 1e9
+    )
+    if ingest_resources(
+        run_dir,
+        resources_ingest_from,
+        warnings,
+        expected_window_s=measured_window_s,
+        expected_window_start_utc=measured_start_utc,
+        expected_window_end_utc=measured_end_utc,
+        source_label=resources_source_label,
+        proved_down=proved_down_interval,
+        proved_down_outcome=proved_down_outcome,
+        transition_witness=transition_witness,
+        transition_outcome=transition_outcome,
+    ):
+        resource_source = "sut-collector"
+    elif local_resources:
+        resource_source = "local-dev"
+    else:
+        resource_source = "none"
+    resources_proved_down = (
+        proved_down_record(
+            proved_down_interval,
+            *proved_down_derivation,
+            outcome=proved_down_outcome,
+            resources_ingested=resource_source == "sut-collector",
+        )
+        if proved_down_derivation is not None
+        else None
+    )
+    resources_transition_rows = (
+        transition_record(
+            restart_transition_rule,
+            proved_down_interval,
+            *proved_down_derivation,
+            outcome=transition_outcome,
+            lifecycle_path=lifecycle_path,
+            run_dir=run_dir,
+            resources_ingested=resource_source == "sut-collector",
+        )
+        if restart_transition_rule and proved_down_derivation is not None
+        else None
+    )
+    if resources_transition_rows is not None:
+        print(
+            transition_console_line(restart_transition_rule, resources_transition_rows),
+            flush=True,
+        )
+
+    restart_ok = (
+        restart_record is not None and restart_record.get("returncode") == 0
+    )
+
+    # Protocol-deviation record (work order P1 fix 5): every departure from
+    # the frozen protocol is written down, whether authorized by an explicit
+    # flag (authorized_by_flag set) or not (None; those normally also
+    # produce a validity reason).
+    deviations: list[dict[str, Any]] = []
+    for extra in extra_deviations or []:
+        _append_deviation(
+            deviations,
+            str(extra.get("kind")),
+            str(extra.get("detail")),
+            extra.get("authorized_by_flag"),
+        )
+    if skip_warmup:
+        _append_deviation(
+            deviations,
+            "skip_warmup",
+            f"planned warm-up ({warmup_s} s) skipped via --skip-warmup on "
+            f"condition {condition_id!r}",
+            "--allow-protocol-deviation" if allow_protocol_deviation else None,
+        )
+    if warmup_returncode not in (0, None):
+        _append_deviation(
+            deviations,
+            "warmup_nonzero_exit",
+            f"warm-up simulator subprocess exited with code "
+            f"{warmup_returncode}",
+            "--allow-warmup-failure" if allow_warmup_failure else None,
+        )
+    if float(post_run_wait_s) != float(CONFIRMATION_WINDOW_S):
+        _append_deviation(
+            deviations,
+            "confirmation_window_override",
+            f"post-run wait {post_run_wait_s} s differs from the protocol "
+            f"confirmation window {CONFIRMATION_WINDOW_S} s (plan 7.3)",
+            "--post-run-wait",
+        )
+    if skip_cooldown and cooldown_s > 0:
+        _append_deviation(
+            deviations,
+            "cooldown_skipped",
+            f"planned cooldown ({cooldown_s} s) skipped via --skip-cooldown",
+            "--skip-cooldown",
+        )
+    if (
+        timed
+        and allow_missing_sut_env
+        and (not sut_env_present or sut_env_missing_fields)
+    ):
+        _append_deviation(
+            deviations,
+            "missing_sut_environment",
+            "timed run without a usable sut_environment.json accepted"
+            + (
+                f" (present but missing: {', '.join(sut_env_missing_fields)})"
+                if sut_env_present
+                else " (file absent)"
+            ),
+            "--allow-missing-sut-env",
+        )
+    if timed and allow_missing_resources and resource_source != "sut-collector":
+        _append_deviation(
+            deviations,
+            "missing_sut_resources",
+            "timed run without SUT-collector resources accepted "
+            f"(resource_source: {resource_source})",
+            "--allow-missing-resources",
+        )
+    if marker_lag_exceeded:
+        _append_deviation(
+            deviations,
+            "confirmation_marker_lag",
+            f"the confirmation marker was polled {controller_marker_lag_s:.3f} "
+            "s after the end of the measured window (tolerance "
+            f"{CONTROLLER_MARKER_LAG_TOLERANCE_S:.3f} s): the "
+            f"{CONFIRMATION_WINDOW_S} s confirmation window of this run was "
+            "counted from an instant later than the true run end, so late "
+            "confirmations may have been accepted in-window",
+            None,
+        )
+    if timed and not controller_marker["ok"]:
+        _append_deviation(
+            deviations,
+            "confirmation_marker_unavailable",
+            "the run end was not stamped in the controller's clock domain "
+            f"({controller_marker['error']}); the analysis must fall back to "
+            "the legacy event-derived confirmation deadline",
+            (
+                "--allow-missing-controller-marker"
+                if allow_missing_controller_marker
+                else None
+            ),
+        )
+
+    # Mandatory artefacts per condition kind (sprint P5, report 5.4): an
+    # incomplete run is INVALID and is never sealed.
+    missing_artifacts = missing_mandatory_artifacts(
+        run_dir,
+        condition_id,
+        runner="simulator",
+        allow_missing_resources=allow_missing_resources,
+    )
+
+    # G4 core provenance (plan 655-661): the declaration checked against the
+    # run's three records as they are sealed (the files 'collect' re-checks),
+    # and the image identity read from the hypervisor record.
+    provenance = run_provenance_record(run_dir, execution_mode, broker, port)
+    image_identity = image_identity_record(
+        read_environment_record(run_dir, HYPERVISOR_ENVIRONMENT_FILENAME),
+        configuration_identity,
+    )
+
+    validity, validity_reasons = compute_validity(
+        timed=timed,
+        sut_env_present=sut_env_present,
+        allow_missing_sut_env=allow_missing_sut_env,
+        resource_source=resource_source,
+        allow_missing_resources=allow_missing_resources,
+        restart_required=condition_id == "controller_restart",
+        restart_ok=restart_ok,
+        sut_env_missing_fields=sut_env_missing_fields,
+        simulator_returncode=sim_returncode,
+        warmup_returncode=warmup_returncode,
+        allow_warmup_failure=allow_warmup_failure,
+        skip_warmup=skip_warmup,
+        condition_id=condition_id,
+        allow_protocol_deviation=allow_protocol_deviation,
+        confirmation_marker_ok=bool(controller_marker["ok"]),
+        allow_missing_controller_marker=allow_missing_controller_marker,
+        collector_hooks=collector_hooks,
+        missing_artifacts=missing_artifacts,
+        collector_problems=collector_problems,
+        sut_log_fetches=sut_log_fetches,
+        twin_snapshots=twin_snapshots,
+        drain=drain_record,
+        events_post_drain_fetch=events_post_drain_fetch,
+        config_identity_ok=configuration_identity is not None,
+        metrics_write_error=metrics_write_error,
+        provenance_problems=provenance["problems"],
+    )
+    if validity == "invalid":
+        for reason in validity_reasons:
+            print(f"[harness] INVALID: {reason}", file=sys.stderr, flush=True)
+
+    ok = sim_returncode == 0 and events_source is not None and validity == "valid"
+
+    manifest: dict[str, Any] = {
+        "manifest_version": MANIFEST_VERSION,
+        "protocol_version": PROTOCOL_VERSION,
+        "plan_master_seed": plan.get("master_seed"),
+        "run_id": run_id,
+        "condition_id": condition_id,
+        "runner": "simulator",
+        # G4 core provenance (manifest 1.5): the declared token, or null when
+        # unset (the run is then invalid); never inferred.
+        "execution_mode": execution_mode,
+        "scenario": scenario,
+        "repetition": entry.get("repetition"),
+        "seed": seed,
+        "rate_msg_s": rate_msg_s,
+        "duration_s": duration_s,
+        "warmup_s": 0 if skip_warmup else warmup_s,
+        "cooldown_s": cooldown_s,
+        "commit": commit,
+        "image_digests": image_digests,
+        # What the guest booted and the emulator ran (manifest 1.5), from the
+        # hypervisor record's start snapshot; null where not read.
+        "image_identity": image_identity,
+        # Three environments (audit 9.2; manifest 1.5): sut = the system
+        # under test (ARM VM), loadgen = the harness/simulator host,
+        # hypervisor = the QEMU process on that host.
+        "environment_refs": {
+            "loadgen": LOADGEN_ENVIRONMENT_FILENAME,
+            "sut": SUT_ENVIRONMENT_FILENAME if sut_env_present else None,
+            "hypervisor": hypervisor_ref,
+        },
+        "sut_environment_present": sut_env_present,
+        "sut_environment_missing_fields": sut_env_missing_fields,
+        "allow_missing_sut_env": allow_missing_sut_env,
+        "resource_source": resource_source,
+        "allow_missing_resources": allow_missing_resources,
+        "allow_warmup_failure": allow_warmup_failure,
+        "allow_protocol_deviation": allow_protocol_deviation,
+        "allow_missing_controller_marker": allow_missing_controller_marker,
+        # Protocol deviations (work order P1 fix 5): {kind, detail,
+        # authorized_by_flag} entries; the analysis lists them per run.
+        "deviations": deviations,
+        # SUT collector hooks (sprint P5, report 5.3): every hook's command,
+        # exit code and start/end timestamps, in execution order.
+        "collector_hooks": collector_hooks,
+        # Collector output accounting (manifest 1.4): what the fetch hook
+        # delivered, which collector produced it, its inventory, the rows
+        # per expected service and the problems that invalidate the run.
+        "collector": collector_record,
+        # Mandatory evidence of this condition kind that is absent (report
+        # 5.4). Non-empty => validity 'invalid' AND no SHA256SUMS.
+        "missing_mandatory_artifacts": missing_artifacts,
+        "controller_metrics": (
+            {
+                "url": controller_url,
+                "samples_written": metrics_sampler.samples_written,
+                "poll_errors": metrics_sampler.poll_errors,
+                "last_error": metrics_sampler.last_error,
+                # Strict numeric rule (P5.4 defect 4): counter values that
+                # are not non-negative integers are written as empty cells.
+                "invalid_values": metrics_sampler.invalid_values,
+                "last_invalid_value": metrics_sampler.last_invalid,
+                # A file of the sampler that failed (A2), or its thread still
+                # running after the join: the first failure, which stopped
+                # sampling and is a validity reason, and every one in order
+                # (a close that failed after it, say); the snapshot above.
+                "write_error": metrics_write_error,
+                "write_errors": metrics_write_errors,
+                # The finite proof's failed-poll retry, recorded only when
+                # the run enabled it (settings, not acceptance criteria).
+                **(
+                    {
+                        "fast_retry": {
+                            "enabled": True,
+                            "retry_s": metrics_sampler.fast_retry_s,
+                            "cap_s": metrics_sampler.fast_retry_cap_s,
+                            "fast_retries": metrics_sampler.fast_retries,
+                            "failure_episodes": metrics_sampler.failure_episodes,
+                            "cap_reached": metrics_sampler.cap_reached,
+                            "attempts_log": "controller_metrics.attempts.csv",
+                        }
+                    }
+                    if metrics_fast_retry
+                    else {}
+                ),
+            }
+            if metrics_sampler is not None
+            else None
+        ),
+        # Config echo: the plan entry plus the effective CLI parameters.
+        # Secrets are never echoed (plan 9.2).
+        "config": {
+            "plan_entry": entry,
+            "cli": {
+                "execution_mode": execution_mode,
+                "broker": broker,
+                "port": port,
+                "no_tls": no_tls,
+                "qos": qos,
+                "egw_id": egw_id,
+                "username": username,
+                "password": "<redacted>" if password else None,
+                "ca_cert": ca_cert,
+                "event_log_dir": str(event_log_dir),
+                "post_run_wait_s": post_run_wait_s,
+                "skip_warmup": skip_warmup,
+                "skip_cooldown": skip_cooldown,
+                "fetch_events_cmd": fetch_events_cmd,
+                "sut_env_from": str(sut_env_from) if sut_env_from else None,
+                "resources_from": str(resources_from) if resources_from else None,
+                "local_resources": local_resources,
+                "allow_missing_sut_env": allow_missing_sut_env,
+                "allow_missing_resources": allow_missing_resources,
+                "allow_warmup_failure": allow_warmup_failure,
+                "allow_protocol_deviation": allow_protocol_deviation,
+                "allow_missing_controller_marker": (
+                    allow_missing_controller_marker
+                ),
+                "controller_url": controller_url,
+                "restart_cmd": restart_cmd,
+                "restart_at_s": restart_at_s,
+                "collector_start_cmd": collector_start_cmd,
+                "collector_stop_cmd": collector_stop_cmd,
+                "collector_fetch_cmd": collector_fetch_cmd,
+                "expect_services": expect_services,
+                "fetch_broker_log_cmd": fetch_broker_log_cmd,
+                "fetch_controller_log_cmd": fetch_controller_log_cmd,
+                "fetch_docker_events_cmd": fetch_docker_events_cmd,
+                "twin_snapshot_cmd": twin_snapshot_cmd,
+                "drain_cmd": drain_cmd,
+                "post_drain_fetch_cmd": post_drain_fetch_cmd,
+                "twins_before_from": (
+                    str(twins_before_from) if twins_before_from else None
+                ),
+                "twins_after_from": (
+                    str(twins_after_from) if twins_after_from else None
+                ),
+                "post_drain_events_from": (
+                    str(post_drain_events_from) if post_drain_events_from else None
+                ),
+                "drain_transcript_from": (
+                    str(drain_transcript_from) if drain_transcript_from else None
+                ),
+                "config_identity_from": (
+                    str(config_identity_from) if config_identity_from else None
+                ),
+                # Decision 1a's StartedAt read, echoed only when given, so
+                # that every other manifest is as before.
+                **(
+                    {"fetch_started_at_cmd": fetch_started_at_cmd}
+                    if fetch_started_at_cmd is not None
+                    else {}
+                ),
+                # The restart transition rule (2026-10-05), echoed only when
+                # given, likewise.
+                **(
+                    {"restart_transition_rule": restart_transition_rule}
+                    if restart_transition_rule is not None
+                    else {}
+                ),
+            },
+        },
+        "started_utc": started_utc,
+        "finished_utc": finished_utc,
+        "finished_monotonic_ns": finished_monotonic_ns,
+        # Measured window (audit 9.4): the analysis filters resources.csv
+        # and controller_metrics.csv to this window so warm-up/cooldown
+        # samples never contaminate the measured aggregates. events.jsonl
+        # needs no such filtering: the warm-up runs under run_id
+        # '<run_id>.warmup', so the measured run's event log contains only
+        # measured-run events.
+        "measured_window_utc": {
+            "start": measured_start_utc,
+            "end": measured_end_utc,
+        },
+        "measured_started_monotonic_ns": measured_started_monotonic_ns,
+        "measured_window_clock": MEASURED_WINDOW_CLOCK_NOTE,
+        "confirmation_window_s": CONFIRMATION_WINDOW_S,
+        # Confirmation deadline (sprint P5, report 5.2). Anchored on the
+        # controller's own monotonic clock, read from GET /metrics
+        # immediately after the run-end stamp — before the samplers are
+        # joined and before any hook (P5.4 defect 5) — and BEFORE the
+        # confirmation window, so the deadline is independent of the late
+        # events it judges. Null (clock domain 'unavailable') when the
+        # controller could not be polled; the analysis then falls back to
+        # the legacy event-derived deadline and says so loudly. The record
+        # carries 'lag_s' (seconds between the end of the measured window
+        # and the poll) and the 'lag_tolerance_s' it is judged against.
+        "controller_marker": controller_marker,
+        "controller_monotonic_at_run_end_ns": controller_monotonic_at_run_end_ns,
+        "confirmation_deadline_monotonic_ns": confirmation_deadline_monotonic_ns,
+        "confirmation_deadline_clock_domain": confirmation_deadline_clock_domain,
+        "simulator_returncode": sim_returncode,
+        "warmup_returncode": warmup_returncode,
+        "events_source": events_source,
+        "events_fetch": fetch_info or None,
+        "restart": restart_record,
+        # ADR 0011 item 18: the SUT log fetches (broker log, controller
+        # container log, docker events) into logs/sut/; for controller_restart
+        # the two twin snapshots, the drain and the post-drain events (empty
+        # or null elsewhere), each with its 'source' ('hook' or 'ingested',
+        # the latter with 'from' and 'sha256'), 'verified' and 'problems';
+        # the drain's 'outcome' (quiet, gave-up or error) is what the finite
+        # proof's evaluator reads to apply the ADR's rule — the harness
+        # records it and treats only 'error' as a validity reason; the
+        # configuration identity the run rests on, embedded verbatim from
+        # configuration_identity.json.
+        "sut_log_fetches": sut_log_fetches,
+        "twin_snapshots": twin_snapshots,
+        "drain": drain_record,
+        "events_post_drain_fetch": events_post_drain_fetch,
+        "configuration_identity": configuration_identity,
+        "configuration_identity_file": (
+            CONFIG_IDENTITY_FILENAME
+            if (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+            else None
+        ),
+        "resource_samples_written": (
+            local_sampler.samples_written if local_sampler is not None else None
+        ),
+        "resource_sampling_error": (
+            local_sampler.error if local_sampler is not None else None
+        ),
+        # G4 core provenance (plan 655-661, manifest 1.5): the rule, the
+        # declaration and each check on the run's three records; every entry
+        # of 'problems' is one of the validity reasons below.
+        "provenance": provenance,
+        "validity": validity,
+        "validity_reasons": validity_reasons,
+        # Exclusion criteria (plan 5.8/7.3): filled in manually, with a
+        # documented cause, only for proven cloud/instrumentation/config
+        # failures. A slow run is never excluded for its result alone.
+        "exclusion": None,
+        "warnings": warnings,
+    }
+    if resources_proved_down is not None:
+        # Decision 1a (adopted 2026-09-30): whether the proved-down interval
+        # applied at the resources ingest or why not, and its outcomes;
+        # reported only (no delivery, recovery or C12 figure reads it). The
+        # key exists on a controller_restart run given the StartedAt read
+        # and on no other run.
+        manifest["resources_proved_down"] = resources_proved_down
+    if resources_transition_rows is not None:
+        # The restart transition rule (adopted 2026-10-05): its name, whether
+        # it admitted the restarted controller's transition rows or why not,
+        # and those rows, apart from resources_proved_down; reported only. The
+        # key exists on a controller_restart run given the StartedAt read and
+        # the rule, and on no other run.
+        manifest["resources_transition_rows"] = resources_transition_rows
+    try:
+        (run_dir / MANIFEST_FILENAME).write_text(
+            json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+    except OSError as exc:
+        # The run's own record cannot be saved (work order of 2026-09-29,
+        # A2): say so plainly, then let the failure reach the process exit
+        # status as before; nothing is sealed and no status is recorded.
+        print(
+            f"[harness] error: run {run_id!r}: {MANIFEST_FILENAME} could not "
+            f"be written ({exc}); the run record is NOT saved and the run "
+            "directory is not sealed",
+            file=sys.stderr,
+            flush=True,
+        )
+        raise
+
+    # SHA256SUMS is written last so it covers every file in the run dir —
+    # and ONLY when the run is COMPLETE (audit 9.3, hardened in sprint P5 /
+    # report 5.4): an incomplete run directory must never look like sealed
+    # evidence, so any missing mandatory artefact (events.jsonl among them)
+    # withholds the seal. The 'collect' subcommand re-attempts collection
+    # and writes it then. Collector output problems invalidate the run but
+    # do not withhold the seal: the files in logs/collector/ (fetched output,
+    # companions, full hook output) are sealed exactly as they arrived, so
+    # the reasons recorded in the manifest stay verifiable.
+    if not missing_artifacts:
+        write_sha256sums(run_dir)
+    else:
+        print(
+            f"[harness] error: run {run_id!r} is missing mandatory "
+            "artefact(s) " + ", ".join(missing_artifacts) + "; SHA256SUMS "
+            "is withheld. Recover with: python -m egw_experiments collect "
+            f"--run-id {run_id} ...",
+            file=sys.stderr,
+            flush=True,
+        )
+
+    update_plan_status(
+        plan_path,
+        run_id,
+        "completed" if ok else "failed",
+        result_dir=str(run_dir),
+        finished_utc=finished_utc,
+        validity=validity,
+    )
+
+    # Cooldown between load-sweep runs (plan 7.1). Part of it was already
+    # spent waiting for the confirmation window.
+    remaining_cooldown = max(0.0, cooldown_s - post_run_wait_s)
+    if remaining_cooldown > 0 and not skip_cooldown:
+        print(f"[harness] cooldown: {remaining_cooldown:.0f} s", flush=True)
+        time.sleep(remaining_cooldown)
+
+    print(f"[harness] run {run_id} {'completed' if ok else 'FAILED'}", flush=True)
+    return 0 if ok else 1
+
+
+# ---------------------------------------------------------------------------
+# Recovery: the 'collect' subcommand (audit 9.3)
+# ---------------------------------------------------------------------------
+
+
+def collect_run(
+    run_id: str,
+    *,
+    base_dir: str | Path | None = None,
+    plan_path: str | Path | None = None,
+    fetch_events_cmd: str | None = None,
+    event_log_dir: str | Path | None = None,
+    sut_env_from: str | Path | None = None,
+    resources_from: str | Path | None = None,
+    allow_missing_sut_env: bool = False,
+    allow_missing_resources: bool = False,
+    allow_missing_controller_marker: bool = False,
+    expect_services: list[str] | None = None,
+    config_identity_from: str | Path | None = None,
+    twins_before_from: str | Path | None = None,
+    twins_after_from: str | Path | None = None,
+    post_drain_events_from: str | Path | None = None,
+    drain_transcript_from: str | Path | None = None,
+) -> int:
+    """Re-attempt evidence collection for an EXISTING run directory.
+
+    Recovery path for runs whose post-run collection failed (audit 9.3):
+    instead of refusing to reuse the run_id, this re-attempts the
+    events/resources/SUT-environment collection, recomputes validity,
+    updates the manifest (with a ``collect_history`` audit trail) and
+    (re)writes SHA256SUMS — but ONLY after successful collection. Intended
+    for use BEFORE the data freeze; after ``data-v1`` raw directories are
+    immutable.
+
+    Sealed-raw rules (work order P1 item 11): a run dir with SHA256SUMS is
+    sealed. This subcommand is the ONLY path allowed to ADD a genuinely
+    missing file to a sealed dir — it first verifies every existing
+    checksum (refusing on any mismatch), then adds the file, records
+    {when_utc, added_files} in the manifest's ``collection_history`` and
+    rewrites SHA256SUMS. Existing raw files are NEVER overwritten with
+    different content (SealedRunError => exit 2); identical re-copies are
+    no-ops, so re-running collect is idempotent.
+
+    Collector output accounting (manifest 1.4): ``resources_from`` is the
+    manual path, accounted for exactly as in ``run``. The file and the
+    companions beside it are copied (write-once) into
+    ``logs/collector/resources-from/`` and inspected, and the new
+    inspection replaces the manifest's ``collector`` record (the previous
+    one is kept in the ``collect_history`` entry). The expected services
+    are the ones the run recorded; ``expect_services`` may supply them when
+    the run recorded none, never change them (exit 2), and is only
+    accepted together with ``resources_from``. Without ``resources_from``
+    the problems recorded at run time are re-applied unchanged.
+
+    ADR 0011 item 18: ``config_identity_from`` is ingested like the SUT
+    environment (copied write-once as ``configuration_identity.json`` and
+    embedded in the manifest); the SUT log fetches and the restart evidence
+    steps taken by hooks are run-time measurements, so their recorded
+    outcomes are re-applied as the collector hooks' are. The restart
+    evidence taken outside the harness (the runbook's helpers) is ingested
+    here with ``twins_before_from``, ``twins_after_from``,
+    ``post_drain_events_from`` and ``drain_transcript_from``: each file is
+    verified against this run before it counts, copied write-once under
+    the hook's name and recorded with its provenance
+    (:func:`ingest_twin_snapshot`, :func:`ingest_post_drain_events`,
+    :func:`ingest_drain_transcript`); a refused file is not copied, so the
+    right one can follow it, and stays a validity reason until it does. An
+    artefact a hook took at run time is never replaced by a file (exit 2).
+    On any other condition the four are ignored with a warning.
+
+    Decision 1a (adopted 2026-09-30; reviews of 2026-09-30 and 2026-10-01):
+    ``collect`` never applies the proved-down interval. A run whose restart
+    lifecycle is recorded - a ``resources_proved_down`` record naming the
+    controller's die and start (integer ``die_ns`` and ``start_ns``),
+    whatever ``applies`` says, or one saying the interval applied - keeps
+    its run-time judgement: ``resources_from`` is neither judged nor
+    ingested (a warning and an action name decision 1a), the run stays as
+    it is, invalid while its resources are missing, and no gap exemption is
+    granted retrospectively; a file that differs from what the run already
+    holds is still refused (exit 2). A file given late can hold rows of the
+    controller from while it was proved down, which the run-time ingest
+    rejects and the ordinary rule alone would accept. Without a record, or
+    with one naming no die/start pair, the file is judged as before, and
+    once it is ingested the record's ``resources_ingested`` is set.
+
+    G4 core provenance (plan 655-661): a run whose manifest carries the
+    ``provenance`` record is checked again on its own sealed files (a guest
+    record ingested here included; the hypervisor is a run-time measurement
+    and is never captured after the fact), and the record, its
+    ``image_identity`` and the reasons follow. A run without the record -
+    every manifest before 1.5, every external run - is judged as before:
+    ``collect`` never adds ``execution_mode``, ``provenance``,
+    ``image_identity`` or ``hypervisor_environment.json`` to it, and takes no
+    ``--execution-mode``.
+    """
+    base = Path(base_dir) if base_dir is not None else DEFAULT_RESULTS_BASE
+    plan_path = Path(plan_path) if plan_path is not None else DEFAULT_PLAN_PATH
+    run_dir = base / "raw" / run_id
+    manifest_path = run_dir / "manifest.json"
+    if not run_dir.is_dir() or not manifest_path.is_file():
+        print(
+            f"error: {run_dir} does not exist or has no manifest.json; "
+            "'collect' only recovers runs already executed by 'run'.",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        print(f"error: cannot read {manifest_path}: {exc}", file=sys.stderr)
+        return 2
+
+    # Expected services (manifest 1.4): fixed by the run. 'collect' may
+    # supply them for a run that recorded none, never change them, and only
+    # together with the --resources-from output it accounts for.
+    recorded_collector = manifest.get("collector")
+    recorded_expected = (
+        recorded_collector.get("expected_services")
+        if isinstance(recorded_collector, dict)
+        else None
+    ) or ((manifest.get("config") or {}).get("cli") or {}).get("expect_services")
+    if not (
+        isinstance(recorded_expected, list)
+        and recorded_expected
+        and all(isinstance(name, str) for name in recorded_expected)
+    ):
+        recorded_expected = None
+    if expect_services is not None:
+        try:
+            expect_services = (
+                parse_expected_services(expect_services)
+                if isinstance(expect_services, str)
+                else validate_expected_services(list(expect_services))
+            )
+        except ValueError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        if resources_from is None:
+            print(
+                "error: --expect-services on 'collect' applies to the "
+                "--resources-from output it accounts for; give both, or "
+                "neither.",
+                file=sys.stderr,
+            )
+            return 2
+        if recorded_expected and set(recorded_expected) != set(expect_services):
+            print(
+                f"error: run {run_id!r} recorded the expected services "
+                f"{','.join(recorded_expected)!r}; 'collect' cannot change "
+                f"them to {','.join(expect_services)!r}.",
+                file=sys.stderr,
+            )
+            return 2
+    effective_expected: list[str] | None = (
+        list(recorded_expected)
+        if recorded_expected
+        else expect_services
+    )
+
+    # Sealed-raw rules (work order P1 item 11): once SHA256SUMS exists the
+    # directory is sealed. Adding a genuinely MISSING file is allowed only
+    # here, and only after every existing checksum verifies — tampered or
+    # inconsistent evidence is never silently resealed.
+    sealed = run_dir_is_sealed(run_dir)
+    if sealed:
+        problems = verify_sha256sums(run_dir)
+        if problems:
+            print(
+                f"error: {run_dir} is sealed ({SUMS_FILENAME} present) but "
+                "fails integrity verification; collection refused. A sealed "
+                "run directory whose checksums no longer verify cannot be "
+                "extended — problems: " + "; ".join(problems),
+                file=sys.stderr,
+            )
+            return 2
+    pre_files = {
+        p.relative_to(run_dir).as_posix()
+        for p in run_dir.rglob("*")
+        if p.is_file()
+    }
+
+    if fetch_events_cmd is None:
+        fetch_events_cmd = os.environ.get(FETCH_EVENTS_CMD_ENV) or None
+    if sut_env_from is None:
+        sut_env_from = os.environ.get(SUT_ENV_FILE_ENV) or None
+    event_log_dir = Path(
+        event_log_dir
+        if event_log_dir is not None
+        else os.environ.get("EGW_EVENT_LOG_DIR", "./data/events")
+    )
+
+    warnings: list[str] = []
+    actions: list[str] = []
+
+    # The item-18 evidence steps (ADR 0011) taken by hooks are run-time
+    # measurements like the collector hooks: 'collect' re-applies their
+    # recorded outcomes. The ones taken outside the harness are ingested
+    # below, into these same records.
+    sut_log_fetches = manifest.get("sut_log_fetches")
+    if not isinstance(sut_log_fetches, list):
+        sut_log_fetches = []
+    twin_snapshots = manifest.get("twin_snapshots")
+    if not isinstance(twin_snapshots, list):
+        twin_snapshots = []
+    recorded_drain = manifest.get("drain")
+    if not isinstance(recorded_drain, dict):
+        recorded_drain = None
+    recorded_post_drain = manifest.get("events_post_drain_fetch")
+    if not isinstance(recorded_post_drain, dict):
+        recorded_post_drain = None
+    restart_run = manifest.get("condition_id") == "controller_restart"
+    external_evidence = [
+        (hook, source)
+        for hook, source in (
+            ("twin_snapshot_before", twins_before_from),
+            ("twin_snapshot_after", twins_after_from),
+            ("drain", drain_transcript_from),
+            ("post_drain", post_drain_events_from),
+        )
+        if source is not None
+    ]
+    if external_evidence and not restart_run:
+        warnings.append(
+            ", ".join(RESTART_EVIDENCE_FROM_FLAGS[hook] for hook, _ in external_evidence)
+            + f" ignored on condition {manifest.get('condition_id')!r}: the "
+            "twin snapshots, the drain and the post-drain events apply to the "
+            "controller_restart condition only"
+        )
+        external_evidence = []
+    # A hook's record is a run-time measurement: a file for the same
+    # artefact cannot replace it, whether the hook succeeded or failed.
+    existing_by_hook: dict[str, dict[str, Any] | None] = {
+        **{
+            hook: next((r for r in twin_snapshots if r.get("file") == file), None)
+            for hook, file in TWIN_SNAPSHOT_FILES.items()
+        },
+        "drain": recorded_drain,
+        "post_drain": recorded_post_drain,
+    }
+    for hook, _source in external_evidence:
+        existing = existing_by_hook[hook]
+        if existing is not None and existing.get("source", "hook") == "hook":
+            print(
+                f"error: run {run_id!r} took this step with its hook "
+                f"{RESTART_EVIDENCE_HOOK_FLAGS[hook]} at run time; "
+                f"{RESTART_EVIDENCE_FROM_FLAGS[hook]} cannot replace a hook's "
+                "record (a run-time measurement).",
+                file=sys.stderr,
+            )
+            return 2
+    plan_seed = manifest.get("seed")
+    if not isinstance(plan_seed, int) or isinstance(plan_seed, bool):
+        plan_seed = None
+    # The measured window this run recorded: an ingested drain transcript
+    # must have been captured after its end (F6a).
+    recorded_window = manifest.get("measured_window_utc")
+    measured_window_end_utc = (
+        recorded_window.get("end") if isinstance(recorded_window, dict) else None
+    )
+
+    try:
+        # Events: re-attempted while missing; raw evidence already present
+        # is never overwritten. When events.jsonl exists AND a fetch
+        # template is given, the fetch runs against a scratch destination
+        # and the result is compared: identical => no-op (idempotent
+        # collect), different => refused (work order P1 item 11).
+        events_dest = run_dir / "events.jsonl"
+        if events_dest.is_file():
+            if fetch_events_cmd:
+                with tempfile.TemporaryDirectory() as tmp:
+                    probe = Path(tmp) / "events.jsonl"
+                    ok, _cmd_str, _attempts = fetch_events_via_cmd(
+                        fetch_events_cmd, run_id, probe
+                    )
+                    if not ok:
+                        actions.append(
+                            "events.jsonl already present (re-fetch failed; "
+                            "existing raw copy kept)"
+                        )
+                    elif sha256_file(probe) == sha256_file(events_dest):
+                        actions.append(
+                            "events.jsonl already present (re-fetch "
+                            "identical; no-op)"
+                        )
+                    else:
+                        sealed_note = (
+                            f"this run directory is sealed ({SUMS_FILENAME} "
+                            "present)"
+                            if sealed
+                            else "raw run evidence is write-once"
+                        )
+                        raise SealedRunError(
+                            f"refusing to overwrite events.jsonl in "
+                            f"{run_dir}: the re-fetched content differs "
+                            f"from the existing raw file; {sealed_note}. "
+                            "Recording different evidence requires a NEW "
+                            "run identity: repeat the run under a new "
+                            "versioned run_id and document the exclusion "
+                            "of the old one (plan 5.8)."
+                        )
+            else:
+                actions.append("events.jsonl already present")
+        else:
+            fetch_info: dict[str, Any] = {}
+            events_source = collect_events(
+                run_id=run_id,
+                dest=events_dest,
+                fetch_events_cmd=fetch_events_cmd,
+                event_log_dir=event_log_dir,
+                warnings=warnings,
+                fetch_info=fetch_info,
+            )
+            if events_source is not None:
+                manifest["events_source"] = events_source
+                if fetch_info:
+                    manifest["events_fetch"] = fetch_info
+                actions.append(f"collected events.jsonl from {events_source}")
+            else:
+                actions.append("events.jsonl collection failed again")
+
+        # SUT environment: ingest when provided; ingest_copy makes an
+        # identical re-ingest a no-op and refuses a differing one.
+        if sut_env_from:
+            was_present = (run_dir / SUT_ENVIRONMENT_FILENAME).is_file()
+            if (
+                ingest_sut_environment(run_dir, sut_env_from, warnings)
+                and not was_present
+            ):
+                actions.append(f"ingested {SUT_ENVIRONMENT_FILENAME}")
+
+        # Configuration identity (ADR 0011 item 18): ingested like the SUT
+        # environment; the manifest embeds whatever the run dir then holds.
+        identity_was_present = (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+        configuration_identity = ingest_configuration_identity(
+            run_dir, config_identity_from, warnings
+        )
+        if (
+            (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+            and not identity_was_present
+        ):
+            actions.append(f"ingested {CONFIG_IDENTITY_FILENAME}")
+
+        # Restart evidence taken outside the harness (ADR 0011 item 18):
+        # verified against this run, copied write-once under the hook's
+        # name, recorded with its provenance. A refused file replaces an
+        # earlier refused record for the same artefact and copies nothing.
+        for hook, source in external_evidence:
+            if hook == "drain":
+                record = ingest_drain_transcript(
+                    run_dir,
+                    source,
+                    run_id=run_id,
+                    window_end_utc=measured_window_end_utc,
+                    warnings=warnings,
+                )
+                recorded_drain = record
+            elif hook == "post_drain":
+                record = ingest_post_drain_events(
+                    run_dir, run_id, source, warnings=warnings
+                )
+                recorded_post_drain = record
+            else:
+                # The before snapshot first (external_evidence keeps that
+                # order): the after one binds to the verified before, this
+                # pass's or an earlier one's.
+                record = ingest_twin_snapshot(
+                    run_dir,
+                    hook,
+                    source,
+                    seed=plan_seed,
+                    warnings=warnings,
+                    twin_snapshots=twin_snapshots,
+                )
+                twin_snapshots = [
+                    r for r in twin_snapshots if r.get("file") != record["file"]
+                ] + [record]
+            actions.append(
+                (
+                    f"ingested {record['file']} from {RESTART_EVIDENCE_FROM_FLAGS[hook]} "
+                    f"{source} (verified"
+                    + (f", drain outcome {record['outcome']}" if hook == "drain" else "")
+                    + ")"
+                )
+                if record["verified"]
+                else (
+                    f"refused {RESTART_EVIDENCE_FROM_FLAGS[hook]} {source}: "
+                    + "; ".join(record["problems"])
+                )
+            )
+    except SealedRunError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+    order = list(TWIN_SNAPSHOT_FILES.values())
+    twin_snapshots.sort(
+        key=lambda r: order.index(r["file"]) if r.get("file") in order else len(order)
+    )
+    # A hook's drain record written before the outcome was classified is
+    # classified now from the output the hook kept (never invented).
+    if recorded_drain is not None and "outcome" not in recorded_drain:
+        recorded_drain.setdefault("source", "hook")
+        recorded_drain["outcome"] = drain_hook_outcome(recorded_drain, run_dir)
+        recorded_drain["verified"] = recorded_drain["outcome"] != "error"
+    manifest["twin_snapshots"] = twin_snapshots
+    manifest["drain"] = recorded_drain
+    manifest["events_post_drain_fetch"] = recorded_post_drain
+    sut_env_present = (run_dir / SUT_ENVIRONMENT_FILENAME).is_file()
+    manifest["sut_environment_present"] = sut_env_present
+    manifest["configuration_identity"] = configuration_identity
+    manifest["configuration_identity_file"] = (
+        CONFIG_IDENTITY_FILENAME
+        if (run_dir / CONFIG_IDENTITY_FILENAME).is_file()
+        else None
+    )
+    refs = manifest.get("environment_refs")
+    if isinstance(refs, dict):
+        refs["sut"] = SUT_ENVIRONMENT_FILENAME if sut_env_present else None
+
+    # Resources: ingest the SUT collector output when provided (identical
+    # re-ingest is a no-op; differing content is refused, P1 item 11). The
+    # semantic window check reuses the measured window recorded by 'run'.
+    measured_started_ns = manifest.get("measured_started_monotonic_ns")
+    finished_ns = manifest.get("finished_monotonic_ns")
+    expected_window_s = (
+        max(0.0, (finished_ns - measured_started_ns) / 1e9)
+        if isinstance(measured_started_ns, int) and isinstance(finished_ns, int)
+        else None
+    )
+    measured_window = manifest.get("measured_window_utc")
+    expected_window_start_utc = (
+        measured_window.get("start") if isinstance(measured_window, dict) else None
+    )
+    expected_window_end_utc = (
+        measured_window.get("end") if isinstance(measured_window, dict) else None
+    )
+    previous_collector: dict[str, Any] | None = None
+    # Decision 1a (adopted 2026-09-30): 'collect' never applies the
+    # proved-down interval. Nor does it judge a file for a run whose restart
+    # lifecycle is recorded (review of 2026-10-01, F3): a
+    # 'resources_proved_down' record naming the controller's die and start
+    # (integer die_ns and start_ns), whatever 'applies' says, or one saying
+    # the interval applied. A file given late could hold rows of the
+    # controller while it was proved down, which the ordinary rule alone
+    # would accept, so the run is kept as it is and no gap exemption is
+    # granted retrospectively; a file that differs from what the run already
+    # holds is still refused, as on the path that ingests.
+    recorded_proved_down = manifest.get("resources_proved_down")
+    if not isinstance(recorded_proved_down, dict):
+        recorded_proved_down = None
+    lifecycle_recorded = recorded_proved_down is not None and (
+        recorded_proved_down.get("applies") is True
+        or all(
+            isinstance(recorded_proved_down.get(key), int)
+            and not isinstance(recorded_proved_down.get(key), bool)
+            for key in ("die_ns", "start_ns")
+        )
+    )
+    if resources_from is not None and lifecycle_recorded:
+        src = Path(resources_from)
+        _dest_csv, copy_pairs = resources_from_copy_plan(src, run_dir, run_id)
+        conflicts = resources_from_copy_conflicts(
+            ([(src, run_dir / "resources.csv")] if src.is_file() else []) + copy_pairs
+        )
+        if conflicts:
+            refusal = overwrite_refusal(conflicts[0][1], conflicts[0][0], run_dir)
+            print(f"error: {refusal}", file=sys.stderr)
+            return 2
+        warnings.append(
+            f"--resources-from {resources_from} ignored: the run's restart "
+            "lifecycle is recorded; a late file is not qualified (decision 1a, "
+            "manifest 'resources_proved_down'): 'collect' does not apply the "
+            "proved-down interval and grants no gap exemption retrospectively, "
+            "and a file is not re-judged by the ordinary rule, which alone "
+            "could accept rows of the controller while it was proved down; the "
+            "run-time judgement stands"
+        )
+        actions.append(
+            f"--resources-from {resources_from} not judged (decision 1a: the "
+            "run's restart lifecycle is recorded; a late file is not qualified)"
+        )
+    elif resources_from is not None:
+        src = Path(resources_from)
+        dest_csv, copy_pairs = resources_from_copy_plan(src, run_dir, run_id)
+        try:
+            # Refuse BEFORE anything is written: a manual-path copy that
+            # differs from the one already kept is different evidence (the
+            # resources.csv refusal is named first when it applies too).
+            conflicts = resources_from_copy_conflicts(copy_pairs)
+            if conflicts:
+                existing = run_dir / "resources.csv"
+                if (
+                    src.is_file()
+                    and existing.is_file()
+                    and sha256_file(existing) != sha256_file(src)
+                ):
+                    raise overwrite_refusal(existing, src, run_dir)
+                raise overwrite_refusal(conflicts[0][1], conflicts[0][0], run_dir)
+            if ingest_resources(
+                run_dir,
+                resources_from,
+                warnings,
+                expected_window_s=expected_window_s,
+                expected_window_start_utc=expected_window_start_utc,
+                expected_window_end_utc=expected_window_end_utc,
+            ):
+                manifest["resource_source"] = "sut-collector"
+                actions.append("ingested resources.csv (sut-collector)")
+                if recorded_proved_down is not None:
+                    # No restart lifecycle is recorded (no die/start pair,
+                    # no interval applied): the record follows the manifest
+                    # now that the file is ingested.
+                    recorded_proved_down["resources_ingested"] = True
+            copy_resources_from_outputs(copy_pairs, run_dir)
+        except SealedRunError as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 2
+        # The manual path is accounted for exactly as in 'run'. A source that
+        # does not exist (a mistyped path) leaves the recorded accounting
+        # alone: ingest_resources has already warned about it.
+        if src.is_file():
+            previous_collector = (
+                recorded_collector if isinstance(recorded_collector, dict) else None
+            )
+            collector_record: dict[str, Any] = {
+                "expected_services": effective_expected,
+                "hooks_in_use": bool(
+                    previous_collector and previous_collector.get("hooks_in_use")
+                ),
+                "source": "--resources-from",
+                "source_path": str(src),
+            }
+            collector_record.update(
+                inspect_collector_outputs(
+                    dest_csv, effective_expected, run_dir=run_dir
+                )
+            )
+            manifest["collector"] = collector_record
+            warnings.extend(collector_warnings(collector_record))
+            actions.append(
+                f"accounted for the collector output of --resources-from {src} "
+                f"({len(collector_record['problems'])} problem(s))"
+            )
+    resource_source = manifest.get("resource_source") or (
+        "sut-collector" if (run_dir / "resources.csv").is_file() else "none"
+    )
+    manifest["resource_source"] = resource_source
+
+    allow_missing_sut_env = allow_missing_sut_env or bool(
+        manifest.get("allow_missing_sut_env")
+    )
+    allow_missing_resources = allow_missing_resources or bool(
+        manifest.get("allow_missing_resources")
+    )
+    allow_missing_controller_marker = allow_missing_controller_marker or bool(
+        manifest.get("allow_missing_controller_marker")
+    )
+    manifest["allow_missing_sut_env"] = allow_missing_sut_env
+    manifest["allow_missing_resources"] = allow_missing_resources
+    manifest["allow_missing_controller_marker"] = allow_missing_controller_marker
+    # The retired --allow-missing-restart-evidence (review finding F6): a
+    # manifest that still carries it is rewritten under the current rules,
+    # where missing restart evidence never qualifies through a flag.
+    manifest.pop("allow_missing_restart_evidence", None)
+    if isinstance((manifest.get("config") or {}).get("cli"), dict):
+        manifest["config"]["cli"].pop("allow_missing_restart_evidence", None)
+
+    # SUT environment quality (work order P1 fix 4): re-validate the file
+    # currently in the run dir against REQUIRED_SUT_FIELDS.
+    sut_env_missing_fields: list[str] = []
+    if sut_env_present:
+        sut_env_missing_fields = validate_sut_environment(
+            read_sut_environment(run_dir)
+        )
+    manifest["sut_environment_missing_fields"] = sut_env_missing_fields
+
+    timed = manifest.get("runner", "simulator") == "simulator"
+    restart_record = manifest.get("restart")
+    cli_echo = (manifest.get("config") or {}).get("cli") or {}
+    allow_warmup_failure = bool(manifest.get("allow_warmup_failure"))
+    allow_protocol_deviation = bool(manifest.get("allow_protocol_deviation"))
+    skip_warmup = bool(cli_echo.get("skip_warmup"))
+    # The confirmation marker is a RUN-TIME measurement: 'collect' can never
+    # recover it after the fact, it can only re-apply the authorization.
+    confirmation_marker_ok = (
+        manifest.get("confirmation_deadline_clock_domain") == "controller"
+    )
+    collector_hooks = manifest.get("collector_hooks")
+    if not isinstance(collector_hooks, list):
+        collector_hooks = []
+    # The collector output was inspected at run time, right after the fetch
+    # hook; 'collect' cannot re-fetch it (guest /tmp does not survive a
+    # power-off), so its problems are re-applied as recorded, never dropped
+    # — unless --resources-from was accounted for just above, whose record
+    # has replaced the run's.
+    current_collector = manifest.get("collector")
+    collector_problems = (
+        [str(p) for p in current_collector.get("problems") or []]
+        if isinstance(current_collector, dict)
+        else []
+    )
+    missing_artifacts = missing_mandatory_artifacts(
+        run_dir,
+        manifest.get("condition_id"),
+        runner="simulator" if timed else "external",
+        allow_missing_resources=allow_missing_resources,
+    )
+    manifest["missing_mandatory_artifacts"] = missing_artifacts
+    # A failed file of the /metrics sampler (A2) happened at run time and
+    # stays a reason: 'collect' cannot bring the lost rows back.
+    recorded_metrics = manifest.get("controller_metrics")
+    recorded_write_error = (
+        recorded_metrics.get("write_error")
+        if isinstance(recorded_metrics, dict)
+        else None
+    )
+    # G4 core provenance (plan 655-661), gated by the record and never by the
+    # version string: a run that carries it is checked again on its sealed
+    # files with the declaration and the generator's target it recorded; any
+    # other run is judged as before and gains no key.
+    run_provenance_problems: list[str] | None = None
+    if isinstance(manifest.get("provenance"), dict):
+        manifest["provenance"] = run_provenance_record(
+            run_dir,
+            manifest.get("execution_mode"),
+            cli_echo.get("broker"),
+            cli_echo.get("port"),
+        )
+        run_provenance_problems = manifest["provenance"]["problems"]
+        if isinstance(manifest.get("image_identity"), dict):
+            manifest["image_identity"] = image_identity_record(
+                read_environment_record(run_dir, HYPERVISOR_ENVIRONMENT_FILENAME),
+                configuration_identity,
+            )
+    validity, validity_reasons = compute_validity(
+        timed=timed,
+        sut_env_present=sut_env_present,
+        allow_missing_sut_env=allow_missing_sut_env,
+        resource_source=resource_source,
+        allow_missing_resources=allow_missing_resources,
+        restart_required=manifest.get("condition_id") == "controller_restart",
+        restart_ok=isinstance(restart_record, dict)
+        and restart_record.get("returncode") == 0,
+        sut_env_missing_fields=sut_env_missing_fields,
+        simulator_returncode=manifest.get("simulator_returncode", 0),
+        warmup_returncode=manifest.get("warmup_returncode"),
+        allow_warmup_failure=allow_warmup_failure,
+        skip_warmup=skip_warmup,
+        condition_id=manifest.get("condition_id"),
+        allow_protocol_deviation=allow_protocol_deviation,
+        confirmation_marker_ok=confirmation_marker_ok,
+        allow_missing_controller_marker=allow_missing_controller_marker,
+        collector_hooks=collector_hooks,
+        missing_artifacts=missing_artifacts,
+        collector_problems=collector_problems,
+        sut_log_fetches=sut_log_fetches,
+        twin_snapshots=twin_snapshots,
+        drain=recorded_drain,
+        events_post_drain_fetch=recorded_post_drain,
+        config_identity_ok=configuration_identity is not None,
+        metrics_write_error=(
+            None if recorded_write_error is None else str(recorded_write_error)
+        ),
+        provenance_problems=run_provenance_problems,
+    )
+    manifest["validity"] = validity
+    manifest["validity_reasons"] = validity_reasons
+    if restart_run:
+        recorded_warnings = manifest.get("warnings")
+        if not isinstance(recorded_warnings, list):
+            recorded_warnings = []
+        for note in restart_evidence_notes(
+            twin_snapshots, recorded_drain, recorded_post_drain
+        ):
+            if note not in recorded_warnings and note not in warnings:
+                warnings.append(note)
+
+    # Overrides taking effect at collect time must leave the same recorded
+    # deviation entries a 'run' would (work order P1 fix 5); deduplicated
+    # by kind so repeated collect passes never stack duplicates. The retired
+    # 'missing_restart_evidence' kind (F6) is dropped: it excused nothing.
+    deviations = manifest.get("deviations")
+    if not isinstance(deviations, list):
+        deviations = []
+    deviations = [
+        d for d in deviations
+        if not (isinstance(d, dict) and d.get("kind") == "missing_restart_evidence")
+    ]
+    if (
+        timed
+        and allow_missing_sut_env
+        and (not sut_env_present or sut_env_missing_fields)
+    ):
+        _append_deviation(
+            deviations,
+            "missing_sut_environment",
+            "timed run without a usable sut_environment.json accepted"
+            + (
+                f" (present but missing: {', '.join(sut_env_missing_fields)})"
+                if sut_env_present
+                else " (file absent)"
+            ),
+            "--allow-missing-sut-env",
+        )
+    if timed and allow_missing_resources and resource_source != "sut-collector":
+        _append_deviation(
+            deviations,
+            "missing_sut_resources",
+            "timed run without SUT-collector resources accepted "
+            f"(resource_source: {resource_source})",
+            "--allow-missing-resources",
+        )
+    if timed and not confirmation_marker_ok:
+        _append_deviation(
+            deviations,
+            "confirmation_marker_unavailable",
+            "the run end was not stamped in the controller's clock domain; "
+            "the analysis must fall back to the legacy event-derived "
+            "confirmation deadline",
+            (
+                "--allow-missing-controller-marker"
+                if allow_missing_controller_marker
+                else None
+            ),
+        )
+    manifest["deviations"] = deviations
+    if warnings:
+        manifest.setdefault("warnings", [])
+        manifest["warnings"] = list(manifest["warnings"]) + warnings
+    history = manifest.get("collect_history")
+    if not isinstance(history, list):
+        history = []
+    entry: dict[str, Any] = {"utc": utc_now_iso(), "actions": actions}
+    if manifest.get("collector") is not recorded_collector:
+        # The collector record this pass replaced, kept for the audit trail.
+        entry["previous_collector"] = previous_collector
+    history.append(entry)
+    manifest["collect_history"] = history
+
+    # Sealed-dir additions (work order P1 item 11b): the only legitimate
+    # change to a sealed run directory is ADDING a genuinely missing file
+    # here, after the up-front checksum verification; each such addition is
+    # recorded as {when_utc, added_files} and SHA256SUMS is rewritten below
+    # to cover the final state.
+    if sealed:
+        added_files = sorted(
+            p.relative_to(run_dir).as_posix()
+            for p in run_dir.rglob("*")
+            if p.is_file()
+            and p.relative_to(run_dir).as_posix() not in pre_files
+        )
+        if added_files:
+            collection_history = manifest.get("collection_history")
+            if not isinstance(collection_history, list):
+                collection_history = []
+            collection_history.append(
+                {"when_utc": utc_now_iso(), "added_files": added_files}
+            )
+            manifest["collection_history"] = collection_history
+
+    manifest_path.write_text(
+        json.dumps(manifest, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
+
+    collected = events_dest.is_file() if timed else True
+    for action in actions:
+        print(f"[collect] {action}", flush=True)
+    if validity == "invalid":
+        for reason in validity_reasons:
+            print(f"[collect] INVALID: {reason}", file=sys.stderr, flush=True)
+
+    def _keep_existing_seal_consistent() -> None:
+        """Refresh SHA256SUMS of an ALREADY sealed directory.
+
+        This pass rewrote manifest.json, so a directory that was sealed
+        BEFORE the collect attempt would otherwise fail its own checksum
+        verification. It never creates a new seal for an incomplete run —
+        that happens only on the success path below.
+        """
+        if sealed:
+            write_sha256sums(run_dir)
+
+    if not collected:
+        print(
+            f"[collect] run {run_id}: events.jsonl still missing; "
+            "SHA256SUMS withheld",
+            file=sys.stderr,
+            flush=True,
+        )
+        _keep_existing_seal_consistent()
+        return 1
+    # An incomplete run directory must never look sealed (report 5.4).
+    if missing_artifacts:
+        print(
+            f"[collect] run {run_id}: mandatory artefact(s) still missing: "
+            + ", ".join(missing_artifacts)
+            + "; SHA256SUMS withheld",
+            file=sys.stderr,
+            flush=True,
+        )
+        _keep_existing_seal_consistent()
+        return 1
+
+    # Collection succeeded: (re)write SHA256SUMS covering the final state.
+    write_sha256sums(run_dir)
+    ok = manifest.get("simulator_returncode", 0) == 0 and validity == "valid"
+    update_plan_status(
+        plan_path,
+        run_id,
+        "completed" if ok else "failed",
+        result_dir=str(run_dir),
+        validity=validity,
+    )
+    print(
+        f"[collect] run {run_id} collection complete; SHA256SUMS written "
+        f"(validity: {validity})",
+        flush=True,
+    )
+    return 0 if ok else 1

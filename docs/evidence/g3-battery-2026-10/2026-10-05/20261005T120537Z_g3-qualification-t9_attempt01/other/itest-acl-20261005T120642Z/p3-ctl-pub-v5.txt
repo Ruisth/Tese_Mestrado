@@ -1,0 +1,6 @@
+Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 sending CONNECT
+Warning: Publish 1 failed: Not authorized.
+Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 received CONNACK (0)
+Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 sending PUBLISH (d0, q1, r0, m1, 'c2dt/acl-probe/20261005T120642Z', ... (49 bytes))
+Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 received PUBACK (Mid: 1, RC:135)
+Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 sending DISCONNECT

@@ -1,0 +1,42 @@
+{
+  "conditions": [
+    {
+      "cooldown_s": 0,
+      "duration_s": 300,
+      "id": "controller_restart",
+      "metrics": [
+        "delivery_counts",
+        "delivery_rate",
+        "restart_recovery",
+        "duplicate_suppression"
+      ],
+      "notes": "diagnostic: duration_s 300 for the finite proof (ADR 0011). One run of the controller_restart condition's load - the nominal scenario at 11.2 msg/s, no warm-up, no cool-down - with 300 s of publication instead of the frozen condition's 600 s and one repetition instead of three; an engineering diagnostic, not a G3 run, and never an entry of the pilot plan.",
+      "performance_claims_allowed": true,
+      "rate_msg_s": 11.2,
+      "rates_msg_s": null,
+      "repetitions": 1,
+      "runner": "simulator",
+      "scenario": "nominal",
+      "warmup_s": 0
+    }
+  ],
+  "master_seed": 20260925,
+  "plan_version": "1.0",
+  "protocol_version": "1.0.0",
+  "runs": [
+    {
+      "condition_id": "controller_restart",
+      "cooldown_s": 0,
+      "duration_s": 300,
+      "order": 1,
+      "rate_msg_s": 11.2,
+      "repetition": 1,
+      "run_id": "proof-adr0011-r03",
+      "runner": "simulator",
+      "scenario": "nominal",
+      "seed": 265481284,
+      "status": "planned",
+      "warmup_s": 0
+    }
+  ]
+}

@@ -1,0 +1,11 @@
+start /egw-mosquitto-1 started=2026-09-28T20:55:14.442480782Z restarts=0 oom=false status=running
+start /egw-mongodb-1 started=2026-09-28T20:55:13.582073214Z restarts=0 oom=false status=running
+start /egw-ditto-policies-1 started=2026-09-28T20:55:16.947695358Z restarts=0 oom=false status=running
+start /egw-ditto-things-1 started=2026-09-28T20:55:21.906308126Z restarts=0 oom=false status=running
+start /egw-ditto-gateway-1 started=2026-09-28T20:55:22.200897422Z restarts=0 oom=false status=running
+start /egw-controller-1 started=2026-09-28T20:58:05.444710738Z restarts=0 oom=false status=running
+reload_lines=0
+mounted_conf_sha256=ea37827cccd94ef3870c62b77ffbe0b34261f7f213f243212f03121219d99615
+controller_label=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+controller_grace=130
+guest_epoch=1790629236

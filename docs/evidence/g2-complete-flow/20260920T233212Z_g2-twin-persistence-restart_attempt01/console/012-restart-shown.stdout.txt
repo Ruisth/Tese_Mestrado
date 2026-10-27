@@ -1,0 +1,8 @@
+controller started_at: 2026-09-20T23:21:31.554Z -> 2026-09-20T23:37:38.535Z
+egw-mosquitto-1: id c63352d738f2 -> 5a263246881e, started 2026-09-20T23:18:57.769116627Z -> 2026-09-20T23:35:06.997063516Z
+egw-mongodb-1: id 27667b7c7e28 -> 946354a51791, started 2026-09-20T23:18:57.628888609Z -> 2026-09-20T23:35:06.290472374Z
+egw-ditto-policies-1: id 7b5d53bd024c -> 8ec639e98dc5, started 2026-09-20T23:19:00.602399002Z -> 2026-09-20T23:35:09.466546321Z
+egw-ditto-things-1: id 08664fd96715 -> 69b2281e5412, started 2026-09-20T23:19:04.557458882Z -> 2026-09-20T23:35:14.433052415Z
+egw-ditto-gateway-1: id 69b59d120eae -> 9e1b6d0bd09f, started 2026-09-20T23:19:05.837398976Z -> 2026-09-20T23:35:14.526563118Z
+egw-controller-1: id 9b2098915ade -> ccc1ac031511, started 2026-09-20T23:21:18.324704262Z -> 2026-09-20T23:37:28.358319409Z
+RESTART SHOWN: the controller process is new (2026-09-20T23:21:31.554Z, then 2026-09-20T23:37:38.535Z) and every one of the 6 expected containers is a new object that started later

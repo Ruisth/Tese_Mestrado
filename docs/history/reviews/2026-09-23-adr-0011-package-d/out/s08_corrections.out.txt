@@ -1,0 +1,35 @@
+
+==============================================================================
+A. Measured messages in the controller while warm-up messages were served
+==============================================================================
+last warm-up acknowledgement: el +126.513075 s
+measured messages that arrived before it: 1417 of 6720; after it: 5303
+the waits of the latter contain no warm-up service time (FIFO, no interleaving: s03 A)
+
+==============================================================================
+B. The number in the controller at the window end, by count
+==============================================================================
+in the controller at el 0: 750; arrivals in (el 0, window end]: 6721 (1 warm-up); acknowledgements in it: 3878 (751 of warm-up messages)
+in the controller at the window end: 3593 = 750 + 6721 - 3878 (check: True)
+warm-up messages among them: 0
+
+==============================================================================
+C. Little's law over the two intervals (controller clock)
+==============================================================================
+snapshot 'before': wall_utc 2026-09-19T20:00:42.825Z (the controller's own, i.e. guest, wall clock), monotonic 1608355206045, queue_depth 0, in_progress 0
+snapshot 'after' : wall_utc 2026-09-19T20:21:45.640Z (the controller's own, i.e. guest, wall clock), monotonic 2871169252413, queue_depth 0, in_progress 0
+busy interval: first arrival -> last acknowledgement: el -119.880 -> +1005.469, T 1125.348 s; L 1904.4154, lambda 7.1658 msg/s, W 265.7652 s, L/(lambda W) = 1.0000000000
+snapshot interval: 'before' -> 'after': el -122.943 -> +1139.871, T 1262.814 s; L 1697.1073, lambda 6.3857 msg/s, W 265.7652 s, L/(lambda W) = 1.0000000000
+with no arrivals: from the last arrival to the last acknowledgement 405.42 s of the busy interval
+
+==============================================================================
+D. The drain after the window end, in 30 s blocks (event log, controller clock)
+==============================================================================
+last, partial block: window end +390..+405.362 s: 158 acknowledgements in 15.362 s = 10.285 msg/s
+full 30 s blocks from window end +90 s: 10, 7.900 .. 9.533 msg/s
+
+==============================================================================
+E. The platform files
+==============================================================================
+sut_environment.json captured_utc 2026-09-19T00:06:48Z; measured window start 2026-09-19T20:02:45.643Z; captured 19.9 h before the window start
+the harness copies it in with --sut-env-from (~/egw-tcg/itest-helpers.sh:244), so it describes that earlier capture, not the run's own boot

@@ -1,0 +1,2 @@
+no memory-cgroup OOM in this boot
+memory-cgroup OOM lines: 0

@@ -1,0 +1,1098 @@
+start 2026-09-28T21:01:44Z at b65a06d
+runbook:  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+  heredoc sha256 1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc (396 lines, 30071 bytes)
+deployed: /home/ruisth/egw-tcg/itest-helpers.sh
+  file    sha256 1634c35bc79d743c806223fe03fa3d9b799e9d4882d198aad840d4efe84fd8fc (396 lines, 30071 bytes)
+HELPERS OK: the deployed helper file is the runbook's section 6.1 heredoc, byte for byte
+clean clone collector: 11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6  /home/ruisth/egw-exec/repo/src/deployment/scripts/collect-resources.sh
+11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6  /opt/egw/deployment/scripts/collect-resources.sh
+1790629309
+2026-09-28T21:01:49Z
+Timezone=UTC
+LocalRTC=no
+CanNTP=yes
+NTP=yes
+NTPSynchronized=yes
+TimeUSec=Mon 2026-09-28 21:01:50 UTC
+RTCTimeUSec=Mon 2026-09-28 21:01:51 UTC
+proof_session: wrote /home/ruisth/egw-exec/attempts/20260928T210147Z_finite-proof-adr-0011_attempt03/analysis/proof_session.json: 2 stop rules, 20 value(s)
+clock epoch=1790629311 utc=2026-09-28T21:01:51Z
+container egw-mosquitto-1 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-09-28T20:55:14.442480782Z
+container egw-mongodb-1 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-09-28T20:55:13.582073214Z
+container egw-ditto-policies-1 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-09-28T20:55:16.947695358Z
+container egw-ditto-things-1 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-09-28T20:55:21.906308126Z
+container egw-ditto-gateway-1 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-09-28T20:55:22.200897422Z
+container egw-controller-1 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-09-28T20:58:05.444710738Z
+HEALTHY RULE: established by the earlier record /home/ruisth/egw-exec/attempts/20260928T210104Z_g2-gate-preconditions_attempt04/console/001-services-healthy.stdout.txt (transition 2026-09-28T21:01:05Z, 351 s after the candidate start 2026-09-28T20:55:13.582073214Z, completed by 2026-09-28T21:01:10Z, within 1200 s); the wait runs under 1200 s
+healthy_rule={"limit_s": 1200, "clock_step_band_s": 3.0, "candidate_start_note": "the earliest StartedAt of the expected services, read before the wait (P-15)", "candidate_start_utc": "2026-09-28T20:55:13.582073214Z", "latest_start_utc": "2026-09-28T20:58:05.444710738Z", "guest_epoch_at_record": 1790629311, "earlier_record": "/home/ruisth/egw-exec/attempts/20260928T210104Z_g2-gate-preconditions_attempt04/console/001-services-healthy.stdout.txt", "spent_before_wait_s": 397, "earlier_transition_utc": "2026-09-28T21:01:05Z", "earlier_transition_sample": 1, "earlier_elapsed_s": 351, "earlier_transition_completed_utc": "2026-09-28T21:01:10Z", "earlier_completed_upper_elapsed_s": 358, "established_by": "earlier-record", "poll_bound_s": 1200}
+established=earlier-record
+bound=1200
+2026-09-28T21:01:59Z sample 1: egw-mosquitto-1=running/healthy egw-mongodb-1=running/healthy egw-ditto-policies-1=running/healthy egw-ditto-things-1=running/healthy egw-ditto-gateway-1=running/healthy egw-controller-1=running/healthy
+2026-09-28T21:02:05Z completed (sample 1)
+ALL HEALTHY: the 6 expected services are running and healthy (sample 1)
+first_healthy_utc=2026-09-28T21:01:59Z
+first_healthy_sample=1
+first_healthy_completed_utc=2026-09-28T21:02:05Z
+first_healthy_instant_note=the instant of the sample that saw ALL HEALTHY is read at the sample start, before its inspections of the services; the observation had completed by the instant the wait read after its last inspection (first_healthy_completed_utc, whole seconds: before that instant + 1 s), and that upper bound is what the deadline is judged on
+previous_sample_utc=null
+previous_sample_span_s=null
+elapsed_s=405
+HEALTHY RULE MET: first observed healthy 405 s after the candidate start 2026-09-28T20:55:13.582073214Z (sample 1 at 2026-09-28T21:01:59Z; allowance 1200 s, established by the earlier record)
+wrote /opt/egw/evidence/sut_environment.json
+{
+  "role": "sut",
+  "captured_utc": "2026-09-28T21:02:09Z",
+  "node": "egw-qemu-integrated",
+  "uname_a": "Linux egw-qemu-integrated 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux",
+  "os_pretty_name": "Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap)",
+  "nproc": 4,
+  "cpu_model": "0xd0b",
+  "mem_total_kb": 8204356,
+  "docker_version": "Docker version 25.0.9, build 43987fca48",
+  "docker_compose_version": "Docker Compose version v2.26.0",
+  "provider": "QEMU 8.2.7 TCG (qemu-system-native) on WSL2 Ubuntu-24.04, Windows 11 x86-64",
+  "region": "local-workstation",
+  "instance_type": "qemu -machine virt -cpu cortex-a76 -smp 4 -m 8192; ARM64 EMULATED",
+  "shared_vcpu_note": "TCG emulation on a shared x86-64 host; load generator co-located; never native ARM64"
+}
+egw-controller-1 Up 4 minutes (healthy)
+egw-ditto-things-1 Up 6 minutes (healthy)
+egw-ditto-gateway-1 Up 6 minutes (healthy)
+egw-ditto-policies-1 Up 6 minutes (healthy)
+egw-mongodb-1 Up 6 minutes (healthy)
+egw-mosquitto-1 Up 6 minutes (healthy)
+container egw-controller-1 oomkilled=false restarts=0 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-09-28T20:58:05.444710738Z
+container egw-ditto-things-1 oomkilled=false restarts=0 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-09-28T20:55:21.906308126Z
+container egw-ditto-gateway-1 oomkilled=false restarts=0 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-09-28T20:55:22.200897422Z
+container egw-ditto-policies-1 oomkilled=false restarts=0 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-09-28T20:55:16.947695358Z
+container egw-mongodb-1 oomkilled=false restarts=0 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-09-28T20:55:13.582073214Z
+container egw-mosquitto-1 oomkilled=false restarts=0 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-09-28T20:55:14.442480782Z
+memory-cgroup OOM lines: 0
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1815        5367           5         830        6118
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    417.1M      1.7G  20% /
+/dev/vdb                 31.2G      2.4G     27.2G   8% /var/lib/docker
+tmpfs                     3.9G     88.0K      3.9G   0% /tmp
+0 0 0 true 2026-09-28T20:58:19.279Z 1 0 0 0 0 0 0 0
+wrote /home/ruisth/egw-tcg/proof/plan-proof-adr0011-r03.json: run_id=proof-adr0011-r03 condition_id=controller_restart scenario=nominal duration_s=300 warmup_s=0 cooldown_s=0 rate_msg_s=11.2 seed=265481284 master_seed=20260925 sha256=4de4c9b2fe7430f1f737bb338be9408674d80d86c14ccdd0604dae5a20cd515c
+drained: queue_depth 0 and identical counters on 98 consecutive readings over 490 s (0 0 0 true 2026-09-28T20:58:19.279Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 595.93 s, end 1086.15 s, elapsed 490.22 s (required 490 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-09-28T21:02:22Z -> 2026-09-28T21:10:13Z and bash SECONDS elapsed 471 s, recorded only
+config_identity: wrote /home/ruisth/egw-tcg/itest/proof-adr0011-r03.config_identity.json
+configuration identity: controller_source_commit=489bc9e5b5b0660026ea2630b8d1d124049ba2ce broker_reloaded=False W=4999 controller_image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 stop_grace_period=130s stop_grace_period_s=130 paho=2.1.0
+tunnel-ready: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) is loaded within the allowance
+harness_started_utc=2026-09-28T21:10:21Z
+harness_started_host_uptime_s=1095
+harness_allowance_s=2500
+[harness] run proof-adr0011-r03: created /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03
+[harness] collector hook --collector-start-cmd
+[harness] --twin-snapshot-cmd
+[harness] measured run: 300 s at 11.2 msg/s
+[harness] collector hook --collector-stop-cmd
+[harness] waiting 60 s confirmation window
+[harness] collector hook --collector-fetch-cmd
+[harness] --drain-cmd
+[harness] --post-drain-fetch-cmd
+[harness] --twin-snapshot-cmd
+[harness] --fetch-broker-log-cmd
+[harness] --fetch-controller-log-cmd
+[harness] --fetch-docker-events-cmd
+[harness] INVALID: no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources
+[harness] INVALID: mandatory artefact(s) missing from the run directory: resources.csv — the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity
+[harness] error: run 'proof-adr0011-r03' is missing mandatory artefact(s) resources.csv; SHA256SUMS is withheld. Recover with: python -m egw_experiments collect --run-id proof-adr0011-r03 ...
+[harness] run proof-adr0011-r03 FAILED
+ELIGIBLE: the prescribed publication completed, both copies of the events, the collector file, both twin snapshots, the three SUT logs and the fault record are present, and the harness validity is admitted as E-12 states (form 'sampling-gap-only') - the campaign MAX_SAMPLE_GAP_S deviation alone, kept as recorded: the collector file the ingest rejected is kept at logs/collector/resources-proof-adr0011-r03.csv; SHA256SUMS withheld for the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing)
+sampling_gap_collector_file=logs/collector/resources-proof-adr0011-r03.csv
+sampling_gap_seal_withheld=yes
+eligibility={"complete": true, "harness_exit": 1, "rule": "P-16: the harness validity is admitted only as E-12 states, by the function the evaluator applies (egw_experiments.proof_evaluator.harness_admission)", "problems": [], "harness_admission": {"admitted": true, "form": "sampling-gap-only", "reasons": ["the campaign's MAX_SAMPLE_GAP_S deviation alone, in the form the harness records it: the collector file rejected at ingest and kept at logs/collector/resources-proof-adr0011-r03.csv", "harness validity reason (quoted): no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources", "harness validity reason (quoted): mandatory artefact(s) missing from the run directory: resources.csv \u2014 the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity", "ingest rejection (quoted): --collector-fetch-cmd output /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03/logs/collector/resources-proof-adr0011-r03.csv REJECTED (SUT resources treated as missing): 1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-controller-1': 2026-09-28T21:12:54+00:00 to 2026-09-28T21:13:02+00:00 (8.0 s)"], "collector_file": "logs/collector/resources-proof-adr0011-r03.csv", "seal_withheld_for": "the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing)", "rule": "The harness's validity is admitted for the proof in two forms only, recognised from what run.py writes and never from free text: 'valid' (validity 'valid' with no reason); or the campaign's sampling-gap deviation the ADR anticipates (the harness 'may again mark the run invalid under MAX_SAMPLE_GAP_S'), in the one form the harness records it when its ingest rejects the collector file: validity 'invalid' with exactly the two reasons run.compute_validity writes for it ('no SUT resources' and 'mandatory artefact(s) missing from the run directory' for resources.csv alone), missing_mandatory_artifacts ['resources.csv'], resource_source 'none', and exactly one warning of the ingest rejection (run.ingest_resources: '<source> <file> REJECTED (SUT resources treated as missing): <problems>') whose every problem is resources.validate_resources_csv's MAX_SAMPLE_GAP_S sampling-gap problem; the rejected collector file present and non-empty in the run directory at the path the rejection names, relative to the run directory (logs/collector/resources-<run_id>.csv for the harness's own fetch); no resources.csv at the top of the run directory; and SHA256SUMS absent, which run.py withholds for the missing resources.csv alone, or present and verifying. A rejection that also lists another problem, a further validity reason, a rejected file outside the run directory, absent or empty, or any other invalidity is not admitted, every harness reason quoted; a manifest field that cannot be read leaves the admission unknown (P-6), never admitted. In the sampling-gap form the evidence inventory (E-11) requires the collector file where the rejection names it instead of resources.csv, and accepts the withheld seal with the reason stated: the evaluator's own sha256 of every file it read, in the document's sources, carries the integrity of what it used; a SHA256SUMS present that does not verify is never accepted. The driver applies the same function (harness_admission), so the two parts cannot disagree."}, "simulator_returncode": 0, "events_fetch_ok": true, "resources_csv_present": false, "collector_file": "logs/collector/resources-proof-adr0011-r03.csv", "collector_file_present": true, "harness_validity": "invalid", "harness_validity_reasons": ["no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources", "mandatory artefact(s) missing from the run directory: resources.csv \u2014 the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity"], "sampling_gap_only": true}
+0 0 0 true 2026-09-28T21:13:13.526Z 1 2663 2662 0 1 0 0 0
+clock epoch=1790630795 utc=2026-09-28T21:26:35Z
+container egw-mosquitto-1 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-09-28T20:55:14.442480782Z
+container egw-mongodb-1 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-09-28T20:55:13.582073214Z
+container egw-ditto-policies-1 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-09-28T20:55:16.947695358Z
+container egw-ditto-things-1 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-09-28T20:55:21.906308126Z
+container egw-ditto-gateway-1 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-09-28T20:55:22.200897422Z
+container egw-controller-1 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-09-28T21:13:03.730874694Z
+controller process started_at: 2026-09-28T20:58:19.279Z -> 2026-09-28T21:13:13.526Z
+egw-controller-1: id a7428fc55b53 -> a7428fc55b53, started 2026-09-28T20:58:05.444710738Z -> 2026-09-28T21:13:03.730874694Z
+RESTART SHOWN: the controller process is new (2026-09-28T20:58:19.279Z, then 2026-09-28T21:13:13.526Z) and its container is the same object (a7428fc55b53), started later (2026-09-28T20:58:05.444710738Z, then 2026-09-28T21:13:03.730874694Z)
+ac14ff49-1496-43a0-a8b6-c828e72aff42 smartwatch: existed_before=False accepted_count None -> 300 (delta 300); accepted records in events.post-drain.jsonl 300; last_run_id proof-adr0011-r03 last_seq 299: OK
+9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83 smart_ring: existed_before=False accepted_count None -> 60 (delta 60); accepted records in events.post-drain.jsonl 60; last_run_id proof-adr0011-r03 last_seq 59: OK
+9ce5fe46-662d-4cd3-9639-f16d057debc5 smart_clothing: existed_before=False accepted_count None -> 3000 (delta 3000); accepted records in events.post-drain.jsonl 2999; last_run_id proof-adr0011-r03 last_seq 2999: MISMATCH
+/metrics: controller process RESTARTED between the two snapshots (started_at differs); its counters restarted from zero, so no delta is computed
+total 24
+-rw-r--r-- 1 ruisth ruisth  595 Sep 28 22:26 proof-adr0011-r03.config_identity.json
+-rw-r--r-- 1 ruisth ruisth  328 Sep 28 22:26 proof-adr0011-r03.metrics.after.json
+-rw-r--r-- 1 ruisth ruisth  317 Sep 28 22:26 proof-adr0011-r03.metrics.before.json
+-rw-r--r-- 1 ruisth ruisth  751 Sep 28 22:26 proof-adr0011-r03.restart.txt
+-rw-r--r-- 1 ruisth ruisth 1118 Sep 28 22:26 proof-adr0011-r03.twins.after.json
+-rw-r--r-- 1 ruisth ruisth  920 Sep 28 22:26 proof-adr0011-r03.twins.before.json
+egw-controller-1 Up 13 minutes (healthy)
+egw-ditto-things-1 Up 31 minutes (healthy)
+egw-ditto-gateway-1 Up 31 minutes (healthy)
+egw-ditto-policies-1 Up 31 minutes (healthy)
+egw-mongodb-1 Up 31 minutes (healthy)
+egw-mosquitto-1 Up 31 minutes (healthy)
+container egw-controller-1 oomkilled=false restarts=0 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-09-28T21:13:03.730874694Z
+container egw-ditto-things-1 oomkilled=false restarts=0 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-09-28T20:55:21.906308126Z
+container egw-ditto-gateway-1 oomkilled=false restarts=0 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-09-28T20:55:22.200897422Z
+container egw-ditto-policies-1 oomkilled=false restarts=0 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-09-28T20:55:16.947695358Z
+container egw-mongodb-1 oomkilled=false restarts=0 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-09-28T20:55:13.582073214Z
+container egw-mosquitto-1 oomkilled=false restarts=0 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-09-28T20:55:14.442480782Z
+memory-cgroup OOM lines: 0
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1841        5316           5         856        6092
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    425.7M      1.7G  20% /
+/dev/vdb                 31.2G      2.4G     27.2G   8% /var/lib/docker
+tmpfs                     3.9G    236.0K      3.9G   0% /tmp
+## faults: what the system did during the measured run
+none
+## problems: what the two records do not let anyone say
+none
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-controller-1 was restarted in place during the run, as expected: it started again at 2026-09-28T21:13:03.730874694Z (it had been running since 2026-09-28T20:58:05.444710738Z), the same container object (a7428fc55b53) with its restart count unchanged (0) and not OOM-killed
+guest state before/after: 0 fault(s), 0 problem(s), 1 expected restart(s)
+guest-state-delta: faults=0 problems=0
+2026-09-28T21:26:54Z sample 1: egw-mosquitto-1=running/healthy egw-mongodb-1=running/healthy egw-ditto-policies-1=running/healthy egw-ditto-things-1=running/healthy egw-ditto-gateway-1=running/healthy egw-controller-1=running/healthy
+2026-09-28T21:26:59Z completed (sample 1)
+ALL HEALTHY: the 6 expected services are running and healthy (sample 1)
+{
+  "cannot_show": "One run supports the property for that run; it does not prove it in general. It says nothing about the graceful stop (regression tests), a broker restart or a guest loss (N3), any other load or duration, latency, throughput, or the validity of a `controller_restart` run under the ingest rule (N8). The harness may again mark the run invalid under `MAX_SAMPLE_GAP_S`; that verdict belongs to the campaign rules and is kept as recorded, while the proof's answer comes from reconciliation by identity, which that rule does not touch.",
+  "evaluator_version": "1",
+  "instrumentation": {
+    "configuration_identity_problems": [],
+    "controller_log_non_json_lines": 1717,
+    "drain_text_outcome": "quiet",
+    "harness_admission": {
+      "admitted": true,
+      "collector_file": "logs/collector/resources-proof-adr0011-r03.csv",
+      "form": "sampling-gap-only",
+      "reasons": [
+        "the campaign's MAX_SAMPLE_GAP_S deviation alone, in the form the harness records it: the collector file rejected at ingest and kept at logs/collector/resources-proof-adr0011-r03.csv",
+        "harness validity reason (quoted): no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources",
+        "harness validity reason (quoted): mandatory artefact(s) missing from the run directory: resources.csv \u2014 the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity",
+        "ingest rejection (quoted): --collector-fetch-cmd output /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03/logs/collector/resources-proof-adr0011-r03.csv REJECTED (SUT resources treated as missing): 1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-controller-1': 2026-09-28T21:12:54+00:00 to 2026-09-28T21:13:02+00:00 (8.0 s)"
+      ],
+      "rule": "The harness's validity is admitted for the proof in two forms only, recognised from what run.py writes and never from free text: 'valid' (validity 'valid' with no reason); or the campaign's sampling-gap deviation the ADR anticipates (the harness 'may again mark the run invalid under MAX_SAMPLE_GAP_S'), in the one form the harness records it when its ingest rejects the collector file: validity 'invalid' with exactly the two reasons run.compute_validity writes for it ('no SUT resources' and 'mandatory artefact(s) missing from the run directory' for resources.csv alone), missing_mandatory_artifacts ['resources.csv'], resource_source 'none', and exactly one warning of the ingest rejection (run.ingest_resources: '<source> <file> REJECTED (SUT resources treated as missing): <problems>') whose every problem is resources.validate_resources_csv's MAX_SAMPLE_GAP_S sampling-gap problem; the rejected collector file present and non-empty in the run directory at the path the rejection names, relative to the run directory (logs/collector/resources-<run_id>.csv for the harness's own fetch); no resources.csv at the top of the run directory; and SHA256SUMS absent, which run.py withholds for the missing resources.csv alone, or present and verifying. A rejection that also lists another problem, a further validity reason, a rejected file outside the run directory, absent or empty, or any other invalidity is not admitted, every harness reason quoted; a manifest field that cannot be read leaves the admission unknown (P-6), never admitted. In the sampling-gap form the evidence inventory (E-11) requires the collector file where the rejection names it instead of resources.csv, and accepts the withheld seal with the reason stated: the evaluator's own sha256 of every file it read, in the document's sources, carries the integrity of what it used; a SHA256SUMS present that does not verify is never accepted. The driver applies the same function (harness_admission), so the two parts cannot disagree.",
+      "seal_withheld_for": "the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing)"
+    },
+    "harness_condition_id": "controller_restart",
+    "harness_validity": "invalid",
+    "harness_validity_reasons": [
+      "no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources",
+      "mandatory artefact(s) missing from the run directory: resources.csv \u2014 the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity"
+    ],
+    "metrics_notes": [
+      "row 27: ts_utc 2026-09-28T21:10:48.771Z is earlier than row 26's 2026-09-28T21:10:49.147Z (a host clock step); kept in file order, never dropped",
+      "row 59: ts_utc 2026-09-28T21:11:19.462Z is earlier than row 58's 2026-09-28T21:11:19.798Z (a host clock step); kept in file order, never dropped",
+      "row 92: ts_utc 2026-09-28T21:11:51.080Z is earlier than row 91's 2026-09-28T21:11:51.491Z (a host clock step); kept in file order, never dropped",
+      "row 124: ts_utc 2026-09-28T21:12:21.762Z is earlier than row 123's 2026-09-28T21:12:22.159Z (a host clock step); kept in file order, never dropped",
+      "row 156: ts_utc 2026-09-28T21:12:52.458Z is earlier than row 155's 2026-09-28T21:12:53.168Z (a host clock step); kept in file order, never dropped",
+      "row 168: ts_utc 2026-09-28T21:13:23.441Z is earlier than row 167's 2026-09-28T21:13:23.802Z (a host clock step); kept in file order, never dropped",
+      "row 200: ts_utc 2026-09-28T21:13:54.296Z is earlier than row 199's 2026-09-28T21:13:54.630Z (a host clock step); kept in file order, never dropped",
+      "row 232: ts_utc 2026-09-28T21:14:24.926Z is earlier than row 231's 2026-09-28T21:14:25.321Z (a host clock step); kept in file order, never dropped",
+      "row 264: ts_utc 2026-09-28T21:14:55.786Z is earlier than row 263's 2026-09-28T21:14:56.176Z (a host clock step); kept in file order, never dropped"
+    ],
+    "note": "the harness verdict belongs to the campaign rules and is kept as recorded (ADR 0011, what the proof cannot show); it is admitted for the proof only as E-12 states (harness_admission: 'valid', or the campaign's MAX_SAMPLE_GAP_S deviation in the one form the harness records it), and the proof's other requirements are checked apart (proof_evidence, proof_eligibility)",
+    "proof_eligibility": {
+      "checks": {
+        "evidence_complete": true,
+        "fault": {
+          "at_the_prescribed_instant": true,
+          "prescribed_at_s": 150,
+          "restart_executed": true,
+          "restart_ok": true,
+          "restart_requested_at_s": 150.0,
+          "restart_returncode": 0,
+          "restart_shown": true,
+          "session_facts_present": true
+        },
+        "harness_admission": {
+          "admitted": true,
+          "collector_file": "logs/collector/resources-proof-adr0011-r03.csv",
+          "form": "sampling-gap-only",
+          "reasons": [
+            "the campaign's MAX_SAMPLE_GAP_S deviation alone, in the form the harness records it: the collector file rejected at ingest and kept at logs/collector/resources-proof-adr0011-r03.csv",
+            "harness validity reason (quoted): no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources",
+            "harness validity reason (quoted): mandatory artefact(s) missing from the run directory: resources.csv \u2014 the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity",
+            "ingest rejection (quoted): --collector-fetch-cmd output /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03/logs/collector/resources-proof-adr0011-r03.csv REJECTED (SUT resources treated as missing): 1 sampling gap(s) exceed the protocol maximum of 5 s (MAX_SAMPLE_GAP_S): container 'egw-controller-1': 2026-09-28T21:12:54+00:00 to 2026-09-28T21:13:02+00:00 (8.0 s)"
+          ],
+          "rule": "The harness's validity is admitted for the proof in two forms only, recognised from what run.py writes and never from free text: 'valid' (validity 'valid' with no reason); or the campaign's sampling-gap deviation the ADR anticipates (the harness 'may again mark the run invalid under MAX_SAMPLE_GAP_S'), in the one form the harness records it when its ingest rejects the collector file: validity 'invalid' with exactly the two reasons run.compute_validity writes for it ('no SUT resources' and 'mandatory artefact(s) missing from the run directory' for resources.csv alone), missing_mandatory_artifacts ['resources.csv'], resource_source 'none', and exactly one warning of the ingest rejection (run.ingest_resources: '<source> <file> REJECTED (SUT resources treated as missing): <problems>') whose every problem is resources.validate_resources_csv's MAX_SAMPLE_GAP_S sampling-gap problem; the rejected collector file present and non-empty in the run directory at the path the rejection names, relative to the run directory (logs/collector/resources-<run_id>.csv for the harness's own fetch); no resources.csv at the top of the run directory; and SHA256SUMS absent, which run.py withholds for the missing resources.csv alone, or present and verifying. A rejection that also lists another problem, a further validity reason, a rejected file outside the run directory, absent or empty, or any other invalidity is not admitted, every harness reason quoted; a manifest field that cannot be read leaves the admission unknown (P-6), never admitted. In the sampling-gap form the evidence inventory (E-11) requires the collector file where the rejection names it instead of resources.csv, and accepts the withheld seal with the reason stated: the evaluator's own sha256 of every file it read, in the document's sources, carries the integrity of what it used; a SHA256SUMS present that does not verify is never accepted. The driver applies the same function (harness_admission), so the two parts cannot disagree.",
+          "seal_withheld_for": "the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing)"
+        },
+        "harness_exit": {
+          "admission_form": "sampling-gap-only",
+          "agrees": true,
+          "allowed": [
+            0,
+            1
+          ],
+          "carried": true,
+          "read": 1
+        },
+        "load": {
+          "ok": true,
+          "prescribed": {
+            "condition_id": "controller_restart",
+            "duration_s": 300,
+            "rate_msg_s": 11.2,
+            "scenario": "nominal",
+            "warmup_s": 0
+          },
+          "read": {
+            "condition_id": "controller_restart",
+            "duration_s": 300,
+            "rate_msg_s": 11.2,
+            "scenario": "nominal",
+            "warmup_s": 0
+          }
+        },
+        "population": {
+          "intended_invalid": 0,
+          "malformed": 0,
+          "other_run_id": 0,
+          "records_of_this_run": 3360,
+          "reliable": true,
+          "repeated": 0,
+          "skipped_lines": 0,
+          "valid": 3360,
+          "whole": true
+        },
+        "publication": {
+          "expected_from_plan": 3360,
+          "file": "logs/simulator/proof-adr0011-r03/manifest.json",
+          "ok": true,
+          "read": {
+            "aggregate_rate_hz": 11.2,
+            "completed": true,
+            "duration_s": 300.0,
+            "run_id": "proof-adr0011-r03",
+            "scenario": "nominal",
+            "totals_sent": 3360
+          },
+          "source": "the simulator's own manifest"
+        },
+        "simulator_returncode": 0
+      },
+      "eligible": true,
+      "note": "the harness's validity is quoted and admitted only as E-12 states ('valid', or the campaign's MAX_SAMPLE_GAP_S deviation in the one form the harness records it, which the ADR names as not touching the proof; checks.harness_admission); E-11 states what else the proof requires; a run that is not eligible is inconclusive, never 'supports', and a refutation observed on evidence that was read and verified stands (P-7)",
+      "reasons": [],
+      "rule": "The proof is evaluated only on the execution the ADR prescribes and the records it lists ('The finite proof', 'What it records'), with the harness's own validity quoted as recorded and admitted only as E-12 states: 'valid', or the campaign's MAX_SAMPLE_GAP_S deviation in the one form the harness records it (the ADR names that rule as one the proof's reconciliation does not touch, 'What it cannot show'); any other harness invalidity makes the run not eligible, every harness reason quoted, and an admission that cannot be read leaves the eligibility unknown (P-6), never met. Required besides, whatever the harness's verdict: the load and fault of the plan (condition controller_restart, the nominal scenario, 300 s at 11.2 msg/s, no warm-up, as the manifest's entry records them) with the simulator exited 0; the publication completed and the population whole (the simulator's own manifest, logs/simulator/<run_id>/manifest.json, says completed under the same load and its totals.sent equals the records of this run in sent_events.jsonl, none of which is skipped (E-5), without a message_id, repeated or of another run: a skipped or malformed line never shrinks the denominator; without that manifest the only count is the file's, which must then equal the plan's 300 x 11.2 = 3,360 with no tolerance); the fault at the plan's instant and demonstrated (the manifest's restart record requested at t+150 s, its requested_at_s, executed with exit 0, and the session facts' restart_shown true; absent or null, restart_shown is unknown, P-6); the harness's exit, when the session facts carry it (harness_exit, which the driver records before the evaluator runs), agreeing with the admission as the driver reads it: 0 beside a 'valid' manifest, 0 or 1 in the sampling-gap form, in which the harness exits 1; any other exit is a failure the manifest does not record and the run is not eligible, so no 'supports' stands beside a driver that refuses the run; without it (a standalone evaluation has only the manifest) the manifest's own validity stands and the absence is reported, deciding nothing; and every record of 'What it records' present with its fetch recorded successful: the harness copy events.jsonl with events_fetch ok (a readable file beside a failed or unrecorded fetch is not the copy) and the collector file resources.csv from the SUT collector (in E-12's sampling-gap form, the rejected collector file where the rejection names it, and the seal the harness withheld for the missing resources.csv alone accepted with the reason stated), beside the twin snapshots, the drain, the post-drain copy, the three SUT logs, the readings, the configuration identity and the seal. A run that fails any of these is not eligible: inconclusive with every reason named, never 'supports'; a refutation observed on evidence that was read and verified stands (P-7).",
+      "unknown": []
+    },
+    "proof_evidence": {
+      "accepted_in_the_sampling_gap_form": [
+        "resources.csv: absent from the top of the run directory, as run.py leaves it when its ingest rejects the collector file under MAX_SAMPLE_GAP_S alone; the collector file is required at logs/collector/resources-proof-adr0011-r03.csv, where the rejection names it, and is present (E-12)",
+        "SHA256SUMS: absent, withheld by the harness for the missing mandatory artefact resources.csv alone (run.py withholds SHA256SUMS while a mandatory artefact is missing) (E-12); the evaluator's own sha256 of every file it read, in the document's sources, carries the integrity of what it used"
+      ],
+      "cannot_serve_the_criteria": {},
+      "complete": true,
+      "drain": {
+        "outcome": "quiet",
+        "source": "hook",
+        "verified": true
+      },
+      "fetch_failures": [],
+      "missing": [],
+      "present": {
+        "SHA256SUMS": false,
+        "configuration_identity.json": true,
+        "controller_metrics.csv": true,
+        "events.jsonl": true,
+        "events.post-drain.jsonl": true,
+        "logs/collector/resources-proof-adr0011-r03.csv": true,
+        "logs/simulator/proof-adr0011-r03/manifest.json": true,
+        "logs/sut/broker.log": true,
+        "logs/sut/controller.log": true,
+        "logs/sut/docker-events.log": true,
+        "resources.csv": false,
+        "sent_events.jsonl": true,
+        "twins.after.json": true,
+        "twins.before.json": true
+      }
+    },
+    "read_notes": [],
+    "read_problems": [],
+    "seal": "unsealed",
+    "seal_problems": [],
+    "skipped_lines": {
+      "events.jsonl": 0,
+      "events.post-drain.jsonl": 0,
+      "sent_events.jsonl": 0
+    }
+  },
+  "label": "ARM64 EMULATED (QEMU/TCG); an engineering diagnostic, not a G3 run",
+  "proof": "ADR 0011, The finite proof",
+  "restoration": {
+    "note": "not computed here: the driver observes it",
+    "state": "stack=healthy restart_shown=yes"
+  },
+  "run_id": "proof-adr0011-r03",
+  "session_facts": {
+    "extension": null,
+    "present": true,
+    "restart_shown": true,
+    "stop_rules": [
+      {
+        "id": "healthy",
+        "limit_s": 1200,
+        "reached": false,
+        "reached_at": null,
+        "rule": "the stack with the candidate healthy within 20 minutes of its start (as for the broker measurement, and on the same records)"
+      },
+      {
+        "id": "attempt",
+        "limit_s": 3000,
+        "reached": false,
+        "reached_at": null,
+        "rule": "the attempt stopped 50 minutes after its first `drained` starts"
+      }
+    ],
+    "stop_rules_reached": [],
+    "values": {
+      "DRAIN_LIMIT_S": 900,
+      "DRAIN_QUIET_S": 490,
+      "DRAIN_STEP_S": 5,
+      "EGW_HEALTH_LIMIT_S": 1200,
+      "EGW_HEALTH_STEP_S": 15,
+      "EGW_PROOF_ATTEMPT_LIMIT_S": 3000,
+      "EGW_PROOF_BASE": "/home/ruisth/egw-tcg/proof/results",
+      "EGW_PROOF_DURATION_S": 300,
+      "EGW_PROOF_EXTENSION": "no",
+      "EGW_PROOF_EXTENSION_LIMIT_S": 1790,
+      "EGW_PROOF_HEALTHY_RECORD": "/home/ruisth/egw-exec/attempts/20260928T210104Z_g2-gate-preconditions_attempt04/console/001-services-healthy.stdout.txt",
+      "EGW_PROOF_MASTER_SEED": 20260925,
+      "EGW_PROOF_PLAN": "/home/ruisth/egw-tcg/proof/plan-proof-adr0011-r03.json",
+      "EGW_PROOF_RATE": 11.2,
+      "EGW_PROOF_RESTART_AT_S": 150,
+      "EGW_PROOF_RUNBOOK": "/home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md",
+      "EGW_READY_LIMIT_S": 300,
+      "W": 4999,
+      "expected_source_commit": "489bc9e5b5b0660026ea2630b8d1d124049ba2ce",
+      "extension_fetch_limit_s": 300,
+      "extension_restart_limit_after_grace_s": 300,
+      "stop_grace_period_s": 130
+    }
+  },
+  "sources": {
+    "configuration_identity.json": "72cc6e15449e7db3eaa1065d26d940ad033709910b46c80ce8d06562500c239e",
+    "controller_metrics.csv": "ee8f40500eb8f0bf55afde88e47529b303d9014874570b28a6b5296185442dac",
+    "events.jsonl": "40d1bef8131a1ca81869b84528df4d4f1426c8ec323124759776a66797495ffc",
+    "events.post-drain.jsonl": "61d13cffe773d3eda7268b9ad36d0a8316f5d5e7c54c9ec962412fbfd59e4318",
+    "logs/collector/resources-proof-adr0011-r03.csv": "bd3e3cc95a183f4ed30317ed4f4273edae2ea825a39d018c5ef4e5f180dde453",
+    "logs/simulator/proof-adr0011-r03/manifest.json": "4a2c8f3b274fc8a1888a1044d0fe19f1529ded8a585eb2593d18ab0540859d33",
+    "logs/sut/broker.log": "b89a6189807456d484778281d026db7efa76cd5deba25dfb838eac4340dec115",
+    "logs/sut/controller.log": "5b3a49ab998be92074bb1937671eac5eed52a56287022877e4eb6812274a7b56",
+    "logs/sut/docker-events.log": "46777464a39f87b7a9fd992ed98007e15802c442a25b7e8bd253c461ce61afef",
+    "logs/sut/hook-drain.stderr.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "logs/sut/hook-drain.stdout.txt": "04cb86517814c20db0c0ca5a026d10313a80c44857f17b80c903ca5d8a3169a7",
+    "manifest.json": "4167104e6ea06e6eba70a992af83d2d10afbb5ccd4dabb153b5be34c6a385837",
+    "sent_events.jsonl": "57cbf5610bfd2c2eb3478cbd4df21bac2af063f8ea024395d18a46c8bbc5f4d7",
+    "twins.after.json": "792541214194f2f0193f369e3f0ddd79b9e4a67d8144ed6e66d6c437820b8c04",
+    "twins.before.json": "481640c1f2047e1d9fa1a611db94ee5f93cfdaf1766217a563b809da7f952f9c"
+  },
+  "system_outcome": {
+    "criteria": {
+      "R1": {
+        "evidence": {
+          "drain_completed": true,
+          "drain_outcome": "quiet",
+          "drain_verified": true,
+          "without_outcome_line": 0,
+          "without_outcome_line_ids": []
+        },
+        "identification_rules": {
+          "E-7": "A refutation rests only on evidence that was read and verified: when the post-drain copy is absent, not verified by the harness as this run's, or unreadable, S2 to S5 and R1 to R4 can be shown neither way and are null; when a twin snapshot is so, or names no twin for the device, S4, S5, R3 and R4 are null for what depends on it; when the controller log (item 6) was not fetched, was recorded fetched but is absent, or is unreadable, an A3 connection end can be shown neither way, so a duplicate-only candidate that is not named with the kill as its source is neither named nor R3, S4 and R3 are null for it and S5 and R4 for its device unless the twin's figures refute under every naming of it (E-9), while a candidate the twin shows unapplied (no surplus, or more candidates than the surplus) stays R3 on the twin's evidence, which was read. The absence is named as a failed fetch and the run is inconclusive unless a refutation was observed on evidence that was read. When the population record is not whole (E-11), a duplicate-only identity of the post-drain copy that no readable record of this run carries (its sent record skipped, without a message_id, of another run, repeating another's message_id or missing) may be an N1 case the naming cannot read, since an unread record cannot show that no N1 case explains the twin: S5 and R4 are null for its device, its seq read from its lines, unless the twin's figures refute under every naming of it (E-9); its publication cannot be read, so it is offered every source that may have preceded its redelivered duplicate line, the kill included unless its line was written before the pre-kill process's last reading, and the capacity (E-10) is checked across the run: a lost record makes the attribution uncertain, never the sources the run records; a refutation that does not rest on it (a double acceptance, a last_seq regression, a surplus beyond what the unread identities could explain) stands.",
+          "P-7": "Precedence: a refutation observed (R2, R3 or R4 on what was read; R1 only after a completed drain) stands over every inconclusive condition, as broker_measure.sh treats a stop rule; otherwise any inconclusive condition makes the run inconclusive; 'supports' needs all six criteria to hold."
+        },
+        "observed": false,
+        "rule": "After a completed drain, a published valid identity has no outcome line."
+      },
+      "R2": {
+        "evidence": {
+          "double_accepted": 0,
+          "identities": [],
+          "note": "every accepted line of the post-drain copy counts, late ones included"
+        },
+        "identification_rules": {},
+        "observed": false,
+        "rule": "An identity has two `accepted` lines."
+      },
+      "R3": {
+        "evidence": {
+          "assignments": {
+            "covered": 1,
+            "may_be": {
+              "059c22fc-b407-5864-8bb1-e6487e0d35a9": [
+                "kill"
+              ]
+            },
+            "not_borne_out": [],
+            "note": "the kinds each candidate takes under the legitimate assignments (a3-connection-end or kill: named; kill-unshown, further-death, a5-order-unread: a source that cannot be named; none: no source); a candidate is named only when it is named alike under every one of them (E-13)",
+            "r3_groups": [],
+            "rule": "E-13",
+            "served_by_a_legitimate_assignment": 1,
+            "sources_may_hold": {
+              "059c22fc-b407-5864-8bb1-e6487e0d35a9": [
+                "death 0"
+              ]
+            }
+          },
+          "cannot_show": 0,
+          "cannot_show_identities": [],
+          "duplicate_only_identities": 1,
+          "named_n1_cases": 1,
+          "not_named": 0,
+          "not_named_identities": [],
+          "notes": [],
+          "r3_groups": []
+        },
+        "identification_rules": {
+          "E-13": "A duplicate-only candidate is named, or R3 for want of a source, only as every legitimate assignment of the sources the run evidences reads it, never as the order in which the candidates or the log lines are read. An assignment gives each candidate on a device with the twin's surplus at most one source that may have preceded its redelivered duplicate line (E-4, E-10) - an A5 occurrence of its device (named 'a3-connection-end' when both stamps are read and in order, unshown when either cannot be read), the kill (named 'kill' for a restart-class candidate published before the restart command's start with the restart executed with exit 0, P-4; unshown for one that nothing read excludes from it, E-8), or a further death (never named, P-4; held by a candidate whether or not the kill can explain it, since it may have been in progress at that death, E-4) - each source serving one candidate at most (N1); a candidate the twin shows unapplied claims none (E-4), and an unshown candidate without twin evidence that may have been in progress at the kill may hold it (E-4). An assignment is legitimate when it serves as many candidates as the sources can serve, since the twin's surplus counts each of them applied. A case is named with the kind of its source, the kill or an A3 connection end of its device; which of the device's occurrences it was is inference (E-10), so the line shown is the one a legitimate assignment read from the evidence alone gives it (the candidates from the latest redelivery down, the occurrences from the latest received, never the seqs or the order of the log lines), with every line it may have been listed. A candidate that some legitimate assignments name and others do not, or name with the kill and with an occurrence, or whose reading in order no legitimate assignment bears out, is neither named nor R3: S4 and R3 are null for it and its device is undecided for S5 and R4 (E-9, E-10), so the run is inconclusive on that ground, never 'supports' and never refuted. Candidates whose lack of a source is R3 on what was read (the kill cannot explain them, or they claim it as P-4 names it, and the controller log was read) that contend for fewer sources than they number leave at least so many of them without one in any assignment: R3 is observed on the group, listed with the sources it contends for and that least number, and no identity of it is named as a case or singled out as R3, since only the aggregate is established; its device is undecided for S5 and R4 (E-9, E-10). Several claimants of the kill with no other source keep E-4's reading (none named, each R3). When a member of such a group is left unshown on another ground, nothing is refuted on the group and none of it is named. The legitimate assignments are read from one maximum matching and the alternating paths from it, which give every source a candidate may hold in some legitimate assignment and whether it may hold none, so no order decides and nothing is enumerated by permutation.",
+          "E-4": "At most one N1 case per death has the kill as its source (N1: one consumer); when more than one candidate claims it, none is named and each is R3. When one candidate claims it beside another duplicate-only identity that may have been in progress at the kill (not lined before it, not published after the restart command's end) and can be shown neither way (E-7, E-8), the case may be the other's: the claimant is neither named nor R3, and its device is undecided (E-9). A candidate the twin shows unapplied is R3 whatever was in progress at the kill and claims no case. When the readings record more than one controller process start after the pre-kill one, a further death is recorded that the plan did not prescribe and P-4 never names as a source. Each death is placed on the controller clock between the last reading of the process that died and the first reading of the next (monotonic_ns), and it may have preceded a candidate's redelivery only when the lower bound of that interval is below the received_monotonic_ns of the candidate's first duplicate line, or equal to it (a tie the readings cannot order, read inclusively as the band of P-3 and E-8 is), or when either cannot be read or the readings contradict the interval (the dying process read at or after the next one's first reading); a death wholly after the redelivery cannot be its source. Whatever its placement, every recorded death is the pre-kill process's or a later one's, after the pre-kill process's last reading, so none may have preceded a duplicate line received before that reading (a candidate lined before the kill, P-3). A controller process whose readings carry no monotonic_ns cannot be placed among the others and is never read as the last of them: every death that may be its own (after the kill, the death of the process ordered before it, which may be the last process and never have died, and its own) is not placed and may have preceded any redelivery, while the kill keeps the pre-kill process's last reading as its lower bound, which holds whatever process came next. Beside a further death that may have preceded a claimant's redelivery, a claimant of the kill cannot be told from an identity in progress at that further death, so no kill case is named and every claimant is neither named nor R3, its device undecided (E-9); a further death wholly after every claimant's redelivery leaves this rule as under one death, and a further death that may have preceded no duplicate-only candidate's redelivery explains nothing and is reported. Each recorded death counts one to the capacity, for the candidates whose redelivery it may have preceded: the kill for those nothing read excludes from it, a further death whether or not the kill can explain them, since they may have been in progress at that death (E-10, E-13). A controller reading whose started_at cannot be read names no process: unless its monotonic_ns is read at or below the pre-kill process's last reading, it may be of a process the readings do not otherwise record, so the number of deaths is unknown, and an unread cell is never read as no process. A further death the readings do not record may then have preceded any redelivery after the pre-kill process's last reading: no claimant of the kill is named, none is R3 on the reading of one death, and a candidate such a death may have preceded is neither named nor R3 on the deaths recorded alone, nor counted in an R3 group (E-13), its device undecided (E-9); a candidate lined before the kill keeps its reading, since every death follows the pre-kill process's last reading.",
+          "E-7": "A refutation rests only on evidence that was read and verified: when the post-drain copy is absent, not verified by the harness as this run's, or unreadable, S2 to S5 and R1 to R4 can be shown neither way and are null; when a twin snapshot is so, or names no twin for the device, S4, S5, R3 and R4 are null for what depends on it; when the controller log (item 6) was not fetched, was recorded fetched but is absent, or is unreadable, an A3 connection end can be shown neither way, so a duplicate-only candidate that is not named with the kill as its source is neither named nor R3, S4 and R3 are null for it and S5 and R4 for its device unless the twin's figures refute under every naming of it (E-9), while a candidate the twin shows unapplied (no surplus, or more candidates than the surplus) stays R3 on the twin's evidence, which was read. The absence is named as a failed fetch and the run is inconclusive unless a refutation was observed on evidence that was read. When the population record is not whole (E-11), a duplicate-only identity of the post-drain copy that no readable record of this run carries (its sent record skipped, without a message_id, of another run, repeating another's message_id or missing) may be an N1 case the naming cannot read, since an unread record cannot show that no N1 case explains the twin: S5 and R4 are null for its device, its seq read from its lines, unless the twin's figures refute under every naming of it (E-9); its publication cannot be read, so it is offered every source that may have preceded its redelivered duplicate line, the kill included unless its line was written before the pre-kill process's last reading, and the capacity (E-10) is checked across the run: a lost record makes the attribution uncertain, never the sources the run records; a refutation that does not rest on it (a double acceptance, a last_seq regression, a surplus beyond what the unread identities could explain) stands.",
+          "E-8": "A duplicate-only candidate that is ambiguous under P-3 (a `duplicate` line received at or inside the controller-clock band between the last pre-kill reading and the first post-kill one, a line without received_monotonic_ns, or no band at all), or one published on the host clock inside the restart command's window (from the command's start, the manifest's started_monotonic_ns, to its end, finished_utc after started_utc plus the host band, the kill landing somewhere in it) or whose publication cannot be placed against that start, is neither named nor R3 on that ground: whether it was in progress at the kill cannot be shown from a reading inside the sampling band or a publication inside the command's window, since no criterion of the ADR involves timing and a poll or hook instant decides nothing of it. S4 and R3 are null for the candidate, and S5 and R4 for its device unless the twin's figures refute under every naming of it (E-9); the run is inconclusive on that ground, never refuted. A candidate lined before the kill on the controller clock, published after the command's end, or one the twin shows unapplied, is R3 as before.",
+          "P-4": "An N1 case's source is established by inference, since the controller's A5 occurrence names the delivery (topic, mid, qos, dup, connection, received_monotonic_ns) and not the identity: 'a3-connection-end' when an ERROR occurrence of the connection-end message names the candidate's device in its topic and its in-progress delivery's received_monotonic_ns precedes the candidate's redelivered duplicate line; 'kill' when the candidate is restart-class, was published before the restart command's start on the host clock (the manifest's started_monotonic_ns, before which the kill cannot have landed) and the manifest's restart executed with exit 0. A candidate that is ambiguous under P-3, or published inside the restart command's window, is not thereby refused the kill as its source: with the other conditions met it can be shown neither way (E-8). A candidate is named only with the twin's evidence: the device's surplus equals the number of cases named on it and the after snapshot's last_seq is not below the candidate's seq. Each occurrence names one case at most (N1): a device's occurrences are offered first to its candidates the kill cannot explain (lined before the kill, published after the restart command's end, or the restart not executed with exit 0), so an occurrence two candidates contend for goes to the one no other source could explain, and each candidate takes the unused occurrence received last before its redelivered duplicate line (the earlier log line on a tie), so the occurrences name as many candidates as their order allows, whatever the order of the log lines. What this reading names stands only as E-13 states: a naming that some legitimate assignment of the sources reads otherwise is left unshown, and candidates that contend for fewer sources than they number are R3 as a group, none of them named."
+        },
+        "observed": false,
+        "rule": "An identity has only `duplicate` lines and is not a named N1 case of S4 (in progress at the kill, or at an A3 connection end listed under item 6, **and** shown applied by the twin's surplus of S4): a genuine message was rejected, through the ordering of N5 or a wrong rebuild."
+      },
+      "R4": {
+        "evidence": {
+          "devices": [
+            {
+              "accepted_count_after": 60,
+              "accepted_count_before": null,
+              "accepted_lines": 60,
+              "compared": true,
+              "delta": 60,
+              "device_type": "smart_ring",
+              "device_uuid": "9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83",
+              "expected_last_seq": 59,
+              "last_run_id_after": "proof-adr0011-r03",
+              "last_run_id_before": null,
+              "last_seq_after": 59,
+              "last_seq_before": null,
+              "max_seq_accepted": 59,
+              "named_n1_cases": 0,
+              "ok": true,
+              "problems": [],
+              "regressed": null,
+              "surplus": 0
+            },
+            {
+              "accepted_count_after": 3000,
+              "accepted_count_before": null,
+              "accepted_lines": 2999,
+              "compared": true,
+              "delta": 3000,
+              "device_type": "smart_clothing",
+              "device_uuid": "9ce5fe46-662d-4cd3-9639-f16d057debc5",
+              "expected_last_seq": 2999,
+              "last_run_id_after": "proof-adr0011-r03",
+              "last_run_id_before": null,
+              "last_seq_after": 2999,
+              "last_seq_before": null,
+              "max_seq_accepted": 2999,
+              "named_n1_cases": 1,
+              "ok": true,
+              "problems": [],
+              "regressed": null,
+              "surplus": 1
+            },
+            {
+              "accepted_count_after": 300,
+              "accepted_count_before": null,
+              "accepted_lines": 300,
+              "compared": true,
+              "delta": 300,
+              "device_type": "smartwatch",
+              "device_uuid": "ac14ff49-1496-43a0-a8b6-c828e72aff42",
+              "expected_last_seq": 299,
+              "last_run_id_after": "proof-adr0011-r03",
+              "last_run_id_before": null,
+              "last_seq_after": 299,
+              "last_seq_before": null,
+              "max_seq_accepted": 299,
+              "named_n1_cases": 0,
+              "ok": true,
+              "problems": [],
+              "regressed": null,
+              "surplus": 0
+            }
+          ],
+          "last_seq_regressions": [],
+          "mismatches": [],
+          "note": "the /metrics counters of `delta` are not compared: they restart from zero with the controller process",
+          "source_capacity": {
+            "a5_possible_by_device": {},
+            "applied": false,
+            "beyond_a5_by_device": {},
+            "consistent": null,
+            "deaths": [
+              {
+                "after_monotonic_ns": 1155955022210,
+                "before_monotonic_ns": 1177401890818,
+                "death": 0,
+                "dying_started_at": "2026-09-28T20:58:19.279Z",
+                "kind": "kill",
+                "may_precede": [
+                  "059c22fc-b407-5864-8bb1-e6487e0d35a9"
+                ],
+                "may_serve": [
+                  "059c22fc-b407-5864-8bb1-e6487e0d35a9"
+                ],
+                "next_started_at": "2026-09-28T21:13:13.526Z",
+                "placed": true,
+                "placement": "between the last reading of process 2026-09-28T20:58:19.279Z (monotonic_ns 1155955022210) and the first reading of process 2026-09-28T21:13:13.526Z (1177401890818)",
+                "spent_on_named_kill_case": "059c22fc-b407-5864-8bb1-e6487e0d35a9",
+                "unordered_started_at": null
+              }
+            ],
+            "deaths_preceding_none": [],
+            "deaths_recorded": 1,
+            "deaths_serving_none": [],
+            "kill_available": 0,
+            "kill_needed": null,
+            "known": true,
+            "matched": null,
+            "needed": null,
+            "needed_by_device": {},
+            "possible_sources": {},
+            "post_kill_started_at": [
+              "2026-09-28T21:13:13.526Z"
+            ],
+            "rule": "an A5 occurrence serves a candidate of its own device alone; a recorded death serves at most one candidate of the whole run; each serves only a candidate whose redelivered duplicate line it may have preceded on the controller clock, a death placed as E-4 states, the kill only one that nothing read excludes from it and a further death one the kill cannot explain as well; a case named with an occurrence on an undecided device keeps one source in the matching, any occurrence of its device or any death that may so serve it (E-10)",
+            "why_unknown": null
+          },
+          "surplus_unexplained": [],
+          "undecided": []
+        },
+        "identification_rules": {
+          "E-2": "S5's tolerance on a device with named N1 cases: delta equals the device's accepted lines plus the named cases, and the expected last_seq is the highest seq among the run's accepted lines and its named cases on the device (an applied identity advanced the twin without an accepted line); the runbook's `delta` has no tolerance and exits 4 on such a device.",
+          "P-5": "R4's \"last_seq regressed\": the after snapshot's last_run_id is this run's and its last_seq is below the highest seq the run applied on the device (accepted lines and named N1 cases), or its last_run_id is the before snapshot's and its last_seq is below the before snapshot's; the seq floor resets per run_id."
+        },
+        "observed": false,
+        "rule": "A `delta` mismatch beyond S5's named cases, or a twin whose `last_seq` regressed."
+      },
+      "S1": {
+        "evidence": {
+          "cross_check_note": "the reading's ts_utc and restart.started_utc are both harness-host wall clock, shown as a cross-check only (a WSL host step may misorder them by up to 3 s); started_at decides which process the reading belongs to",
+          "last_reading": {
+            "in_flight": 1043,
+            "in_progress": 1,
+            "monotonic_ns": 1155955022210,
+            "queue_depth": 1042,
+            "row": 157,
+            "started_at": "2026-09-28T20:58:19.279Z",
+            "ts_utc": "2026-09-28T21:12:53.443Z",
+            "unacked": 1043
+          },
+          "pre_kill_rows": 158,
+          "restart_executed": true,
+          "restart_finished_utc": "2026-09-28T21:13:05.309Z",
+          "restart_returncode": 0,
+          "restart_started_controller_monotonic_ns": 1158178868274,
+          "restart_started_utc": "2026-09-28T21:12:49.503Z"
+        },
+        "holds": true,
+        "identification_rules": {
+          "P-1": "S1's \"last reading before it\" is the last row, in file order, of controller_metrics.csv whose started_at is the pre-kill process's (the first readable row's); the row's ts_utc and the manifest's restart.started_utc are both harness-host wall clock and are shown beside each other as a cross-check only, since a WSL host step may misorder them by 2-3 s."
+        },
+        "rule": "The kill found work: the last reading before it shows `queue_depth + in_progress > 0`."
+      },
+      "S2": {
+        "evidence": {
+          "ambiguous": 0,
+          "failed_only": 0,
+          "named_n1_cases": 1,
+          "not_accepted_and_not_named": 0,
+          "not_accepted_and_not_named_ids": [],
+          "restart_class": 2663,
+          "restart_classes_evaluated": 2663,
+          "valid_identities": 3360,
+          "without_outcome_line": 0,
+          "without_outcome_line_ids": []
+        },
+        "holds": true,
+        "identification_rules": {
+          "E-1": "S2's \"ends with an `accepted` line\" is read as \"obtains an `accepted` line among its post-drain lines\": a redelivery after the PUBACK adds a `duplicate` line after the `accepted` one (N2), which S4 permits and S2 does not undo.",
+          "P-3": "Restart-class membership is decided on the controller's clock: an identity is pre-kill-lined when some line's received_monotonic_ns is below the last pre-kill reading's monotonic_ns (the pre-kill process wrote it), restart-class when it has no line or every line's received_monotonic_ns is above the first post-kill reading's, and ambiguous when a line falls inside that band or carries no received_monotonic_ns. S2's second clause and the failed-only reading run over the restart class and the ambiguous identities together, so an ambiguous identity is never read as support. \"Published before the kill\", \"published inside the restart command's window\" and \"published while the controller was away\" are report figures on the host clocks, with a stated band; they never decide a restart class, and only P-4 reads them to attribute the kill as an N1 case's source. An ambiguous identity with only `duplicate` lines is not rejected as R3 on the ground of its class: it can be shown neither way (E-8)."
+        },
+        "rule": "Every published valid identity has at least one outcome line in the post-drain copy; and every valid identity of the restart classes ends with an `accepted` line, or is a named N1 case of S4. A restart-class identity whose only lines are `failed` does not support the option (see \"Inconclusive\")."
+      },
+      "S3": {
+        "evidence": {
+          "double_accepted": 0,
+          "identities": [],
+          "note": "every accepted line of the post-drain copy counts, late ones included"
+        },
+        "holds": true,
+        "identification_rules": {},
+        "rule": "No identity has two `accepted` lines (`double_accepted = 0`)."
+      },
+      "S4": {
+        "evidence": {
+          "assignments": {
+            "covered": 1,
+            "may_be": {
+              "059c22fc-b407-5864-8bb1-e6487e0d35a9": [
+                "kill"
+              ]
+            },
+            "not_borne_out": [],
+            "note": "the kinds each candidate takes under the legitimate assignments (a3-connection-end or kill: named; kill-unshown, further-death, a5-order-unread: a source that cannot be named; none: no source); a candidate is named only when it is named alike under every one of them (E-13)",
+            "r3_groups": [],
+            "rule": "E-13",
+            "served_by_a_legitimate_assignment": 1,
+            "sources_may_hold": {
+              "059c22fc-b407-5864-8bb1-e6487e0d35a9": [
+                "death 0"
+              ]
+            }
+          },
+          "cannot_show": 0,
+          "cannot_show_identities": [],
+          "duplicate_only_identities": 1,
+          "named_n1_cases": 1,
+          "not_named": 0,
+          "not_named_identities": [],
+          "notes": [],
+          "r3_groups": []
+        },
+        "holds": true,
+        "identification_rules": {
+          "E-13": "A duplicate-only candidate is named, or R3 for want of a source, only as every legitimate assignment of the sources the run evidences reads it, never as the order in which the candidates or the log lines are read. An assignment gives each candidate on a device with the twin's surplus at most one source that may have preceded its redelivered duplicate line (E-4, E-10) - an A5 occurrence of its device (named 'a3-connection-end' when both stamps are read and in order, unshown when either cannot be read), the kill (named 'kill' for a restart-class candidate published before the restart command's start with the restart executed with exit 0, P-4; unshown for one that nothing read excludes from it, E-8), or a further death (never named, P-4; held by a candidate whether or not the kill can explain it, since it may have been in progress at that death, E-4) - each source serving one candidate at most (N1); a candidate the twin shows unapplied claims none (E-4), and an unshown candidate without twin evidence that may have been in progress at the kill may hold it (E-4). An assignment is legitimate when it serves as many candidates as the sources can serve, since the twin's surplus counts each of them applied. A case is named with the kind of its source, the kill or an A3 connection end of its device; which of the device's occurrences it was is inference (E-10), so the line shown is the one a legitimate assignment read from the evidence alone gives it (the candidates from the latest redelivery down, the occurrences from the latest received, never the seqs or the order of the log lines), with every line it may have been listed. A candidate that some legitimate assignments name and others do not, or name with the kill and with an occurrence, or whose reading in order no legitimate assignment bears out, is neither named nor R3: S4 and R3 are null for it and its device is undecided for S5 and R4 (E-9, E-10), so the run is inconclusive on that ground, never 'supports' and never refuted. Candidates whose lack of a source is R3 on what was read (the kill cannot explain them, or they claim it as P-4 names it, and the controller log was read) that contend for fewer sources than they number leave at least so many of them without one in any assignment: R3 is observed on the group, listed with the sources it contends for and that least number, and no identity of it is named as a case or singled out as R3, since only the aggregate is established; its device is undecided for S5 and R4 (E-9, E-10). Several claimants of the kill with no other source keep E-4's reading (none named, each R3). When a member of such a group is left unshown on another ground, nothing is refuted on the group and none of it is named. The legitimate assignments are read from one maximum matching and the alternating paths from it, which give every source a candidate may hold in some legitimate assignment and whether it may hold none, so no order decides and nothing is enumerated by permutation.",
+          "E-4": "At most one N1 case per death has the kill as its source (N1: one consumer); when more than one candidate claims it, none is named and each is R3. When one candidate claims it beside another duplicate-only identity that may have been in progress at the kill (not lined before it, not published after the restart command's end) and can be shown neither way (E-7, E-8), the case may be the other's: the claimant is neither named nor R3, and its device is undecided (E-9). A candidate the twin shows unapplied is R3 whatever was in progress at the kill and claims no case. When the readings record more than one controller process start after the pre-kill one, a further death is recorded that the plan did not prescribe and P-4 never names as a source. Each death is placed on the controller clock between the last reading of the process that died and the first reading of the next (monotonic_ns), and it may have preceded a candidate's redelivery only when the lower bound of that interval is below the received_monotonic_ns of the candidate's first duplicate line, or equal to it (a tie the readings cannot order, read inclusively as the band of P-3 and E-8 is), or when either cannot be read or the readings contradict the interval (the dying process read at or after the next one's first reading); a death wholly after the redelivery cannot be its source. Whatever its placement, every recorded death is the pre-kill process's or a later one's, after the pre-kill process's last reading, so none may have preceded a duplicate line received before that reading (a candidate lined before the kill, P-3). A controller process whose readings carry no monotonic_ns cannot be placed among the others and is never read as the last of them: every death that may be its own (after the kill, the death of the process ordered before it, which may be the last process and never have died, and its own) is not placed and may have preceded any redelivery, while the kill keeps the pre-kill process's last reading as its lower bound, which holds whatever process came next. Beside a further death that may have preceded a claimant's redelivery, a claimant of the kill cannot be told from an identity in progress at that further death, so no kill case is named and every claimant is neither named nor R3, its device undecided (E-9); a further death wholly after every claimant's redelivery leaves this rule as under one death, and a further death that may have preceded no duplicate-only candidate's redelivery explains nothing and is reported. Each recorded death counts one to the capacity, for the candidates whose redelivery it may have preceded: the kill for those nothing read excludes from it, a further death whether or not the kill can explain them, since they may have been in progress at that death (E-10, E-13). A controller reading whose started_at cannot be read names no process: unless its monotonic_ns is read at or below the pre-kill process's last reading, it may be of a process the readings do not otherwise record, so the number of deaths is unknown, and an unread cell is never read as no process. A further death the readings do not record may then have preceded any redelivery after the pre-kill process's last reading: no claimant of the kill is named, none is R3 on the reading of one death, and a candidate such a death may have preceded is neither named nor R3 on the deaths recorded alone, nor counted in an R3 group (E-13), its device undecided (E-9); a candidate lined before the kill keeps its reading, since every death follows the pre-kill process's last reading.",
+          "E-7": "A refutation rests only on evidence that was read and verified: when the post-drain copy is absent, not verified by the harness as this run's, or unreadable, S2 to S5 and R1 to R4 can be shown neither way and are null; when a twin snapshot is so, or names no twin for the device, S4, S5, R3 and R4 are null for what depends on it; when the controller log (item 6) was not fetched, was recorded fetched but is absent, or is unreadable, an A3 connection end can be shown neither way, so a duplicate-only candidate that is not named with the kill as its source is neither named nor R3, S4 and R3 are null for it and S5 and R4 for its device unless the twin's figures refute under every naming of it (E-9), while a candidate the twin shows unapplied (no surplus, or more candidates than the surplus) stays R3 on the twin's evidence, which was read. The absence is named as a failed fetch and the run is inconclusive unless a refutation was observed on evidence that was read. When the population record is not whole (E-11), a duplicate-only identity of the post-drain copy that no readable record of this run carries (its sent record skipped, without a message_id, of another run, repeating another's message_id or missing) may be an N1 case the naming cannot read, since an unread record cannot show that no N1 case explains the twin: S5 and R4 are null for its device, its seq read from its lines, unless the twin's figures refute under every naming of it (E-9); its publication cannot be read, so it is offered every source that may have preceded its redelivered duplicate line, the kill included unless its line was written before the pre-kill process's last reading, and the capacity (E-10) is checked across the run: a lost record makes the attribution uncertain, never the sources the run records; a refutation that does not rest on it (a double acceptance, a last_seq regression, a surplus beyond what the unread identities could explain) stands.",
+          "E-8": "A duplicate-only candidate that is ambiguous under P-3 (a `duplicate` line received at or inside the controller-clock band between the last pre-kill reading and the first post-kill one, a line without received_monotonic_ns, or no band at all), or one published on the host clock inside the restart command's window (from the command's start, the manifest's started_monotonic_ns, to its end, finished_utc after started_utc plus the host band, the kill landing somewhere in it) or whose publication cannot be placed against that start, is neither named nor R3 on that ground: whether it was in progress at the kill cannot be shown from a reading inside the sampling band or a publication inside the command's window, since no criterion of the ADR involves timing and a poll or hook instant decides nothing of it. S4 and R3 are null for the candidate, and S5 and R4 for its device unless the twin's figures refute under every naming of it (E-9); the run is inconclusive on that ground, never refuted. A candidate lined before the kill on the controller clock, published after the command's end, or one the twin shows unapplied, is R3 as before.",
+          "P-4": "An N1 case's source is established by inference, since the controller's A5 occurrence names the delivery (topic, mid, qos, dup, connection, received_monotonic_ns) and not the identity: 'a3-connection-end' when an ERROR occurrence of the connection-end message names the candidate's device in its topic and its in-progress delivery's received_monotonic_ns precedes the candidate's redelivered duplicate line; 'kill' when the candidate is restart-class, was published before the restart command's start on the host clock (the manifest's started_monotonic_ns, before which the kill cannot have landed) and the manifest's restart executed with exit 0. A candidate that is ambiguous under P-3, or published inside the restart command's window, is not thereby refused the kill as its source: with the other conditions met it can be shown neither way (E-8). A candidate is named only with the twin's evidence: the device's surplus equals the number of cases named on it and the after snapshot's last_seq is not below the candidate's seq. Each occurrence names one case at most (N1): a device's occurrences are offered first to its candidates the kill cannot explain (lined before the kill, published after the restart command's end, or the restart not executed with exit 0), so an occurrence two candidates contend for goes to the one no other source could explain, and each candidate takes the unused occurrence received last before its redelivered duplicate line (the earlier log line on a tie), so the occurrences name as many candidates as their order allows, whatever the order of the log lines. What this reading names stands only as E-13 states: a naming that some legitimate assignment of the sources reads otherwise is left unshown, and candidates that contend for fewer sources than they number are R3 as a group, none of them named."
+        },
+        "rule": "Every identity with a `duplicate` line either also has an `accepted` line, or is a named N1 case. An N1 case has one of two sources, and the result names each case with its source **and with the twin's evidence that the identity was applied**: the identity in progress at the kill, or the identity in progress at a connection ended under A3 after its `PATCH` (item 6); and, on that identity's device, the post-drain twin snapshot's `accepted_count` exceeds the device's `accepted` lines by exactly the number of N1 cases named on it, with the twin's `last_seq` not below the identity's `seq`. Being in progress is not enough: an identity whose `PATCH` was never sent, redelivered after a later `seq` of its device had been applied, would also end with only a `duplicate` line \u2014 that is the order break R3 exists to detect, not an N1 case. Without the surplus the identity was not applied and R3 applies"
+      },
+      "S5": {
+        "evidence": {
+          "devices": [
+            {
+              "accepted_count_after": 60,
+              "accepted_count_before": null,
+              "accepted_lines": 60,
+              "compared": true,
+              "delta": 60,
+              "device_type": "smart_ring",
+              "device_uuid": "9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83",
+              "expected_last_seq": 59,
+              "last_run_id_after": "proof-adr0011-r03",
+              "last_run_id_before": null,
+              "last_seq_after": 59,
+              "last_seq_before": null,
+              "max_seq_accepted": 59,
+              "named_n1_cases": 0,
+              "ok": true,
+              "problems": [],
+              "regressed": null,
+              "surplus": 0
+            },
+            {
+              "accepted_count_after": 3000,
+              "accepted_count_before": null,
+              "accepted_lines": 2999,
+              "compared": true,
+              "delta": 3000,
+              "device_type": "smart_clothing",
+              "device_uuid": "9ce5fe46-662d-4cd3-9639-f16d057debc5",
+              "expected_last_seq": 2999,
+              "last_run_id_after": "proof-adr0011-r03",
+              "last_run_id_before": null,
+              "last_seq_after": 2999,
+              "last_seq_before": null,
+              "max_seq_accepted": 2999,
+              "named_n1_cases": 1,
+              "ok": true,
+              "problems": [],
+              "regressed": null,
+              "surplus": 1
+            },
+            {
+              "accepted_count_after": 300,
+              "accepted_count_before": null,
+              "accepted_lines": 300,
+              "compared": true,
+              "delta": 300,
+              "device_type": "smartwatch",
+              "device_uuid": "ac14ff49-1496-43a0-a8b6-c828e72aff42",
+              "expected_last_seq": 299,
+              "last_run_id_after": "proof-adr0011-r03",
+              "last_run_id_before": null,
+              "last_seq_after": 299,
+              "last_seq_before": null,
+              "max_seq_accepted": 299,
+              "named_n1_cases": 0,
+              "ok": true,
+              "problems": [],
+              "regressed": null,
+              "surplus": 0
+            }
+          ],
+          "last_seq_regressions": [],
+          "mismatches": [],
+          "note": "the /metrics counters of `delta` are not compared: they restart from zero with the controller process",
+          "source_capacity": {
+            "a5_possible_by_device": {},
+            "applied": false,
+            "beyond_a5_by_device": {},
+            "consistent": null,
+            "deaths": [
+              {
+                "after_monotonic_ns": 1155955022210,
+                "before_monotonic_ns": 1177401890818,
+                "death": 0,
+                "dying_started_at": "2026-09-28T20:58:19.279Z",
+                "kind": "kill",
+                "may_precede": [
+                  "059c22fc-b407-5864-8bb1-e6487e0d35a9"
+                ],
+                "may_serve": [
+                  "059c22fc-b407-5864-8bb1-e6487e0d35a9"
+                ],
+                "next_started_at": "2026-09-28T21:13:13.526Z",
+                "placed": true,
+                "placement": "between the last reading of process 2026-09-28T20:58:19.279Z (monotonic_ns 1155955022210) and the first reading of process 2026-09-28T21:13:13.526Z (1177401890818)",
+                "spent_on_named_kill_case": "059c22fc-b407-5864-8bb1-e6487e0d35a9",
+                "unordered_started_at": null
+              }
+            ],
+            "deaths_preceding_none": [],
+            "deaths_recorded": 1,
+            "deaths_serving_none": [],
+            "kill_available": 0,
+            "kill_needed": null,
+            "known": true,
+            "matched": null,
+            "needed": null,
+            "needed_by_device": {},
+            "possible_sources": {},
+            "post_kill_started_at": [
+              "2026-09-28T21:13:13.526Z"
+            ],
+            "rule": "an A5 occurrence serves a candidate of its own device alone; a recorded death serves at most one candidate of the whole run; each serves only a candidate whose redelivered duplicate line it may have preceded on the controller clock, a death placed as E-4 states, the kill only one that nothing read excludes from it and a further death one the kill cannot explain as well; a case named with an occurrence on an undecided device keeps one source in the matching, any occurrence of its device or any death that may so serve it (E-10)",
+            "why_unknown": null
+          },
+          "surplus_unexplained": [],
+          "undecided": []
+        },
+        "holds": true,
+        "identification_rules": {
+          "E-2": "S5's tolerance on a device with named N1 cases: delta equals the device's accepted lines plus the named cases, and the expected last_seq is the highest seq among the run's accepted lines and its named cases on the device (an applied identity advanced the twin without an accepted line); the runbook's `delta` has no tolerance and exits 4 on such a device."
+        },
+        "rule": "The runbook's `delta` is `OK` for every twin (`qemu_integrated_gateway.md:1130`), except, on the device of each named N1 case of S4, a difference of exactly one per such case \u2014 the difference S4 requires as the case's evidence, not merely permits."
+      },
+      "S6": {
+        "evidence": {
+          "W": 4999,
+          "filled": false,
+          "filled_from": null,
+          "max_at": {
+            "monotonic_ns": 1300865708418,
+            "row": 281,
+            "started_at": "2026-09-28T21:13:13.526Z",
+            "ts_utc": "2026-09-28T21:15:12.846Z"
+          },
+          "max_queue_plus_in_progress": 1842,
+          "readable_readings": 282,
+          "readings": 282,
+          "sampling_note": "readings are taken at about 1 Hz and a failed poll writes no row, so a fill between two readings is unobservable",
+          "statement": "max(queue_depth + in_progress) = 1842 stayed below W = 4999"
+        },
+        "holds": true,
+        "identification_rules": {
+          "P-2": "S6 with no readable reading of queue_depth and in_progress, or without W (the embedded configuration identity's broker_conf_values.max_inflight_messages is not a positive integer), cannot be stated and is treated as an inconclusive condition, although the ADR's rule does not list it: nothing can then be said about the window."
+        },
+        "rule": "`max(queue_depth + in_progress)` stayed below W \u2014 or the result states that the window filled, and from when (P5)."
+      }
+    },
+    "failed_only_restart_class": [],
+    "inconclusive_reasons": [],
+    "n1_cases": [
+      {
+        "class": "restart_class",
+        "device_uuid": "9ce5fe46-662d-4cd3-9639-f16d057debc5",
+        "first_duplicate_received_monotonic_ns": 1177611049682,
+        "in_restart_class": true,
+        "message_id": "059c22fc-b407-5864-8bb1-e6487e0d35a9",
+        "outcomes": [
+          "duplicate"
+        ],
+        "publication_unplaced": false,
+        "published_before_kill": true,
+        "published_during_restart": false,
+        "seq": 621,
+        "source": "kill",
+        "source_evidence": {
+          "inference": "An N1 case's source is established by inference, since the controller's A5 occurrence names the delivery (topic, mid, qos, dup, connection, received_monotonic_ns) and not the identity: 'a3-connection-end' when an ERROR occurrence of the connection-end message names the candidate's device in its topic and its in-progress delivery's received_monotonic_ns precedes the candidate's redelivered duplicate line; 'kill' when the candidate is restart-class, was published before the restart command's start on the host clock (the manifest's started_monotonic_ns, before which the kill cannot have landed) and the manifest's restart executed with exit 0. A candidate that is ambiguous under P-3, or published inside the restart command's window, is not thereby refused the kill as its source: with the other conditions met it can be shown neither way (E-8). A candidate is named only with the twin's evidence: the device's surplus equals the number of cases named on it and the after snapshot's last_seq is not below the candidate's seq. Each occurrence names one case at most (N1): a device's occurrences are offered first to its candidates the kill cannot explain (lined before the kill, published after the restart command's end, or the restart not executed with exit 0), so an occurrence two candidates contend for goes to the one no other source could explain, and each candidate takes the unused occurrence received last before its redelivered duplicate line (the earlier log line on a tie), so the occurrences name as many candidates as their order allows, whatever the order of the log lines. What this reading names stands only as E-13 states: a naming that some legitimate assignment of the sources reads otherwise is left unshown, and candidates that contend for fewer sources than they number are R3 as a group, none of them named.",
+          "restart_finished_utc": "2026-09-28T21:13:05.309Z",
+          "restart_returncode": 0,
+          "restart_started_utc": "2026-09-28T21:12:49.503Z",
+          "restart_stderr_tail": "ler-1 started 2026-09-28T20:58:05.444710738Z status running\n Container egw-mosquitto-1  Waiting\n Container egw-ditto-gateway-1  Waiting\n Container egw-mosquitto-1  Healthy\n Container egw-ditto-gateway-1  Healthy\n Container egw-controller-1  Starting\n Container egw-controller-1  Started\nproof_restart_controller: guest instants: before 2026-09-28T21:12:50Z (epoch 1790629969), after 2026-09-28T21:13:04Z (epoch 1790629984); container_id_same=yes started_at_changed=yes; the restart-shown step decides"
+        },
+        "twin_evidence": {
+          "accepted_count_after": 3000,
+          "accepted_count_before": null,
+          "accepted_lines": 2999,
+          "last_run_id": "proof-adr0011-r03",
+          "last_seq": 2999,
+          "surplus": 1
+        }
+      }
+    ],
+    "refutations": [],
+    "report": {
+      "a5_occurrences": [],
+      "by_class": {
+        "ambiguous": {
+          "accepted": 0,
+          "duplicate": 0,
+          "failed": 0,
+          "identities": 0,
+          "lines": 0,
+          "none": 0,
+          "rejected": 0
+        },
+        "intended_invalid": {
+          "accepted": 0,
+          "duplicate": 0,
+          "failed": 0,
+          "identities": 0,
+          "lines": 0,
+          "none": 0,
+          "rejected": 0
+        },
+        "other_valid": {
+          "accepted": 697,
+          "duplicate": 0,
+          "failed": 0,
+          "identities": 697,
+          "lines": 697,
+          "none": 0,
+          "rejected": 0
+        },
+        "restart_classes": {
+          "accepted": 2662,
+          "duplicate": 1,
+          "failed": 0,
+          "identities": 2663,
+          "lines": 2663,
+          "none": 0,
+          "rejected": 0
+        }
+      },
+      "classification": {
+        "ambiguous": 0,
+        "away_window": {
+          "band_s": 3.0,
+          "kill_host_monotonic_ns": 1248940612240,
+          "note": "host wall clock and host monotonic through the manifest's anchor, with a 3 s band for the host clock steps; the restart command's window runs from its start (kill_host_monotonic_ns, the spawn) to its end (finished_utc after started_utc, plus the band) and the kill lands inside it; the controller log's subscription line is on the guest clock and is reported beside it, never used to decide; none of these figures decides a criterion, and only P-4 reads them for an N1 case's source",
+          "restart_command_end_host_monotonic_ns": 1267746612240,
+          "restart_finished_utc": "2026-09-28T21:13:05.309Z",
+          "restart_started_utc": "2026-09-28T21:12:49.503Z",
+          "resubscribed_host_monotonic_ns": 1271758269374,
+          "resubscribed_row": {
+            "monotonic_ns": 1180322611506,
+            "row": 161,
+            "started_at": "2026-09-28T21:13:13.526Z",
+            "ts_utc": "2026-09-28T21:13:17.805Z"
+          },
+          "subscription_granted_ts_in_controller_log": [
+            "2026-09-26T17:59:10.386Z",
+            "2026-09-26T18:14:41.582Z",
+            "2026-09-26T21:07:50.830Z",
+            "2026-09-26T21:23:13.968Z",
+            "2026-09-28T20:58:20.339Z",
+            "2026-09-28T21:13:16.582Z"
+          ]
+        },
+        "band": {
+          "clock": "controller monotonic_ns as /metrics reported it",
+          "k_lower_monotonic_ns": 1155955022210,
+          "k_upper_monotonic_ns": 1177401890818,
+          "lower_row": {
+            "monotonic_ns": 1155955022210,
+            "row": 157,
+            "started_at": "2026-09-28T20:58:19.279Z",
+            "ts_utc": "2026-09-28T21:12:53.443Z"
+          },
+          "upper_row": {
+            "monotonic_ns": 1177401890818,
+            "row": 158,
+            "started_at": "2026-09-28T21:13:13.526Z",
+            "ts_utc": "2026-09-28T21:13:14.890Z"
+          }
+        },
+        "notes": [],
+        "pre_kill_lined": 697,
+        "publication_unplaced": 0,
+        "published_after_resubscription": 1391,
+        "published_before_kill": 1679,
+        "published_during_restart": 211,
+        "published_while_away": 79,
+        "restart_class": 2663
+      },
+      "copies": {
+        "events.jsonl": {
+          "by_outcome": {
+            "accepted": 2072,
+            "duplicate": 1
+          },
+          "identities": 2073,
+          "lines": 2073,
+          "other_run_id": 0,
+          "unattributed": 0
+        },
+        "events.post-drain.jsonl": {
+          "by_outcome": {
+            "accepted": 3359,
+            "duplicate": 1
+          },
+          "identities": 3360,
+          "lines": 3360,
+          "other_run_id": 0,
+          "unattributed": 0
+        }
+      },
+      "devices": {
+        "expected_from_seed": {
+          "9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83": "smart_ring",
+          "9ce5fe46-662d-4cd3-9639-f16d057debc5": "smart_clothing",
+          "ac14ff49-1496-43a0-a8b6-c828e72aff42": "smartwatch"
+        },
+        "published_for": [
+          "9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83",
+          "9ce5fe46-662d-4cd3-9639-f16d057debc5",
+          "ac14ff49-1496-43a0-a8b6-c828e72aff42"
+        ],
+        "surplus": [
+          {
+            "accepted_count_after": 60,
+            "accepted_count_before": null,
+            "accepted_lines": 60,
+            "delta": 60,
+            "device_type": "smart_ring",
+            "device_uuid": "9a7bbfd8-0e8c-4e17-b3c3-29f0912b5f83",
+            "last_run_id_after": "proof-adr0011-r03",
+            "last_run_id_before": null,
+            "last_seq_after": 59,
+            "last_seq_before": null,
+            "max_seq_accepted": 59,
+            "problems": [],
+            "surplus": 0
+          },
+          {
+            "accepted_count_after": 3000,
+            "accepted_count_before": null,
+            "accepted_lines": 2999,
+            "delta": 3000,
+            "device_type": "smart_clothing",
+            "device_uuid": "9ce5fe46-662d-4cd3-9639-f16d057debc5",
+            "last_run_id_after": "proof-adr0011-r03",
+            "last_run_id_before": null,
+            "last_seq_after": 2999,
+            "last_seq_before": null,
+            "max_seq_accepted": 2999,
+            "problems": [],
+            "surplus": 1
+          },
+          {
+            "accepted_count_after": 300,
+            "accepted_count_before": null,
+            "accepted_lines": 300,
+            "delta": 300,
+            "device_type": "smartwatch",
+            "device_uuid": "ac14ff49-1496-43a0-a8b6-c828e72aff42",
+            "last_run_id_after": "proof-adr0011-r03",
+            "last_run_id_before": null,
+            "last_seq_after": 299,
+            "last_seq_before": null,
+            "max_seq_accepted": 299,
+            "problems": [],
+            "surplus": 0
+          }
+        ]
+      },
+      "method": {
+        "controller_log_problem": null,
+        "controller_log_usable": true,
+        "criteria_copy": "events.post-drain.jsonl",
+        "criteria_copy_problem": null,
+        "criteria_copy_usable": true,
+        "identification_rules": {
+          "E-1": "S2's \"ends with an `accepted` line\" is read as \"obtains an `accepted` line among its post-drain lines\": a redelivery after the PUBACK adds a `duplicate` line after the `accepted` one (N2), which S4 permits and S2 does not undo.",
+          "E-10": "The namings E-9 tries respect the sources the run evidences, their capacity across the whole run and P-4's order rule (a source precedes the candidate's redelivered duplicate line), each source serving what it can (N1: at most one such identity per death, or per connection ended under A3 after a PATCH, since there is one consumer): a recorded death gives at most one N1 case in the run, whichever device's, and only to a candidate whose redelivery it may have preceded on the controller clock (placed as E-4 states), the kill only to one that nothing read excludes from it and a further death to one the kill cannot explain as well - the deaths are every controller process start the readings record after the pre-kill one, or the manifest's kill (P-4's conditions on its restart record) when they record none, less the kill case already named - and each A5 occurrence read from the controller log at most one, of its own device alone, and only to a candidate whose redelivery its in-progress delivery may have preceded (received before the candidate's first duplicate line, or either stamp unreadable); occurrences on one device never serve another's need. With the log read, an occurrence that precedes an undecided candidate (E-8, E-4) names another case under P-4, and which of a device's occurrences served which of its cases is inference: the check is a matching of the candidates each undecided device's count requires, beside the cases named with an occurrence on those devices, to these sources, each source used once and each such named case keeping one - any occurrence of its device that may have preceded its redelivery, or any death that may have and may serve it: the kill when nothing read excludes the case from it (not lined before it, not published after the restart command's end, the restart executed with exit 0), a further death whether or not the kill can explain it - so a named case may leave its occurrence to an undecided candidate, and the occurrence P-4 recorded against a case never decides the capacity; an undecided candidate is offered the same, one the kill cannot explain (left undecided by E-13) included: its device's occurrences and every further death that may have preceded its redelivery, at which it may have been in progress (E-4, E-13); the counts are small. When no such matching exists (a surplus of two on one device, or of one on each of two, with one death and no occurrence that may precede them; or a further death wholly after the redeliveries it would have to explain), no source-consistent naming explains the twins: R4 is observed and S5 does not hold, on the twin's evidence and the record, which were read, with every undecided device's figures, the deaths as placed and the sources each candidate may have had shown (a death that may have preceded none of their redeliveries, and the kill when it may have preceded them but none of them may have been in progress at it, reported apart); a device that no matching of its own candidates to the sources serves, even with every recorded death available to it, is the mismatch by itself, whatever the deaths served elsewhere, and otherwise only the aggregate is established and no device is named as the mismatch; no identity is named as the case, with no A3 event assumed that the log does not record; S4 and R3 stay null for the candidates. When the controller log cannot serve the criteria (E-7) the number of A3 connection ends is unknown, so the capacity is unknown: E-9's count alone applies and the run stays inconclusive, never refuted on capacity grounds, since an unread log is not proof of zero A3 events. So it is when the number of deaths is unknown (a reading after the pre-kill process's last one whose started_at cannot be read, E-4): the capacity is unknown, E-9's count alone applies and the run is never refuted on capacity grounds, since an unread started_at is not proof of no further process.",
+          "E-11": "The proof is evaluated only on the execution the ADR prescribes and the records it lists ('The finite proof', 'What it records'), with the harness's own validity quoted as recorded and admitted only as E-12 states: 'valid', or the campaign's MAX_SAMPLE_GAP_S deviation in the one form the harness records it (the ADR names that rule as one the proof's reconciliation does not touch, 'What it cannot show'); any other harness invalidity makes the run not eligible, every harness reason quoted, and an admission that cannot be read leaves the eligibility unknown (P-6), never met. Required besides, whatever the harness's verdict: the load and fault of the plan (condition controller_restart, the nominal scenario, 300 s at 11.2 msg/s, no warm-up, as the manifest's entry records them) with the simulator exited 0; the publication completed and the population whole (the simulator's own manifest, logs/simulator/<run_id>/manifest.json, says completed under the same load and its totals.sent equals the records of this run in sent_events.jsonl, none of which is skipped (E-5), without a message_id, repeated or of another run: a skipped or malformed line never shrinks the denominator; without that manifest the only count is the file's, which must then equal the plan's 300 x 11.2 = 3,360 with no tolerance); the fault at the plan's instant and demonstrated (the manifest's restart record requested at t+150 s, its requested_at_s, executed with exit 0, and the session facts' restart_shown true; absent or null, restart_shown is unknown, P-6); the harness's exit, when the session facts carry it (harness_exit, which the driver records before the evaluator runs), agreeing with the admission as the driver reads it: 0 beside a 'valid' manifest, 0 or 1 in the sampling-gap form, in which the harness exits 1; any other exit is a failure the manifest does not record and the run is not eligible, so no 'supports' stands beside a driver that refuses the run; without it (a standalone evaluation has only the manifest) the manifest's own validity stands and the absence is reported, deciding nothing; and every record of 'What it records' present with its fetch recorded successful: the harness copy events.jsonl with events_fetch ok (a readable file beside a failed or unrecorded fetch is not the copy) and the collector file resources.csv from the SUT collector (in E-12's sampling-gap form, the rejected collector file where the rejection names it, and the seal the harness withheld for the missing resources.csv alone accepted with the reason stated), beside the twin snapshots, the drain, the post-drain copy, the three SUT logs, the readings, the configuration identity and the seal. A run that fails any of these is not eligible: inconclusive with every reason named, never 'supports'; a refutation observed on evidence that was read and verified stands (P-7).",
+          "E-12": "The harness's validity is admitted for the proof in two forms only, recognised from what run.py writes and never from free text: 'valid' (validity 'valid' with no reason); or the campaign's sampling-gap deviation the ADR anticipates (the harness 'may again mark the run invalid under MAX_SAMPLE_GAP_S'), in the one form the harness records it when its ingest rejects the collector file: validity 'invalid' with exactly the two reasons run.compute_validity writes for it ('no SUT resources' and 'mandatory artefact(s) missing from the run directory' for resources.csv alone), missing_mandatory_artifacts ['resources.csv'], resource_source 'none', and exactly one warning of the ingest rejection (run.ingest_resources: '<source> <file> REJECTED (SUT resources treated as missing): <problems>') whose every problem is resources.validate_resources_csv's MAX_SAMPLE_GAP_S sampling-gap problem; the rejected collector file present and non-empty in the run directory at the path the rejection names, relative to the run directory (logs/collector/resources-<run_id>.csv for the harness's own fetch); no resources.csv at the top of the run directory; and SHA256SUMS absent, which run.py withholds for the missing resources.csv alone, or present and verifying. A rejection that also lists another problem, a further validity reason, a rejected file outside the run directory, absent or empty, or any other invalidity is not admitted, every harness reason quoted; a manifest field that cannot be read leaves the admission unknown (P-6), never admitted. In the sampling-gap form the evidence inventory (E-11) requires the collector file where the rejection names it instead of resources.csv, and accepts the withheld seal with the reason stated: the evaluator's own sha256 of every file it read, in the document's sources, carries the integrity of what it used; a SHA256SUMS present that does not verify is never accepted. The driver applies the same function (harness_admission), so the two parts cannot disagree.",
+          "E-13": "A duplicate-only candidate is named, or R3 for want of a source, only as every legitimate assignment of the sources the run evidences reads it, never as the order in which the candidates or the log lines are read. An assignment gives each candidate on a device with the twin's surplus at most one source that may have preceded its redelivered duplicate line (E-4, E-10) - an A5 occurrence of its device (named 'a3-connection-end' when both stamps are read and in order, unshown when either cannot be read), the kill (named 'kill' for a restart-class candidate published before the restart command's start with the restart executed with exit 0, P-4; unshown for one that nothing read excludes from it, E-8), or a further death (never named, P-4; held by a candidate whether or not the kill can explain it, since it may have been in progress at that death, E-4) - each source serving one candidate at most (N1); a candidate the twin shows unapplied claims none (E-4), and an unshown candidate without twin evidence that may have been in progress at the kill may hold it (E-4). An assignment is legitimate when it serves as many candidates as the sources can serve, since the twin's surplus counts each of them applied. A case is named with the kind of its source, the kill or an A3 connection end of its device; which of the device's occurrences it was is inference (E-10), so the line shown is the one a legitimate assignment read from the evidence alone gives it (the candidates from the latest redelivery down, the occurrences from the latest received, never the seqs or the order of the log lines), with every line it may have been listed. A candidate that some legitimate assignments name and others do not, or name with the kill and with an occurrence, or whose reading in order no legitimate assignment bears out, is neither named nor R3: S4 and R3 are null for it and its device is undecided for S5 and R4 (E-9, E-10), so the run is inconclusive on that ground, never 'supports' and never refuted. Candidates whose lack of a source is R3 on what was read (the kill cannot explain them, or they claim it as P-4 names it, and the controller log was read) that contend for fewer sources than they number leave at least so many of them without one in any assignment: R3 is observed on the group, listed with the sources it contends for and that least number, and no identity of it is named as a case or singled out as R3, since only the aggregate is established; its device is undecided for S5 and R4 (E-9, E-10). Several claimants of the kill with no other source keep E-4's reading (none named, each R3). When a member of such a group is left unshown on another ground, nothing is refuted on the group and none of it is named. The legitimate assignments are read from one maximum matching and the alternating paths from it, which give every source a candidate may hold in some legitimate assignment and whether it may hold none, so no order decides and nothing is enumerated by permutation.",
+          "E-2": "S5's tolerance on a device with named N1 cases: delta equals the device's accepted lines plus the named cases, and the expected last_seq is the highest seq among the run's accepted lines and its named cases on the device (an applied identity advanced the twin without an accepted line); the runbook's `delta` has no tolerance and exits 4 on such a device.",
+          "E-3": "A criterion that does not hold while none of R1 to R4 is observed and none of the ADR's five inconclusive conditions applies (a restart-class identity whose lines are `rejected`, say) makes the run inconclusive, stated as 'does not support': a run that merely refutes nothing does not support the option, and no other result is defined for it.",
+          "E-4": "At most one N1 case per death has the kill as its source (N1: one consumer); when more than one candidate claims it, none is named and each is R3. When one candidate claims it beside another duplicate-only identity that may have been in progress at the kill (not lined before it, not published after the restart command's end) and can be shown neither way (E-7, E-8), the case may be the other's: the claimant is neither named nor R3, and its device is undecided (E-9). A candidate the twin shows unapplied is R3 whatever was in progress at the kill and claims no case. When the readings record more than one controller process start after the pre-kill one, a further death is recorded that the plan did not prescribe and P-4 never names as a source. Each death is placed on the controller clock between the last reading of the process that died and the first reading of the next (monotonic_ns), and it may have preceded a candidate's redelivery only when the lower bound of that interval is below the received_monotonic_ns of the candidate's first duplicate line, or equal to it (a tie the readings cannot order, read inclusively as the band of P-3 and E-8 is), or when either cannot be read or the readings contradict the interval (the dying process read at or after the next one's first reading); a death wholly after the redelivery cannot be its source. Whatever its placement, every recorded death is the pre-kill process's or a later one's, after the pre-kill process's last reading, so none may have preceded a duplicate line received before that reading (a candidate lined before the kill, P-3). A controller process whose readings carry no monotonic_ns cannot be placed among the others and is never read as the last of them: every death that may be its own (after the kill, the death of the process ordered before it, which may be the last process and never have died, and its own) is not placed and may have preceded any redelivery, while the kill keeps the pre-kill process's last reading as its lower bound, which holds whatever process came next. Beside a further death that may have preceded a claimant's redelivery, a claimant of the kill cannot be told from an identity in progress at that further death, so no kill case is named and every claimant is neither named nor R3, its device undecided (E-9); a further death wholly after every claimant's redelivery leaves this rule as under one death, and a further death that may have preceded no duplicate-only candidate's redelivery explains nothing and is reported. Each recorded death counts one to the capacity, for the candidates whose redelivery it may have preceded: the kill for those nothing read excludes from it, a further death whether or not the kill can explain them, since they may have been in progress at that death (E-10, E-13). A controller reading whose started_at cannot be read names no process: unless its monotonic_ns is read at or below the pre-kill process's last reading, it may be of a process the readings do not otherwise record, so the number of deaths is unknown, and an unread cell is never read as no process. A further death the readings do not record may then have preceded any redelivery after the pre-kill process's last reading: no claimant of the kill is named, none is R3 on the reading of one death, and a candidate such a death may have preceded is neither named nor R3 on the deaths recorded alone, nor counted in an R3 group (E-13), its device undecided (E-9); a candidate lined before the kill keeps its reading, since every death follows the pre-kill process's last reading.",
+          "E-5": "A JSONL line that is not a JSON object, or not valid UTF-8 (a truncated or torn final line), is skipped and counted, as CONTRACTS.md's write rule tells a reader; the count is reported in the instrumentation section.",
+          "E-6": "The device of an A5 occurrence is the third segment of its identity.topic (c2dt/<egw_id>/<device_uuid>/telemetry); a compose or docker prefix before the JSON object is stripped before parsing.",
+          "E-7": "A refutation rests only on evidence that was read and verified: when the post-drain copy is absent, not verified by the harness as this run's, or unreadable, S2 to S5 and R1 to R4 can be shown neither way and are null; when a twin snapshot is so, or names no twin for the device, S4, S5, R3 and R4 are null for what depends on it; when the controller log (item 6) was not fetched, was recorded fetched but is absent, or is unreadable, an A3 connection end can be shown neither way, so a duplicate-only candidate that is not named with the kill as its source is neither named nor R3, S4 and R3 are null for it and S5 and R4 for its device unless the twin's figures refute under every naming of it (E-9), while a candidate the twin shows unapplied (no surplus, or more candidates than the surplus) stays R3 on the twin's evidence, which was read. The absence is named as a failed fetch and the run is inconclusive unless a refutation was observed on evidence that was read. When the population record is not whole (E-11), a duplicate-only identity of the post-drain copy that no readable record of this run carries (its sent record skipped, without a message_id, of another run, repeating another's message_id or missing) may be an N1 case the naming cannot read, since an unread record cannot show that no N1 case explains the twin: S5 and R4 are null for its device, its seq read from its lines, unless the twin's figures refute under every naming of it (E-9); its publication cannot be read, so it is offered every source that may have preceded its redelivered duplicate line, the kill included unless its line was written before the pre-kill process's last reading, and the capacity (E-10) is checked across the run: a lost record makes the attribution uncertain, never the sources the run records; a refutation that does not rest on it (a double acceptance, a last_seq regression, a surplus beyond what the unread identities could explain) stands.",
+          "E-8": "A duplicate-only candidate that is ambiguous under P-3 (a `duplicate` line received at or inside the controller-clock band between the last pre-kill reading and the first post-kill one, a line without received_monotonic_ns, or no band at all), or one published on the host clock inside the restart command's window (from the command's start, the manifest's started_monotonic_ns, to its end, finished_utc after started_utc plus the host band, the kill landing somewhere in it) or whose publication cannot be placed against that start, is neither named nor R3 on that ground: whether it was in progress at the kill cannot be shown from a reading inside the sampling band or a publication inside the command's window, since no criterion of the ADR involves timing and a poll or hook instant decides nothing of it. S4 and R3 are null for the candidate, and S5 and R4 for its device unless the twin's figures refute under every naming of it (E-9); the run is inconclusive on that ground, never refuted. A candidate lined before the kill on the controller clock, published after the command's end, or one the twin shows unapplied, is R3 as before.",
+          "E-9": "S5 and R4 on a device with a duplicate-only candidate that can be shown neither way (E-7 over the controller log or over a record the population cannot read, E-8, or E-4 beside such a candidate): the twin's figures are shown as read and nothing is decided on them while some naming of the device's undecided candidates that the count allows (delta equal to the accepted lines plus the cases named, one per candidate named) leaves `delta` right, this run's last_run_id with the highest applied seq as last_seq, and no last_seq regression; each naming tried is listed. When no naming fits the count (a surplus beyond the undecided candidates), or every one that fits leaves a mismatch or a regression, or the last_seq regressed against the before snapshot or below the seqs the run is shown to have applied (P-5), the twin refutes on evidence that was read: R4 is observed and S5 does not hold, with S4 and R3 still null for the candidate. Every naming tried respects the sources the run evidences and their capacity across the whole run (E-10).",
+          "P-1": "S1's \"last reading before it\" is the last row, in file order, of controller_metrics.csv whose started_at is the pre-kill process's (the first readable row's); the row's ts_utc and the manifest's restart.started_utc are both harness-host wall clock and are shown beside each other as a cross-check only, since a WSL host step may misorder them by 2-3 s.",
+          "P-2": "S6 with no readable reading of queue_depth and in_progress, or without W (the embedded configuration identity's broker_conf_values.max_inflight_messages is not a positive integer), cannot be stated and is treated as an inconclusive condition, although the ADR's rule does not list it: nothing can then be said about the window.",
+          "P-3": "Restart-class membership is decided on the controller's clock: an identity is pre-kill-lined when some line's received_monotonic_ns is below the last pre-kill reading's monotonic_ns (the pre-kill process wrote it), restart-class when it has no line or every line's received_monotonic_ns is above the first post-kill reading's, and ambiguous when a line falls inside that band or carries no received_monotonic_ns. S2's second clause and the failed-only reading run over the restart class and the ambiguous identities together, so an ambiguous identity is never read as support. \"Published before the kill\", \"published inside the restart command's window\" and \"published while the controller was away\" are report figures on the host clocks, with a stated band; they never decide a restart class, and only P-4 reads them to attribute the kill as an N1 case's source. An ambiguous identity with only `duplicate` lines is not rejected as R3 on the ground of its class: it can be shown neither way (E-8).",
+          "P-4": "An N1 case's source is established by inference, since the controller's A5 occurrence names the delivery (topic, mid, qos, dup, connection, received_monotonic_ns) and not the identity: 'a3-connection-end' when an ERROR occurrence of the connection-end message names the candidate's device in its topic and its in-progress delivery's received_monotonic_ns precedes the candidate's redelivered duplicate line; 'kill' when the candidate is restart-class, was published before the restart command's start on the host clock (the manifest's started_monotonic_ns, before which the kill cannot have landed) and the manifest's restart executed with exit 0. A candidate that is ambiguous under P-3, or published inside the restart command's window, is not thereby refused the kill as its source: with the other conditions met it can be shown neither way (E-8). A candidate is named only with the twin's evidence: the device's surplus equals the number of cases named on it and the after snapshot's last_seq is not below the candidate's seq. Each occurrence names one case at most (N1): a device's occurrences are offered first to its candidates the kill cannot explain (lined before the kill, published after the restart command's end, or the restart not executed with exit 0), so an occurrence two candidates contend for goes to the one no other source could explain, and each candidate takes the unused occurrence received last before its redelivered duplicate line (the earlier log line on a tie), so the occurrences name as many candidates as their order allows, whatever the order of the log lines. What this reading names stands only as E-13 states: a naming that some legitimate assignment of the sources reads otherwise is left unshown, and candidates that contend for fewer sources than they number are R3 as a group, none of them named.",
+          "P-5": "R4's \"last_seq regressed\": the after snapshot's last_run_id is this run's and its last_seq is below the highest seq the run applied on the device (accepted lines and named N1 cases), or its last_run_id is the before snapshot's and its last_seq is below the before snapshot's; the seq floor resets per run_id.",
+          "P-6": "Without the session facts (proof_session.json) whether a stop rule of the ceiling was reached is unknown, and the proof is inconclusive; so is whether the restart was shown when the facts are absent or carry no restart_shown (null): an absent required fact is never read as false or zero, and the fault is then not demonstrated (E-11).",
+          "P-7": "Precedence: a refutation observed (R2, R3 or R4 on what was read; R1 only after a completed drain) stands over every inconclusive condition, as broker_measure.sh treats a stop rule; otherwise any inconclusive condition makes the run inconclusive; 'supports' needs all six criteria to hold."
+        },
+        "note": "the timed copy (events.jsonl) is reported beside the post-drain copy and never enters a criterion",
+        "outcome_precedence": [
+          "accepted",
+          "duplicate",
+          "failed",
+          "rejected",
+          "none"
+        ],
+        "twin_evidence_problem": null
+      },
+      "processes": {
+        "post_kill_rows": 124,
+        "post_kill_started_at": [
+          "2026-09-28T21:13:13.526Z"
+        ],
+        "pre_kill_rows": 158,
+        "pre_kill_started_at": "2026-09-28T20:58:19.279Z",
+        "unreadable_rows": 0
+      },
+      "sent": {
+        "intended_invalid": 0,
+        "malformed": 0,
+        "other_run_id": 0,
+        "repeated": 0,
+        "valid": 3360
+      }
+    },
+    "result": "supports",
+    "rules": {
+      "inconclusive": "the attempt is preserved as incomplete and no result is claimed: the kill found nothing in flight (S1 fails); a `drained` call reaches its limit; any fetch listed above fails; a stop rule of the ceiling is reached; or, when none of R1 to R4 holds, a restart-class identity ends with only `failed` lines, which the result names with the error each line records. An inconclusive run is not passing: the student decides whether to repeat it \u2014 the same design, recorded as a repeat, the first run kept \u2014 or to re-decide the option, as under C3.",
+      "recovered": "delivered to the controller after the kill or the outage \u2014 again, or for the first time \u2014 and ending with an `accepted` line; or, where its effect had already reached the twin, a `duplicate` line, which is the N1 case. An identity that obtains only a `failed` line has an outcome line but is not recovered",
+      "refutation": "A refutation is a result: it is recorded and preserved, never re-run away.",
+      "restart_classes": "The *restart classes* here are the valid identities published before the kill that have no outcome line written before it, and those published while the controller was away.",
+      "support": "all six, evaluated by identity after the drain. Only a run in which all six hold supports the option; a run that merely refutes nothing does not"
+    },
+    "window": {
+      "W": 4999,
+      "filled": false,
+      "filled_from": null,
+      "max_queue_plus_in_progress": 1842
+    }
+  }
+}
+[proof] proof-adr0011-r03: supports; harness validity 'invalid' kept as recorded (admission 'sampling-gap-only', E-12); seal unsealed
+PROOF proof-adr0011-r03: validity=valid outcome=pass evaluator=supports (exit 0) harness_exit=1 restart_shown=yes stack=healthy restart_shown=yes observed=0 mandatory=0 incomplete=0 stop_rules=0 extension=not-chosen
+exported 20260928T210147Z_finite-proof-adr-0011_attempt03: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-09-28\20260928T210147Z_finite-proof-adr-0011_attempt03 (verified, 121 files, 0 excluded)
+DRIVER RESULT 20260928T210147Z_finite-proof-adr-0011_attempt03: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="the proof's evaluator: supports"
+proof exit=0 at 2026-09-28T21:27:18Z

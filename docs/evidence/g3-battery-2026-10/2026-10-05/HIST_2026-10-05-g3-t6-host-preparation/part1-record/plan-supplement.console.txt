@@ -1,0 +1,1 @@
+added controller_restart-r04 (supplement g3-t6: condition controller_restart, repetition 4, seed 1715385812, order 96) to /home/ruisth/egw-tcg/pilot/campaign_plan.json; every entry it held is unchanged

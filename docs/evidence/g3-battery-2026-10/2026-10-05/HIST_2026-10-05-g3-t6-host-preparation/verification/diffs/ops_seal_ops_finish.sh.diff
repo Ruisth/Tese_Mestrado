@@ -1,0 +1,73 @@
+--- base/ops/seal_ops_finish.sh
++++ ops/seal_ops_finish.sh
+@@ -1,28 +1,28 @@
+ #!/bin/bash
+-# Finish sealing an operator-records package of session S3 that seal_ops.sh
++# Finish sealing an operator-records package of session S4 that seal_ops.sh
+ # left unsealed (it stopped, or was interrupted, after its copy began and
+ # before SHA256SUMS was written). Nothing is copied again: the files
+ # seal_ops.sh copies are checked to be there, the whole sweep is repeated on
+ # the package as it stands, and README.md and SHA256SUMS are written. A sweep
+ # that finds a secret value or a private-key header stops this script too: it
+ # is not a way round the sweep.
+-# Usage: seal_ops_finish.sh S3 <package dir> <sealed host-preparation package dir>
++# Usage: seal_ops_finish.sh S4 <package dir> <sealed host-preparation package dir>
+ # Exit: 0 sealed; 1 a STOP (still unsealed); 2 refused, nothing was written.
+ set -u
+ LABEL=${1:?} PKG=${2:?} PREP=${3:?}
+ ENVF=$HOME/egw-tcg/.env
+ refuse() { echo "STOP: $* - nothing was written"; exit 2; }
+-[ "$LABEL" = S3 ] || refuse "the label must be S3 (the records of S1 and S2 are sealed), not $LABEL"
++[ "$LABEL" = S4 ] || refuse "the label must be S4 (the records of S1, S2 and S3 are sealed), not $LABEL"
+ case $(basename "$PKG") in
+-    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t8t9-s3-operator-records) ;;
+-    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t8t9-s3-operator-records-attempt[0-9][0-9]) ;;
+-    *) refuse "$PKG is not named HIST_<UTC date>-g3-t8t9-s3-operator-records[-attemptNN]" ;;
++    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t6-s4-operator-records) ;;
++    HIST_[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]-g3-t6-s4-operator-records-attempt[0-9][0-9]) ;;
++    *) refuse "$PKG is not named HIST_<UTC date>-g3-t6-s4-operator-records[-attemptNN]" ;;
+ esac
+ [ -d "$PKG/state" ] && [ -d "$PKG/operator" ] || refuse "$PKG is not an unsealed operator-records package"
+ [ ! -e "$PKG/SHA256SUMS" ] || refuse "$PKG is already sealed"
+ [ -n "$(ls -A "$PKG/state")" ] || refuse "$PKG/state is empty: the copy of the state directory did not happen"
+ for f in g3_go.sh g3_wait.sh seal_ops.sh; do [ -f "$PKG/operator/$f" ] || refuse "$PKG/operator/$f is missing: the copy did not finish"; done
+-case $(basename "$PREP") in HIST_*-g3-t8t9-host-preparation*) ;; *) refuse "$PREP is not a host-preparation package of S3" ;; esac
++case $(basename "$PREP") in HIST_*-g3-t6-host-preparation*) ;; *) refuse "$PREP is not a host-preparation package of S4" ;; esac
+ [ -f "$PREP/SHA256SUMS" ] && [ -f "$PREP/g3_battery.sh" ] || refuse "$PREP is not a sealed host-preparation package (no SHA256SUMS or no g3_battery.sh)"
+ [ -r "$ENVF" ] || refuse "$ENVF could not be read: the secret sweep cannot be made"
+ NSEC=$(grep -E '^[A-Za-z_][A-Za-z0-9_]*=' "$ENVF" | cut -d= -f1 | grep -cE 'PASS|SECRET|TOKEN|KEY|CREDENTIAL')
+@@ -58,7 +58,7 @@
+     rm -f "$PKG/state/turn.lock"; EARLIER="$EARLIER; the copy of the turn lock (state/turn.lock) was removed, as seal_ops.sh does"
+ fi
+ # Is the copy complete? It is compared, by content, with the state directory as it stands now.
+-STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3-attempt02}   # S3, second opening: a fresh state directory
++STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t6-s4}   # S4 (brief, HOST): the steps script's S4 state directory
+ if [ -d "$STATE" ]; then
+     DIFF=$(diff -rq -x turn.lock "$STATE" "$PKG/state" 2>&1)
+     if [ $? -eq 0 ]; then CMP="state/ is identical to the state directory as it stood at finishing (diff -rq, the turn lock aside)"
+@@ -69,7 +69,7 @@
+     fi
+ else CMP="the state directory was not there at finishing: whether the copy in state/ is complete could not be checked"; echo "NOTE: $CMP"; fi
+ {
+-echo "# G3, session S3 (tests 8 and 9): operator records (sealed $(date -u +%FT%TZ))"
++echo "# G3, session S4 (test 6 only): operator records (sealed $(date -u +%FT%TZ))"
+ echo
+ echo "state/: the steps script's state directory as it stood when seal_ops.sh copied it (session and row state"
+ echo "files, one console per invocation, the frozen drivers' consoles, the environment copy record, the script and"
+@@ -78,12 +78,12 @@
+ if [ -d "$PKG/operator/classification-notes" ]; then echo "(one reason and one next-action file per classified row)."
+ else echo "(none here: the package holds no classification notes)."; fi
+ echo "The session, preflight, gate and row packages are under output_test/runs/, each under its own UTC date;"
+-echo "state/session-S3.env and state/row-*.env name them. Nothing here is a G3 result."
++echo "state/session-S4.env and state/row-*.env name them. Nothing here is a G3 result."
+ echo
+-echo "The steps script, the row files and their verification are in $(basename "$PREP")"
++echo "The steps script, the row file and their verification are in $(basename "$PREP")"
+ echo "(its SHA256SUMS: sha256 $(sha256sum "$PREP/SHA256SUMS" | cut -d' ' -f1))."
+-echo "- steps script as opened (state/S3-g3_battery.sh): $(same "$PKG/state/S3-g3_battery.sh" "$PREP/g3_battery.sh")"
+-echo "- manifest as opened (state/S3-rows.manifest.json): $(same "$PKG/state/S3-rows.manifest.json" "$PREP/rows/rows.manifest.json")"
++echo "- steps script as opened (state/S4-g3_battery.sh): $(same "$PKG/state/S4-g3_battery.sh" "$PREP/g3_battery.sh")"
++echo "- manifest as opened (state/S4-rows.manifest.json): $(same "$PKG/state/S4-rows.manifest.json" "$PREP/rows/rows.manifest.json")"
+ echo
+ echo "Sealing note: seal_ops.sh did not seal this package (it stopped, or was interrupted, after its copy began; the"
+ echo "operator's result note says why). seal_ops_finish.sh found the files seal_ops.sh copies, repeated the whole"

@@ -1,0 +1,133 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+carrier set by the steps script from the record of the step before: T8=ok
+if [ "$T8" = ok ]; then R=itest-post-reboot-01-q2; run_test $R 42 --scenario smoke --duration 30; else stop "test 8: the post-reboot smoke is NOT started (T8='$T8': only ok = reboot shown, containers returned unaided, tunnel reopened, stack ready, twins identical and a new controller process)"; fi
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-05T11:55:23.920Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 2200.79 s, end 2332.31 s, elapsed 131.52 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-05T11:58:18Z -> 2026-10-05T12:00:24Z and bash SECONDS elapsed 126 s, recorded only
+{
+  "label": "before",
+  "seed": 42,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-ditto-fault-01-q1",
+        "last_seq": 299,
+        "last_message_id": "92f42378-43de-5583-9389-4f59cec43454",
+        "last_ts": "2026-10-03T14:13:55.723Z",
+        "accepted_count": 1991
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-ditto-fault-01-q1",
+        "last_seq": 59,
+        "last_message_id": "4138f2b2-2225-5a13-87af-9d629a8ee0dd",
+        "last_ts": "2026-10-03T14:13:51.724Z",
+        "accepted_count": 386
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-ditto-fault-01-q1",
+        "last_seq": 2999,
+        "last_message_id": "7f6d4917-7dab-5f5f-b6e3-b4a7f7f25d87",
+        "last_ts": "2026-10-03T14:13:56.622Z",
+        "accepted_count": 19278
+      }
+    }
+  }
+}
+egw_simulator: scenario=smoke seed=42 run_id=itest-post-reboot-01-q2 broker=127.0.0.1:8883 tls=True qos=1 duration=30.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=336 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-post-reboot-01-q2
+marker monotonic_ns=402862212225 lag_s=0.166
+confirmation window closed on the controller clock
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-05T11:55:23.920Z 1 336 336 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 2424.65 s, end 2555.79 s, elapsed 131.14 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-05T12:01:52Z -> 2026-10-05T12:03:58Z and bash SECONDS elapsed 126 s, recorded only
+OUTCOME RECONCILIATION itest-post-reboot-01-q2: published=336 with_logged_outcome=336 without_logged_outcome=0 not_reconcilable=0 queue_depth=0
+  counters since the before reading (secondary consistency figure, decides nothing): total=336 {'accepted': 336, 'rejected': 0, 'duplicate': 0, 'failed': 0, 'dropped': 0}
+-> OK: every published record of this run has a logged outcome in the fetched event log
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-post-reboot-01-q2",
+        "last_seq": 29,
+        "last_message_id": "63c23db0-4c16-58d8-ae0d-7c1326a11fb0",
+        "last_ts": "2026-10-05T12:00:53.318Z",
+        "accepted_count": 2021
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-post-reboot-01-q2",
+        "last_seq": 5,
+        "last_message_id": "bc9b38f8-56db-50bc-aee8-29434a84227f",
+        "last_ts": "2026-10-05T12:00:49.320Z",
+        "accepted_count": 392
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-post-reboot-01-q2",
+        "last_seq": 299,
+        "last_message_id": "34504cbb-62f7-5d54-90da-b15b2f8e59ea",
+        "last_ts": "2026-10-05T12:00:54.217Z",
+        "accepted_count": 19578
+      }
+    }
+  }
+}
+{
+  "run_id": "itest-post-reboot-01-q2",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 336,
+  "sent_valid": 336,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 336,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 336,
+  "latency_count": 336,
+  "latency_ms_p50": 37432.217359999995,
+  "latency_ms_p95": 57639.808416,
+  "latency_ms_max": 58804.271472,
+  "marker_lag_s": 0.166,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 336,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}
+5689c879-5f50-49ed-8303-0d42c4898beb smartwatch: existed_before=True accepted_count 1991 -> 2021 (delta 30); accepted records in events.jsonl 30; last_run_id itest-post-reboot-01-q2 last_seq 29: OK
+b484f9ea-2dc6-45ef-9434-5fc06a06e2c9 smart_ring: existed_before=True accepted_count 386 -> 392 (delta 6); accepted records in events.jsonl 6; last_run_id itest-post-reboot-01-q2 last_seq 5: OK
+7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 smart_clothing: existed_before=True accepted_count 19278 -> 19578 (delta 300); accepted records in events.jsonl 300; last_run_id itest-post-reboot-01-q2 last_seq 299: OK
+/metrics accepted: 0 -> 336 (delta 336); events.jsonl 336: OK
+/metrics rejected: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics duplicate: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics failed: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics dropped: 0 -> 0 (delta 0)
+TEST STATUS itest-post-reboot-01-q2: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict: compare the values printed above with the test's Expected list.

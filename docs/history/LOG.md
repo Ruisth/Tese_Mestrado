@@ -1,0 +1,5655 @@
+# LOG — repositório Claude (Tema 1, Edge Gateway)
+
+Formato: **Data · Fase · Ação · Resultado · Artefactos · Decisões · Próximos passos**
+(igual ao `../LOG_Projeto.md`; este LOG cobre apenas o trabalho dentro de `Claude/`).
+
+> **Ordering, identifiers and language (note added 2026-08-12).** Entries are
+> listed by identifier, ascending. Identifiers are assigned when an entry is
+> written and are never reused, so a renumbered entry may carry an earlier
+> date than the entry before it — see `#C010`, published as a second `#C006`
+> and renumbered on 2026-08-12 to remove the collision, with its date and
+> content unchanged. Entries written from 2026-08-11 onwards are in British
+> English, per [`docs/governance/language-policy.md`](../governance/language-policy.md);
+> the earlier Portuguese entries are historical records and are corrected only
+> by dated notes, never rewritten.
+
+---
+
+## Entrada #C001
+- **Data:** 2026-08-07
+- **Fase:** Bloco 07–09/08 (G0) do plano integrado
+- **Ação:** Criação do repositório `Claude/` com Git, estrutura conforme o
+  C2DTA Student Repository Template, e fixação dos contratos normativos internos.
+- **Resultado:** Esqueleto do repositório; `src/CONTRACTS.md` v1.0 (tópicos MQTT,
+  envelope, mapeamento de twins Ditto, endpoints do controlador, CLI do simulador,
+  formato `events.jsonl`, variáveis de ambiente, portas); 4 JSON Schemas
+  (envelope v1 + smartwatch/ring/clothing v1, draft 2020-12).
+- **Artefactos:** `README.md`, `.gitignore`, `.gitattributes`, `src/CONTRACTS.md`,
+  `src/schemas/*.schema.json`, `src/pyproject.toml`, `PROGRESS.md`.
+- **Decisões:** medições no nível de topo do payload (continuidade com o payload
+  de referência do paper/INTERFACES.md); `unevaluatedProperties: false` para
+  rejeição de campos estranhos; namespace UUID v5 do projeto fixado.
+- **Próximos passos:** desenvolvimento paralelo dos componentes P0 por ordem de
+  entrega (G0 docs → Yocto/kas → deployment → controlador → simulador → harness →
+  tese), com testes; verificação com pytest.
+
+---
+
+## Entrada #C002
+- **Data:** 2026-08-07/08
+- **Fase:** Blocos G0–G3 (desenvolvimento antecipado)
+- **Ação:** Construção paralela dos 8 componentes P0 (workflow multi-agente com
+  revisão adversarial de conformidade contratual nos 3 pacotes Python).
+- **Resultado:**
+  - `docs/`: pacote G0 completo (âmbito/RQs, email aos orientadores, backlog por
+    gate, riscos R1–R15, matriz claim→evidência com 15 claims, guias WSL2 e
+    Hetzner CAX21, ADRs 0001–0006).
+  - `src/yocto/`: manifesto kas (formato 14) com pins verificados online em
+    07/08 (poky `yocto-5.0.19` → `bb98354`, meta-openembedded scarthgap
+    `ef3df29`, meta-virtualization scarthgap `0d9fb7f`), layer `meta-egw`,
+    receita `egw-image`, smoke de container, scripts de build/QEMU.
+  - `src/deployment/`: compose de 6 serviços com digests arm64 verificados no
+    Docker Hub em 07/08 (Ditto 3.9.4, Mosquitto 2.0.22, Mongo 7.0.39), TLS,
+    ACL, scripts de certs/auth/lock, Dockerfile do controlador;
+    `docker compose config` OK.
+  - `src/egw_controller/`, `src/egw_simulator/`, `src/egw_experiments/`:
+    implementação completa conforme CONTRACTS + testes.
+  - `src/things/` + `diagrams/`: TDs WoT 1.1 e diagramas Mermaid.
+  - `thesis/`: esqueleto LaTeX (template ISCTE) compila — main.pdf, 46 pp.,
+    0 referências/citações por resolver; 15 entradas bib verificadas via
+    Crossref/W3C/OASIS em 07/08; protocolo da revisão scoping.
+- **Artefactos:** commits `164e6cd`, `ef5b01c`.
+- **Decisões:** ver ADRs e resultados dos agentes (registados nos commits).
+- **Próximos passos:** aplicar correções das revisões.
+
+---
+
+## Entrada #C003
+- **Data:** 2026-08-08
+- **Fase:** Correções pós-revisão; CONTRACTS v1.0 → **v1.1**
+- **Ação:** As revisões adversariais encontraram 1 bloqueador + 4 majors;
+  contrato emendado e correções aplicadas por 3 agentes.
+- **Resultado:**
+  - **CONTRACTS v1.1 §4 — dedupe com âmbito por execução** (bloqueador): o piso
+    de `seq` só se aplica dentro do mesmo `run_id`; `ingestion` ganha
+    `last_run_id`. Sem isto, o warm-up (mesma seed → mesmos `device_uuid`)
+    faria rejeitar ~20% das mensagens de cada execução medida como duplicadas,
+    e as 10 execuções `smoke` consecutivas falhariam. Testes de regressão:
+    warm-up→medida, 10 smokes, replay entre runs.
+  - **Prazo de confirmação no domínio de relógio do controlador** (major): o
+    analyze deriva o prazo de 60 s de `max(received_monotonic_ns)+janela` dos
+    próprios eventos do controlador; o prazo do manifest é informativo
+    (`clock_domain: harness-host`). Workflow off-VM documentado (plano §5.1)
+    com exemplo de scp dos events.jsonl.
+  - **PUBACK best-effort no simulador** (major): espera limitada ao tempo até
+    ao próximo evento agendado + drain final; o débito nunca é limitado pelo
+    RTT (necessário para o load-sweep a 250 msg/s). CONTRACTS §7 codifica.
+  - **`device_type` em `sent_events.jsonl`** formalizado no CONTRACTS §7.
+  - Menores: SUBACK antes de ready; contadores `dropped`/`queue_depth` no
+    /metrics; validação de UUID em `/twins/{id}`; load-sweep 600→300 s;
+    validação de `run_id`/`egw_id` no runner; cobertura de TLS wiring e das
+    CLIs; notas dropout-reconnect (silêncio de dispositivo, não desconexão).
+- **Evidência:** suite completa **400 passed** (Windows, Python 3.14).
+- **Próximos passos (ações do estudante):** enviar email G0; instalar WSL2
+  Ubuntu 24.04 e correr build Yocto (guia em docs/setup/); criar VM ARM64 e
+  validar `aarch64` até 10/08; confirmar regras administrativas da extensão.
+
+---
+
+## Entrada #C004
+- **Data:** 2026-08-08
+- **Fase:** Correções da auditoria externa de gestão (ChatGPT, 08/08) — grupos A/B/C/D
+- **Ação:** Análise da auditoria (fatos verificados contra o repositório antes
+  de aceitar), aplicação integral das correções em 4 fluxos paralelos.
+- **Resultado:**
+  - **A — Higiene:** `main.bcf`/`main.run.xml` removidos do Git; regra do
+    `certs/README.md` corrigida (agora versionado); bit executável nos 7
+    scripts; `src/requirements.lock` (pip freeze, caveat de runtime lock na
+    VM antes de `exp-v1`); `addopts` desseleciona `integration` por omissão;
+    doc de backup/remote (`docs/setup/git_backup_remote.md`).
+  - **B — Verdade documental:** PROGRESS reescrito como fonte única com modelo
+    de 3 campos (Implementado/Verificado/Aceite) + escala M0–M5 + controlo de
+    esforço; backlog sem estado; riscos R1–R27 com prob./impacto/owner;
+    frase "review protocol executed" do cap. 2 substituída por claim limitado
+    (revisão preliminar, protocolo por executar); diagramas e cap. 4
+    sincronizados com CONTRACTS v1.1.
+  - **C — Harness (riscos R18–R23):** fetch automático de `events.jsonl`
+    (template + retries + subcomando `collect` de recuperação);
+    `sut_environment.json` (script na VM) separado de
+    `loadgen_environment.json`; collector de recursos na VM
+    (`collect-resources.sh`); runs cronometrados sem ambiente/recursos do SUT
+    ficam `validity: invalid`; janela medida no manifest com filtro do warm-up
+    na análise; plano de campanha 76→95 runs (smoke×10, invalid-payload×3,
+    dropout×3, controller-restart×3) mapeados aos claims C10–C14;
+    `controller_metrics.csv` (queue_depth/dropped a 1 Hz) fecha o TODO do
+    queue growth; CPU normalizada por nproc do SUT; condições externas
+    (cold start, twin creation, boots QEMU) ingeridas e analisadas (C15);
+    `measure-cold-start.sh` na VM. Regras de saturação marcadas
+    "pending advisor sign-off" antes de `exp-v1`.
+  - **C — Simulador:** `dropout-reconnect` agora faz desconexão MQTT real com
+    buffering ordenado e redelivery no reconnect (janelas ao nível da execução,
+    deterministas por seed); verificado contra o código-fonte do paho 2.1.0.
+  - **D — Sprint teórico:** cap. 2 expandido de ~1 034 para 4 248 palavras
+    substantivas; tabela de related work (C2DTA, Edge DT, OpenTwins, ODT vs
+    este trabalho); bibliografia 15→25 entradas, todas verificadas em 08/08
+    (Crossref/W3C/OASIS/páginas oficiais) com comentários datados;
+    `study_selection.csv` com proveniência honesta (seed/snowball);
+    `search_log.csv` só com pesquisas realmente executadas, marcadas
+    "preliminary; non-institutional"; queries institucionais continuam
+    pendentes (ação do estudante).
+- **Evidência:** suite completa **452 passed** com evidência persistida em
+  `docs/evidence/tests/2026-08-08/` (junit.xml, stdout, ambiente, commit);
+  `main.pdf` 57 páginas, 0 referências/citações por resolver, 0 overfull
+  > 20 pt nos capítulos editados; bundle de backup em `backups/`.
+- **Decisões:** auditoria aceite em quase tudo; divergências documentadas:
+  logs de pesquisa nunca fabricados (queries institucionais ficam para o
+  estudante); dropout implementado (não apenas documentado) por ser o único
+  caminho para o claim C10.
+- **Próximos passos:** inalterados — ações externas do estudante (email G0,
+  VM, WSL2, regras da extensão) e, depois, G1 com evidência real.
+
+---
+
+## Entrada #C005
+- **Data:** 2026-08-08
+- **Fase:** Execução da ordem de trabalhos do Senior PM (P2 → P1 → P3);
+  GO formal em `../ChatGPT/DECISAO_FINAL_E_ORDEM_DE_TRABALHOS_CLAUDE_2026-08-08.md`
+- **Ação e resultado por bloco:**
+  - **P2 (académico):** claims prematuros removidos — caps. 1 e 3 já não
+    afirmam protocolo/pesquisas executados; Tabela 2.1 com linha "This work"
+    em linguagem de design e "pre-specified" em vez de "pre-registered";
+    caps. 4/6 e abstracts sem tempos verbais de resultado; tabela reconstruída
+    (legível). **PDF standalone do cap. 2 criado**:
+    `thesis/latex/ch2_supervisor_draft.pdf` (16 pp., zero TODOs/placeholders,
+    inspecionado página a página). Checkpoint cumprido: caminho comunicado ao
+    estudante para envio imediato.
+  - **P1a (validade base):** agregação bloqueada a runs `validity != valid`;
+    `resource_source` tem de ser `sut-collector` em runs cronometrados
+    (`local-dev` invalida); proveniência de host no CSV do collector com
+    cross-check ao `sut_environment.json`; qualidade mínima de amostras e de
+    campos SUT; exit codes do simulador/warm-up e overrides do protocolo
+    passam a invalidar ou a registar `deviations` no manifesto (v1.2).
+  - **P1b (aceitação/completude):** aceitação itera as condições PLANEADAS —
+    zero runs ou n≠esperado = failed, nunca em branco; C10 exige
+    `dropout_disconnects≥1` e `buffered_dropout≥1` + reconciliação com
+    `/metrics`; C12 exige registo do hook de restart; DoD do soak (≥24 h,
+    cobertura ≥99%, sem gaps >60 s, sem interrupção não recuperada); gaps
+    >5 s quebram janelas "sustained"; saturação com veredicto
+    `insufficient-evidence` quando falta evidência (regra estatística
+    inalterada). Constantes novas marcadas "pending advisor sign-off".
+  - **P1c (imutabilidade + batch):** raw write-once com diretórios selados
+    (SHA256SUMS) — `collect` verifica checksums, só adiciona ficheiros em
+    falta e regista `collection_history`; subcomando `campaign` executa o
+    plano congelado pela ordem, com resume, stop-on-invalid, cooldowns e
+    `campaign_log.jsonl`; **corrigido bug real de caminho** (o harness lia
+    `sent_events.jsonl` fora do layout `<output>/<run_id>/` que o simulador
+    escreve — o fake dos testes reproduzia o layout errado e escondia-o).
+  - **P3 (selagem):** +x nos 3 scripts novos; `capture-sut-environment.sh`
+    passou a emitir `node` (exigido pela validação); PROGRESS/backlog/
+    riscos/título do doc G0 sincronizados (R16–R22 atualizados; RA1–RA15 da
+    reanálise mapeados); re-execução da suite em HEAD limpo com evidência
+    re-selada (ver `docs/evidence/tests/`).
+- **Evidência:** suite completa **515 passed** (452 → 470 → 493 → 515);
+  commits por entregável: P2 `59efa3f`, P1a `8a927d1`, P1b `8ee0370`,
+  P1c `761c9a8`, P3 (este); dois PDFs compilam limpos.
+- **Decisões/desvios:** "pre-registered"→"pre-specified" aplicado também aos
+  caps. 1/6 e abstracts (coerência); refusal de overwrite aplica-se a
+  qualquer ficheiro raw, não só a diretórios selados (write-once); timeboxes
+  da ordem respeitados.
+- **Próximos passos:** P4 (estudante): enviar email G0 + PDF standalone;
+  WSL2; VM ARM64; bundle para fora do Nextcloud/remote; queries
+  institucionais. Nenhum gate ou claim declarado aceite.
+
+---
+
+## Entrada #C006
+- **Data:** 2026-08-08
+- **Fase:** Adenda de rastreabilidade ao bloco P3 (sem trabalho técnico novo)
+- **Ação:** Registo dos identificadores exatos da evidência de P3, que a
+  entrada #C005 descrevia apenas por referência genérica
+  («ver `docs/evidence/tests/`»). A verificação externa de 08/08 assinalou
+  esta imprecisão; esta entrada fecha-a. Nada aqui altera o estado de
+  nenhum gate nem valida nenhum claim.
+- **Identificadores exatos:**
+  - **Caminho da evidência de P3:**
+    `docs/evidence/tests/2026-08-08-head-ca445a3/`
+    (contém `junit.xml`, `pytest-stdout.txt`, `environment.txt` e
+    `SHA256SUMS` dos três).
+  - **Commit testado (árvore exata sob teste):**
+    `ca445a31e5d146cf0c214b3cd4a23a95a48b5289` (abreviado `ca445a3`), com
+    **tree hash** `b767b229e295b9453cbc2efcbfd0122bf8409d38`;
+    `git status --porcelain` vazio no momento da execução. Ambos os valores
+    lidos de `environment.txt` do próprio diretório de evidência.
+  - **Resultado:** `515 passed` em 7,10 s (Windows 11 Pro, Python 3.14.3,
+    venv com `src/requirements.lock`), comando
+    `python -m pytest tests -q --junitxml=junit.xml` a partir de `Claude/src`.
+  - **Commit da evidência:** `9491090` — é o commit que **acrescenta** o
+    diretório de evidência e, por construção, é posterior a `ca445a3`; toca
+    apenas ficheiros sob `docs/evidence/tests/` e não altera código. A
+    distinção entre commit testado e commit da evidência é intencional e não
+    deve ser colapsada.
+  - **Bundle final de backup:** `backups/egw-20260808-final.bundle`
+    (991 862 bytes; SHA-256
+    `edf0c2409052498533667b78719c85468a8eba05d87b605b4ce0440fa35ba017`,
+    recalculado localmente em 08/08 e coincidente com o valor da verificação
+    externa; contém a história completa com `main`/HEAD em `9491090`).
+    Substitui `backups/egw-20260808.bundle`, anterior e mais curto.
+- **Limitações registadas:** a suite é unitária, com fakes, em Windows — nível
+  **M2**. Existem **zero** testes `integration`. O bundle continua dentro do
+  domínio Nextcloud, pelo que **não é ainda um backup independente** (risco
+  R25/RA13 permanece aberto, dependente de ação do estudante).
+- **Retificação a #C005:** a formulação «RA1–RA15 da reanálise mapeados» usada
+  na entrada #C005 era **demasiado ampla** e foi retirada de
+  [`docs/g0/risks.md`](g0/risks.md) (então `riscos.md`). Vários RA estavam apenas implícitos
+  nas linhas R16–R27 e **RA15 (ausência de horas/forecast) está materializado**,
+  não mitigado. O ficheiro de riscos passa a seguir RA1–RA15 linha a linha, com
+  estado explícito e evidência ou dependência bloqueante por risco.
+- **Próximos passos:** inalterados face a #C005.
+
+---
+
+## Entrada #C007 — Sprint P5.4 (seis defeitos da auditoria de verificação)
+- **Data:** 2026-08-10
+- **Fase:** P5.4, autorizado pelo relatório
+  `../ChatGPT/VERIFICACAO_P2_P1_P3_E_PLANO_P5_ANTES_P4_2026-08-08.md`
+- **Ação:** As seis acusações técnicas do relatório foram **verificadas uma a
+  uma contra o código antes de qualquer correção**; todas se confirmaram.
+  Corrigidas por TDD (teste a falhar primeiro).
+- **Resultado (commits `734d1ce`, `62b8b8b`):**
+  1. **`analyze --plan`** — a completude por identidade existia mas era
+     inalcançável pelo comando oficial (só por variável de ambiente não
+     documentada); o subcomando passa a aceitar e propagar `--plan`.
+  2. **Runs externos não selados** entravam nas estatísticas de duração; passam
+     a exigir selo verificado (`integrity_ok == INTEGRITY_OK`).
+  3. **C12** media apenas que o `GET /metrics` voltou a responder — renomeado
+     para *endpoint recovery* e acrescentado um critério **funcional
+     limitado no tempo**: primeira prova de que a ingestão retomou (primeiro
+     evento aceite pós-restart no domínio de relógio do controlador, ou
+     primeira amostra cujo contador ultrapassa a linha de base anterior).
+  4. **Validação numérica estrita** — NaN, infinito, negativos e contadores
+     fracionários eram aceites; `mem_bytes=inf` **rebentava a análise**
+     (`int(float('inf'))` lança `OverflowError`, não apanhado por
+     `except ValueError`). Um único `inf` no CPU fingia saturação; um `nan`
+     tornava o `max()` dependente da ordem das linhas e desligava todas as
+     comparações de limiar.
+  5. **Marcador de confirmação** era lido depois de juntar os samplers (que
+     podem bloquear ~25 s), alargando a janela efetiva para 60 + Δ s e
+     enviesando a taxa de entrega para cima; passa a ser lido imediatamente
+     após o fim da execução medida.
+  6. **`campaign --start-from`** já não dispensa evidência externa saltada: os
+     externos pendentes são contabilizados sobre o plano inteiro, a campanha
+     reporta `incomplete` e sai com código não-zero.
+  - Correção editorial: «registered» → «planned»/«specified» no capítulo 2
+    (podia sugerir um protocolo formalmente pré-registado).
+- **Evidência:** suite completa **618 testes** (593 → 618).
+- **Decisões:** nenhum limiar estatístico, percentil, método de IC ou a janela
+  de 60 s foi alterado; nenhum gate ou claim aceite.
+
+---
+
+## Entrada #C008 — Primeira execução real do Yocto (G1) e bloqueio da VM ARM64
+- **Data:** 2026-08-10 (noite) / 2026-08-11
+- **Fase:** P4 — ações externas; G1 iniciado
+- **Ação:** WSL2 instalado pelo estudante; ambiente preparado e **primeiro build
+  Yocto real** lançado. Tentativa de criar a VM ARM64 em três fornecedores.
+
+### Ambiente (evidência de G0/G1)
+- **Ubuntu 26.04 rejeitado antes de custar tempo:** `wsl --install -d Ubuntu`
+  instala hoje o 26.04, que traz **Python 3.14**; o BitBake do Scarthgap
+  (abril/2024) é anterior às remoções de stdlib do 3.13/3.14 e o 26.04 não
+  consta dos hosts validados. Substituído por **Ubuntu 24.04.4 LTS**
+  (Python 3.12.3). Registado em `docs/setup/wsl2_ubuntu_yocto.md` (commit
+  `8f2e4af`) com data e razão — é uma armadilha de reprodutibilidade típica:
+  o mesmo comando dá hosts diferentes ao longo do tempo.
+- Host de build: 16 cores, 31 GiB RAM, 955 GiB livres em **ext4**; repositório
+  clonado para `~/yocto/egw` (nunca `/mnt/*`), conforme plano §5.1.
+
+### Resultado do build
+- **Parse: 2888 receitas, 4830 targets, 0 erros.** Primeira confirmação de que
+  a layer `meta-egw`, o `LAYERSERIES_COMPAT` e as três receitas próprias
+  (`egw-image`, `egw-base-config`, `egw-container-smoke`) são válidas num
+  ambiente Yocto real — até aqui eram M1 (texto plausível nunca executado).
+- **Os três pins de layers resolveram todos**, incluindo o commit
+  `0d9fb7f` de `meta-virtualization`, que quando foi registado tinha **uma
+  única fonte online** (o cgit oficial recusava fetches automatizados). Fica
+  agora confirmado contra o repositório canónico.
+- Build em curso à data desta entrada (tarefa 4386/5715, 0 erros).
+
+### Dois defeitos reais encontrados no meu próprio trabalho Yocto
+1. **Corrida no make paralelo do perl** (commit `e83fb24`). Falha intermitente,
+   dependente do número de cores: o `ExtUtils::MakeMaker` regenera sub-Makefiles
+   a meio do `do_compile` e pede que o make seja relançado; sob `-j 16` os jobs
+   irmãos abortam. Corrigido com `PARALLEL_MAKE:pn-perl = "-j 1"` em vez de
+   repetir até calhar — um build que passa umas vezes e falha outras não
+   sustenta o claim C01.
+2. **`DL_DIR`/`SSTATE_DIR` efémeros** (commit `c0ebf7c`) — **o mais grave**. O
+   kas corre o BitBake com `HOME` substituído por uma pasta temporária
+   (`kas/libcmds.py`: `tempfile.mkdtemp()` → `ctx.environ['HOME']`), pelo que
+   `DL_DIR ?= "${HOME}/yocto-cache/downloads"` resolvia para `/tmp/tmpXXXX/...`.
+   **Todos os builds começavam com cache vazia e perdiam-na no fim**, e o
+   segundo falhou no `do_unpack` porque os stamps diziam "já descarregado"
+   enquanto o tarball tinha desaparecido com a pasta temporária. Corrigido com
+   a secção `env:` do kas (`EGW_CACHE_DIR`), que o kas passa ao BitBake via
+   `BB_ENV_PASSTHROUGH_ADDITIONS`. Verificado: a cache persiste agora em
+   `~/yocto-cache` (8,1 GiB à data desta entrada).
+
+   **Impacto no claim C01:** o build era, de facto, não reproduzível — e
+   nenhuma inspeção estática do manifesto o revelaria. Só aparece a quem o
+   executa duas vezes e repara que a segunda não é mais rápida. Material
+   direto para o capítulo de reprodutibilidade.
+
+### VM ARM64 — bloqueada em três fornecedores (risco materializado)
+| Fornecedor | Resultado |
+|---|---|
+| Oracle Cloud (Always Free, Ampere A1) | **Beco sem saída.** A *home region* é fixada no registo e não se muda; contas Always Free só podem usar essa região. Madrid sem capacidade A1 ⇒ conta estruturalmente bloqueada |
+| Hetzner Cloud (CAX, Ampere Altra) | Todas as instâncias ARM indisponíveis |
+| Azure for Students | Regiões limitadas a 5 (as restantes «não elegíveis»); quota **0 of 0** em todas as famílias ARM dedicadas (Dpsv5/v6, Dplsv5/v6). Só a **série B (burstable)** está disponível sem pedido de quota |
+
+**Decisão (a validar com os orientadores):** a série B é **inaceitável como
+plataforma de medição** — é *burstable* por créditos de CPU, pelo que o
+load-sweep a 250 msg/s e o critério de saturação (CPU > 90 % sustentada)
+mediriam o estrangulamento da faturação em vez do gateway, invalidando a RQ3.
+Passa a existir um **terceiro degrau de plataforma**, extensão natural do
+ADR 0001:
+
+| Papel | Plataforma | Números na dissertação |
+|---|---|---|
+| Funcional (SO) | QEMU/`qemuarm64` no WSL2 | Nunca (plano §5.1) |
+| Integração ARM64 | Azure `B4pls_v2` (burstable) | **Nunca** |
+| Medição (RQ3) | `D4pls_v5` (se a quota for aprovada) ou AWS `c6g.xlarge` | **Exclusivamente daqui** |
+
+Pedidos de quota submetidos para as famílias **DPLSv5** e **DPLSv6**
+(Germany West Central, 4 vCPU). Fallback com custo conhecido: AWS
+`c6g.xlarge` (4 vCPU Graviton2, 8 GiB, dedicado), ~7 EUR para a campanha
+completa. Instâncias *burstable* (`t4g`, `Bpsv2`) ficam excluídas por motivo
+metodológico, não de custo.
+
+- **Próximos passos:** email G0 + PDF do capítulo 2 (atrasado desde 09/08;
+  comunica também este risco, conforme plano §10); dois boots QEMU + smoke de
+  container para fechar G1; micro-piloto assim que existir ARM64.
+
+---
+
+## Entrada #C009 — Imagem EGW-OS construída; publicação do repositório
+- **Data:** 2026-08-11
+- **Fase:** G1 (build) e G0 (preservação)
+
+### Build concluído
+`kas build` terminou com **5715 tarefas, todas com sucesso** (5161 servidas pela
+sstate cache — confirmação de que a correção do `DL_DIR`/`SSTATE_DIR` funciona).
+Artefactos em `build/tmp/deploy/images/qemuarm64/`:
+
+| Artefacto | Dimensão |
+|---|---|
+| `egw-image-qemuarm64.rootfs.ext4` | 382 MiB |
+| `Image` (linux-yocto 6.6.142) | 23 MiB |
+| `rootfs.manifest` | 639 pacotes |
+| SBOM SPDX | incluído |
+
+O manifesto confirma os componentes exigidos pelo âmbito P0: `docker-moby
+25.0.9`, `containerd 2.0.10`, `runc 1.1.14` e `systemd`.
+
+**G1 continua ABERTO.** A imagem existir não fecha o gate: faltam os **dois
+boots QEMU registados** e o **smoke de container dentro do guest**, que são a
+evidência exigida pelos claims C01 e C02. Zero boots executados até à data.
+
+> **Correction added 2026-08-12 — superseded by #C011.** «Zero boots
+> executados até à data» was accurate when this entry was written and stopped
+> being accurate later the same day: two unattended QEMU bring-up boots were
+> driven by `src/yocto/scripts/boot_check.py` (commit `32f6604`) and both
+> passed — 6 of 6 required assertions passed, 3 of 3 supplementary
+> observations recorded, clean power-down confirmed — with the evidence
+> sealed in `docs/evidence/g1-yocto-qemu/`. The rest of the paragraph still
+> holds: gate G1 is **not** accepted — the evidence exists, the acceptance
+> decision does not. The original sentence is left exactly as written, as the
+> record of the state at that moment.
+
+### Quarto defeito encontrado pela execução real
+Ao terceiro insucesso do `perl do_compile` — em três módulos diferentes
+(`Pod-Escapes`, `JSON-PP`, `Time-Local`) e já com `-j 1` — ficou claro que o
+diagnóstico inicial de corrida no make paralelo estava **errado**: era uma
+hipótese que encaixava no primeiro sintoma. A causa real é instabilidade do
+relógio do WSL2, medida contra o relógio do Windows (−0,45 s → +0,35 s →
++1,33 s em 40 s sob carga), que faz o `make` ver `Makefile.PL` com data no
+futuro e disparar o protocolo «rerun make» do MakeMaker. Resolvido em
+`4720327` fixando a data dos `Makefile.PL` antes do compile, o que torna o
+build independente do relógio do host — mais reproduzível, não menos.
+
+### Publicação
+Repositório privado `Ruisth/Tese_Mestrado` criado e ligado, com ruleset a
+exigir pull request em `main` e `dev` e a proibir force-push e eliminação.
+Modelo de trabalho: ramo `<tipo>/g<gate>-<objetivo>` → PR para `dev`;
+`dev` → PR para `main` apenas em versões estáveis. O histórico foi limpo de
+trailers de coautoria antes da publicação; todos os commits têm autoria única
+do estudante. Risco R25/RA13 (perda do repositório) passa a mitigado: o
+histórico existe agora num domínio de falha independente do disco local.
+
+- **Evidência:** `docs/evidence/tests/2026-08-11-head-19d74ff/` (618 testes,
+  HEAD limpo `19d74ff`).
+
+---
+
+## Entrada #C010 (sprint P5 — pré-voo antes do P4)
+
+> **Renumbering note (2026-08-12).** This entry was published as a second
+> `#C006`; it is renumbered here to remove the collision. Its date, content and
+> evidence are unchanged. `#C006` keeps the traceability addendum to block P3,
+> which other documents already cite by that identifier. Identifiers are
+> assigned when an entry is written and are never reused, which is why `#C010`
+> carries an earlier date than `#C009`.
+
+- **Data:** 2026-08-08
+- **Fase:** Sprint P5 autorizado pelo Senior PM
+  (`../ChatGPT/VERIFICACAO_P2_P1_P3_E_PLANO_P5_ANTES_P4_2026-08-08.md`)
+- **Ação:** Dois bloqueadores críticos confirmados no código antes de agir, e
+  corrigidos com teste de regressão a falhar primeiro.
+- **Resultado:**
+  - **Bloqueador 1 — prazo de confirmação circular** (regressão minha da ronda
+    anterior): o prazo derivava de `max(received_monotonic_ns)+60 s`, pelo que
+    a mensagem mais tardia empurrava o seu próprio prazo e nunca podia ser
+    contada como perdida. Corrigido com um **marcador no domínio de relógio do
+    controlador**: `GET /metrics` expõe `monotonic_ns`/`wall_utc` (aditivo), o
+    harness lê-o ao fim da execução medida e grava
+    `confirmation_deadline_clock_domain: "controller"`; a análise só confia no
+    manifesto nesse caso. **A regra dos 60 s e a métrica de latência não
+    mudaram** (CONTRACTS §5, secção nova). Regressão verificada empiricamente:
+    com o ramo desligado a mensagem tardia conta como entregue; com o ramo
+    ativo conta como perdida.
+  - **Bloqueador 2 — `campaign` não era end-to-end**: só expandia um template
+    para um CSV que tinha de existir; numa campanha nova a primeira execução
+    cronometrada ficaria inválida pelas regras do P1a. Corrigido com hooks
+    parametrizáveis start/stop/fetch do collector, executados pela ordem certa
+    e registados no manifesto com exit codes (hook falhado ⇒ run inválido).
+  - **Integridade e completude:** SHA256SUMS verificados antes de qualquer
+    agregação (runs adulterados ou não selados excluídos e assinalados);
+    completude por **identidade** contra o plano (run_id, repetição, seed,
+    taxa), por nível de carga no sweep; artefactos obrigatórios por condição —
+    em falta ⇒ inválido **e sem selagem**; resume verifica checksums;
+    campanha completa com condições externas pendentes já não termina limpa.
+  - **Qualidade das séries:** validação semântica de `resources.csv` e
+    `controller_metrics.csv` (timestamps, instantes distintos, monotonia,
+    numéricos, colunas), head gap medido, cobertura mínima também exigida às
+    métricas do controlador; C12 passa a exigir evidência de recuperação real.
+  - **P5.0:** PDF standalone do cap. 2 sem os 23 avisos de labels duplicadas,
+    com metadata (título/assunto/keywords; sem dados pessoais inventados).
+  - **P5.2:** ensaio seco arquivado em
+    `docs/evidence/rehearsal/2026-08-08-dry-rehearsal.md` — plano determinista
+    (SHA-256 idêntico com a mesma seed), 95 runs (25 externos + 70 do
+    simulador), sweep com 10 runs por carga em ordem congelada, `--dry-run`
+    sem criar artefactos, e **piso logístico de 33,17 h** só para os runs do
+    simulador (soak 24 h incluído), excluindo externos, setup, transferências,
+    análise e repetições.
+  - **P5.3:** varrimento documental (drift de `run_id` na matriz, tabela
+    RA1–RA15 com RA15 materializado, 7 full-text vs 18 título/resumo).
+  - **Nota de método:** a tentativa interrompida do agente de análise tinha
+    deixado grande parte do código **morto** (helpers e colunas declarados mas
+    nunca chamados por `compute_run_metrics`). Só os testes o revelaram — o
+    que confirma a regra de não aceitar implementação sem teste que a exercite.
+- **Evidência:** **593 testes** (515 → 593); commits `33d004c`, `d3e25ca`,
+  `e2d5113`, `c025d8d`, `03ee5c9`.
+- **Decisões/desvios:** nenhuma regra estatística, percentil, método de IC ou
+  janela de 60 s foi alterada (condição de paragem respeitada); constantes
+  novas marcadas "pending advisor sign-off"; nenhum gate ou claim aceite.
+- **Próximos passos:** P4 (estudante). Ao primeiro sinal de VM/WSL2, parar o
+  trabalho de secretária e ir para o micro-piloto (smoke → nominal curto →
+  dropout → restart) antes de qualquer campanha oficial.
+
+---
+
+## Entry #C011 — Gate G1 evidence: two unattended QEMU boots, sealed archive, language policy, first merged pull requests
+
+- **Date:** 2026-08-11/2026-08-12
+- **Phase:** G1 (functional platform — bring-up of the built image) and G0
+  (governance and preservation)
+- **Language:** first entry written under
+  [`docs/governance/language-policy.md`](../governance/language-policy.md)
+  (British English, sole working language since 2026-08-11). The entries above
+  stay in Portuguese: published history is corrected by dated notes and never
+  rewritten.
+- **Action:** the `egw-image` recorded in #C009 was taken through **unattended**
+  QEMU bring-up, the evidence was sealed and verified from a clean clone, the
+  repository moved to a pull-request workflow, and the language policy was
+  adopted. Entry #C009 said "Zero boots executados até à data"; that stopped
+  being true later the same day and the correction is noted there.
+
+### The boots were driven by a program, not typed by a person
+
+`src/yocto/scripts/boot_check.py` (added in `3a9900e`, final state at
+`32f6604`) attaches to the serial console over a pseudo-terminal, logs in, runs
+a fixed list of in-guest checks, records the whole session and decides the
+outcome from the output, exiting non-zero when a required check fails. It
+replaces the interactive `run-qemu.sh`, which produced a console log only if a
+human sat at the terminal and typed the checks — reproducible by nobody. Each
+run writes `<name>.log` (the full console session) and `<name>.result.json`
+(the per-check verdicts).
+
+### Six defects that only running the thing could expose
+
+None of them was visible by reading the code or the recipes. All were defects
+in **how the evidence was collected**, not in the image being evidenced.
+
+1. **BusyBox rejects the `head -N` shorthand** — two checks died on
+   `head: invalid option`. Now `-n N` (`024115e`).
+2. **`multi-user.target` was assumed to be the default target** — the driver
+   asserted that unit active; the image reported it inactive while the system
+   was running normally. The driver now reads the default target from the unit
+   list and asserts that *that* target is active (`024115e`, `799ee48`).
+3. **Kernel messages drown the console during container teardown** — the burst
+   produced by container networking swallowed the completion marker and the
+   smoke check timed out mid-teardown. The driver now raises the console log
+   level after login, widens the terminal so long command lines are not
+   wrapped, and gives the container checks their own longer timeouts
+   (`024115e`).
+4. **A dynamically linked BusyBox left without its loader** — the smoke image
+   carried the binary and not its interpreter, and the kernel reports the
+   missing **INTERPRETER** as "no such file or directory", which reads as if
+   the binary itself were absent. The loader is now bundled (`799ee48`).
+5. **usrmerge makes `/lib` and `/usr/lib` the same file on the host and two
+   distinct paths inside a container** — `INIT_MANAGER=systemd` pulls usrmerge
+   in, so on the running system the two spellings name one file; inside a
+   freshly imported container rootfs they are two directories, and only the
+   spelling recorded in the binary's `PT_INTERP` is consulted. Copying to one
+   side left the other missing. Every object now goes under both names
+   (`f53bb4b`).
+6. **A check passed by matching its own command echo** — the systemd check
+   searched for the word `running` and matched it inside its own
+   `systemctl is-system-running` invocation, reporting a pass **while the
+   system was still starting**. Checks are now bracketed by begin/end markers
+   written as split literals, so only the text between them is judged, and the
+   systemd check uses `is-system-running --wait` so every later check observes
+   a settled system (`38e48f4`).
+
+Two further faults of the same class were found while fixing these and are
+recorded for the same reason: a stray `0x08` byte inside the systemd pattern,
+invisible in a normal diff and only visible under `cat -A`, made that pattern
+unmatchable (`05166eb`); and the driver's own verdict was untrustworthy
+(`32f6604`) — a timed-out command could still be judged a pass because the
+read result was discarded, `clean_poweroff` was recorded but excluded from the
+decision, and three entries that assert nothing were being counted as
+verification, which is what produced the earlier "9 of 9 checks" headline.
+Entries now declare a kind, required assertions and supplementary observations
+are reported separately, and 18 tests bind this behaviour through a fake
+console, so no test starts a virtual machine.
+
+### The two boots, with the result shape exactly as recorded
+
+Both boots were driven by `boot_check.py` at commit `32f6604` — they were
+**not** manual.
+
+| Boot | Outcome | Required assertions | Supplementary observations | Clean power-down |
+|---|---|---|---|---|
+| `boot1` | pass | 6 of 6 passed | 3 of 3 recorded | confirmed |
+| `boot2` | pass | 6 of 6 passed | 3 of 3 recorded | confirmed |
+
+The six **required assertions** are what was verified: architecture and release
+(`aarch64`, kernel 6.6.142, Poky 5.0.19 scarthgap); systemd state after
+`is-system-running --wait`; the target list showing `multi-user.target` active;
+networking with a slirp lease; the container runtime reporting a server version
+(Docker 25.0.9, `overlay2`, systemd cgroup driver); and the in-image container
+smoke test, which builds a single-layer OCI image from the target's own
+BusyBox, imports it, runs a command inside it and removes it — the runtime
+exercised end to end with no registry access.
+
+The three **supplementary observations** (the failed-unit list, empty in both
+boots; gateway reachability; the smoke diagnostics) are recorded for diagnosis,
+**assert nothing and are never counted as verification**. One of them reports
+`INTERP=unavailable` because the image carries no binutils and neither
+`strings` nor the `tr` fallback is usable — it says so plainly instead of
+printing a fabricated value.
+
+Nothing timed in these runs is reportable. QEMU is the functional platform:
+**no QEMU result supports a performance or a security statement.**
+
+### Sealing, and two defects in the seal itself
+
+Evidence archived in `docs/evidence/g1-yocto-qemu/` (`d15ac8b`): both console
+sessions, both per-check result files, the build and checkout logs, the
+639-package image manifest, the image and kernel digests, and `SHA256SUMS`
+covering every file. The seal was wrong twice before it was right:
+
+- the four `*.log` files listed in `SHA256SUMS` were kept out of the tree by
+  `.gitignore`, so `sha256sum -c` could not succeed from a clean clone — the
+  seal covered files nobody else could obtain. The exception was added and the
+  files tracked (`32f6604`);
+- `SHA256SUMS` had been written from PowerShell, in CRLF, so verification
+  failed on every entry with "No such file or directory": it was looking for
+  filenames with a trailing carriage return. All sealed text is LF now and
+  every archive was re-sealed against the normalised bytes (`a6bcb27`).
+
+Unit-test evidence for the integrated tree: **`701 passed`** over clean HEAD
+`4e67717`, sealed in `docs/evidence/tests/2026-08-11-head-4e67717/` with the
+interpreter path, `python -VV`, `pip freeze`, `pip check`, the pytest version,
+the SHA-256 of `src/requirements.lock` and `SHA256SUMS` (sealed by `ddb9cbd`,
+which is necessarily later than the commit it tests). The earlier figures
+(`683`, `618`, `593`, `515`) are **historical**, each tied to the commit it
+tested, and none of them is the current figure.
+
+The evidence README and PROGRESS were corrected from "9 of 9 checks" to six
+required assertions passed and three supplementary observations recorded
+(`4e67717`, `ddb9cbd`, `df57d6c`), which is what the driver actually verified.
+
+### State, stated plainly
+
+- **Gate G1: evidence produced, acceptance PENDING.** Building, booting,
+  merging and archiving demonstrate implementation and verification; accepting
+  a gate is a separate decision, recorded in `PROGRESS.md` and in Annex C of
+  the plan. **No gate has been accepted.** *(Dated note, 2026-08-14, later the
+  same day: true when written; gate G1 was subsequently accepted — see #C015
+  and the gate decision log.)*
+- **Claims: 0 of 15 accepted.** C01 is partial — the rebuild from an
+  independent clean checkout is still missing and belongs to G4. C02 holds the
+  evidence of the **two bring-up boots**; the campaign's five `qemu_boots` runs
+  are a separate, later set produced under the frozen protocol. The remaining
+  13 claims have no evidence.
+- The **ARM64 measurement VM still does not exist**: risk R28 is materialised,
+  and R29 is why no
+  burstable instance may produce a number. The three-tier platform model, until
+  now recorded only in `PROGRESS.md` and in this LOG, is written up as
+  [ADR 0007](../adr/0007-three-tier-platform-model.md) (**Proposed**, awaiting
+  supervisor validation), which extends ADR 0001.
+
+### Governance: language policy and the pull-request workflow
+
+- **British English (en-GB) is the sole working language since 2026-08-11**
+  (`eaf0733`), for all new and modified content. The only academic exception is
+  the Portuguese Resumo and any front matter the university makes mandatory in
+  Portuguese; drafts of external administrative communication, such as the
+  supervisor emails, may also stay in Portuguese. Legacy Portuguese documents
+  migrate in tracked batches; sealed evidence, published history, identifiers
+  and machine-readable values are never translated.
+- The private remote `Ruisth/Tese_Mestrado` (HTTPS) carries a ruleset requiring
+  pull requests on `main` and `dev` and forbidding force-push and deletion.
+  `dev` is the integration branch; `main` receives stable versions by pull
+  request only. `refs/tags` stays empty, by choice.
+- **Four pull requests were opened; #1 was closed and superseded.** Merged into
+  `dev`: **#2** the P0 baseline (`e40b0a1`), **#3** repository governance
+  (`238474b`), **#4** the gate G1 evidence (`e8647cc`).
+
+### Decisions and next steps
+
+- **Decisions:** no gate accepted, no claim validated and no maturity level
+  raised by this work; the QEMU/measurement separation is unchanged and is now
+  three-tier under ADR 0007 (Proposed); the six defects were corrected before
+  the sealed run rather than worked around, and the driver was fixed *before*
+  being reused for the campaign's five boots.
+- **Next steps:** send the G0 email with the chapter 2 PDF and report the
+  ARM64 risk to the supervisors, as the plan's rule §8.1 requires from
+  2026-08-12 (student actions); obtain a dedicated ARM64 instance (approved
+  quota or the AWS `c6g.xlarge` fallback); run the campaign's five QEMU boots
+  under the frozen protocol; record the formal gate G1 decision.
+
+## Entry #C012 — Plan v1.1 implementation and strict G1 campaign
+
+**Date:** 2026-08-14 (Europe/Lisbon; execution crossed midnight from
+2026-08-13)
+
+**Scope:** governance/provenance controls, technical integrity blockers,
+factual academic corrections, clean-checkout Yocto build and five strict QEMU
+boots
+
+**State decision:** G1 remains **In progress**; **0 of 15 claims accepted**
+
+The restructuring was implemented through normal pull requests against `dev`:
+PR #12 versioned plan v1.1, provenance and technical CI; PR #13 corrected the
+evidence-integrity blockers; PR #14 merged only factual academic corrections;
+the supervisor-dependent title/RQ/abstract package remains isolated in draft
+PR #15; PR #16 synchronised the operational records; PR #17 hardened the
+five-boot execution path; and PR #18 corrected the PTY state predicate. All
+merged pull requests passed the required checks and their review threads were
+resolved. The protected historical tag
+`evidence/g1-yocto-build-5770c0a` preserves the exact preliminary build.
+
+### Clean-checkout build
+
+A new ext4 checkout at
+`/home/ruisth/yocto/egw-g1-20260813-f0e19d5` was created at
+`f0e19d5a51b4ade1e0637e6bff135c737996b1ba`; it had no pre-existing layer or
+build directories. `kas checkout` resolved the three pinned layer commits and
+the build completed all 5,715 tasks successfully. The external downloads and
+sstate cache were shared by design: 2,261 tasks did not need to be rerun and
+the sstate match was 55%, so this is a clean-checkout build, **not** a
+cold-cache claim.
+
+The resulting package manifest has 639 entries. The source artefacts were
+hashed twice before sealing:
+
+- rootfs: 2,607,275,008 bytes, SHA-256
+  `6c37fcc10e31702e21ce5d9c73f7cb6aabd4fa512ef50680f8f1434d6a721da0`;
+- kernel: 24,150,528 bytes, SHA-256
+  `4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037`.
+
+### Preserved instrumentation failure and five fresh passes
+
+The first strict attempt, `qemu-boot-01`, reached the console, reported exact
+`STATE=running`, zero failed units, executed the offline container smoke test
+and powered down cleanly. The driver nevertheless returned `fail` because its
+pre-fix predicate rejected the doubled carriage returns emitted by the PTY.
+That result and its raw log are preserved without relabelling or overwrite.
+
+PR #18 changed the state predicate to accept only the stripped exact value
+`STATE=running`, added a regression for the doubled carriage returns and kept
+extra output/degraded state rejected. After the checkout was fast-forwarded to
+the merged driver commit `9fe38ff4ed3c34915f506f1d3b91f3ba56b6df22`, five
+fresh identities (`qemu-g1r2-01` to `qemu-g1r2-05`) were run. Every one:
+
+- passed 7 of 7 required assertions, including exact `systemd=running` and
+  zero failed units;
+- recorded 2 of 2 supplementary observations, with gateway ping remaining an
+  observation rather than a scientific gate;
+- reached the console, completed the local OCI container smoke test and
+  powered down cleanly;
+- produced its own console log and result JSON with no timeout.
+
+The build logs, environment, image metadata, invalid attempt and five counted
+runs are sealed under
+`docs/evidence/g1-yocto-qemu/2026-08-14-clean-build-f0e19d5/`, independently of
+the preliminary 2026-08-11 seal. PTY carriage returns in the raw console logs
+are preserved as evidence bytes rather than normalised by Git.
+
+### Interpretation and remaining blockers
+
+This execution supplies the technical clean-build/five-boot artefacts requested
+for G1, but producing and sealing evidence is not the formal gate decision.
+C01 remains partial pending the D006 second-operator treatment; C02's strict G1
+set does not silently replace the later predefined `data-v1` identities. No
+QEMU output supports performance or security conclusions.
+
+External state is unchanged: the alignment email and university ARM64 request
+have not been sent, D001–D008 remain `proposed_not_sent`, the native
+non-burstable ARM64 measurement VM and runtime lock do not exist, and no
+off-machine bundle copy is recorded. G2 and all measurement gates therefore
+remain blocked or pending exactly as stated in `PROGRESS.md`.
+
+## Entry #C013 — Post-G1 local provenance bundle
+
+**Date:** 2026-08-14
+
+After evidence commit `d4bfa9d`, the complete-history bundle
+`backups/egw-20260814-g1-strict-evidence.bundle` was created and verified with
+`git bundle verify`. It is 1,819,509 bytes and has SHA-256
+`5b2cf69fcb7bdee7f2e2916bccfc04d852fe8b91077a2d38accd02a96a2bab12`.
+The bundle reports complete history and preserves 12 refs, including the
+strict-evidence branch, `dev`, the draft academic proposal and the protected
+preliminary G1 tag.
+
+This is a local recovery object, not an independent backup. No off-machine
+copy or remote destination has been recorded; risk R25 therefore remains
+mitigating and G1 acceptance remains pending. *(Dated note, 2026-08-14, later
+the same day: gate G1 was subsequently accepted — see #C015; the off-machine
+gap is unchanged.)*
+
+## Entry #C014 — PR #19 merge and post-merge recovery bundle
+
+**Date:** 2026-08-14
+
+PR #19 passed the six mandatory checks. A review found one stale claim summary
+in `src/README.md`; commit `6e3dc5b` synchronised it while retaining 701 as the
+last sealed test count, 718 as local-only, 0 of 15 accepted claims and the
+separation between the strict G1 set and later `data-v1` identities. The thread
+was answered and resolved. PR #19 was then merged into `dev` by merge commit
+`c6668a88f02be5d73bac078bd241a04600e8c0b8`, and its work branch was deleted.
+
+After that merge, `backups/egw-20260814-post-g1-merge.bundle` was created and
+verified. It is 1,831,301 bytes, reports complete history with 12 refs and has
+SHA-256
+`35b7808072c2f3cfd82cfd9bfc40ce6769b8931d1301794332ef2e66fbd4abcb`.
+The bundle remains on the same physical machine; the off-machine-copy blocker
+is unchanged.
+
+---
+
+## Entry #C015 — Comparative audit, plan v1.2, gate G1 accepted, D009-D010
+- **Date:** 2026-08-14
+- **Phase:** Governance correction and proposal publication (pull requests #15 refresh and the truth-sweep PR)
+- **Action:** A full comparative audit crossed the workspace (legacy management
+  reports, university materials, the C2DTA paper, the supervisor template and
+  seven questions), the repository and the GitHub remote. Verdict: the plan
+  needed no new restructuring — v1.1 already is the restructuring — but it
+  needed governance repair and, above all, sending: nothing had ever been sent
+  to the supervisors. Actions taken in the repository:
+  - **PR #15 refreshed and republished as PROPOSED documents**: merged `dev`
+    (14 commits behind), replaced the stale status facts in the supervisor
+    email with the sealed 2026-08-14 evidence (clean identified checkout build
+    `f0e19d5`, five strict boots at 7 of 7 required assertions, the failed
+    first attempt preserved), and added decisions **D009** (telemetry stays
+    the contract term; thesis prose prefers "wearable event data") and
+    **D010** (local persistence of twin state and evidence is by design) to
+    the canonical log, the request matrix, the alignment memo and the email.
+    Both raise documented deviations from the repository template, which the
+    source register classifies as guidance, not an implementation contract.
+    LaTeX integration remains blocked on D001.
+  - **Plan bumped to v1.2**: the published v1.1 had been amended in place by
+    the PR #19 merge (`c6668a8` added the gate-outcomes authority row),
+    violating the plan's own rule that a change requires a dated new version.
+    v1.2 records that amendment retroactively, fixes v1.1's final state as the
+    file at `c6668a8`, changes no scope, schedule, gate or cut, and carries a
+    citation-equivalence clause so that dated documents citing v1.1 —
+    including sealed evidence — are never rewritten.
+  - **Gate G1 formally accepted** (2026-08-14, student authority) in
+    `docs/governance/gate_decision_log.md`, against the plan §4 criterion, on
+    the strict capsule evidence. Scope: functional platform layer only; it
+    validates no claim, supports no performance statement, and leaves D006
+    with the supervisors. First closed gate of the project.
+  - **Truth sweep**: the G1 criterion in the WSL2 guide (two boots by 16/08 →
+    five strict boots, window 13–18 August); the false "unchanged since its
+    adoption" sentence about the RQs in `01_introduction.tex` (they are
+    proposed pending D001); provisional-title comments above both cover pages
+    in `main.tex`; stale v1.0 gate dates in risk R2 marked as superseded;
+    ADR 0007's escalation rule updated to the v1.1/v1.2 university-first,
+    48-hour, EUR 30 procedure; ~25 citations of v1.0 section numbers across
+    ten files requalified as `archived plan v1.0 §x` or remapped to their
+    v1.1 equivalents (the archived §7 protocol has no v1.1 equivalent until
+    `exp-v1` freezes under D007); chapter-2 word figure corrected to the
+    texcount measurement (4,361 body words); `PROGRESS.md` synchronised
+    (PRs through #20, G1 Complete, D001–D010).
+  - **Provenance**: EXT-014..017 register the four 2026-08-08 external
+    management reports (single unbacked copies on this disk — now flagged for
+    every off-machine backup); the bundle gap after PR #20 is recorded; a new
+    protected tag `evidence/g1-bringup-driver-367c929` was created and pushed
+    at the tip of `feat/egw-p0-baseline` (annotated tag object `b21db3d`,
+    target `367c929`, verified on the remote with `git ls-remote`) so the
+    preliminary-evidence driver lineage survives independently of the branch.
+- **Result:** proposal package publishable and email ready to send; plan
+  governance self-consistent again; one gate closed with a dated decision.
+- **Still outstanding (student actions):** send the alignment email and record
+  `sent_at`; make the university ARM64 request and start the 48-hour clock;
+  uninstall the two review apps; copy the newest bundle and the four legacy
+  reports off-machine and verify the hashes there. *(Dated note, 2026-08-14,
+  later the same day: the uninstall obligation was lifted by the management
+  register — review applications may review, comment and suggest; they remain
+  forbidden as commit author/committer, co-author, attribution trailer or
+  credited metadata author, which `metadata-policy.yml` already enforces. The
+  other three actions stand.)*
+- **Decisions:** G1 accepted (gate log is the authority); D009/D010 join the
+  request set; the PR #15 draft rule is narrowed to LaTeX integration only,
+  by the owner's explicit choice recorded in this session.
+
+---
+
+## Entry #C016 — Post-merge recovery bundle covering PRs #15 and #21
+- **Date:** 2026-08-14
+- **Phase:** Provenance (after the PR #15 and PR #21 merges into `dev`)
+- **Action:** Created `backups/egw-20260814-post-pr21-merge.bundle` with every
+  local ref, immediately after `dev` reached the PR #21 merge commit
+  `f1ce8d9`. `git bundle verify` passes. It is 1,848,999 bytes, preserves 14
+  refs — `dev`, `main`, `feat/egw-p0-baseline`, both merged pull-request
+  branches and both protected evidence tags
+  (`evidence/g1-yocto-build-5770c0a`, `evidence/g1-bringup-driver-367c929`) —
+  and has SHA-256
+  `116d59eba74e1583c96c556f2c9c5cb6525816cc5166d3852c0a2ddb81f9d5a9`.
+  This closes the bundle gap recorded in #C015: the PR #20 merge and
+  everything after it are now covered by a single verified snapshot. The root
+  README's normative-source paragraph was aligned with plan v1.2 in the same
+  change.
+- **Result:** nine bundles inventoried in
+  `docs/governance/provenance-history-rewrite.md`, all on this machine.
+- **Still outstanding (student action):** copy the newest bundle — and the
+  four EXT-014..017 reports — off this machine and verify the hashes at the
+  destination. A local bundle is a recovery object, not an independent backup.
+
+---
+
+## Entry #C017 — Management audit response: G1 record sync and terminology delimitation
+- **Date:** 2026-08-14
+- **Phase:** Documentation-only pull request, ordered by the external
+  management audit register of 2026-08-14 (EXT source, held outside the
+  repository).
+- **Action:** Verified every audit claim against the repository before acting.
+  Two named targets were already done and are recorded as such: the bundle
+  inventory already listed nine bundles (PR #22), and both claim matrices had
+  been synchronised with the G1 acceptance during the PR #21 review round.
+  What was genuinely outstanding and is fixed here:
+  - `src/README.md` still said "no gate has been accepted" (phrase split
+    across a line break, which the earlier sweep greps missed);
+  - `PROGRESS.md` still counted eight bundles with the superseded latest
+    bundle, and its PR ranges stopped at #20;
+  - the risk register: R25 rewritten for nine bundles, the two protected
+    tags, the new latest bundle and the honest observation that the
+    "off-machine copy before G1 acceptance" deadline was missed; R27 extended
+    with the post-acceptance drift recurrence; the real-execution narrative
+    updated with the acceptance.
+  - **Terminology delimitations** added as comparison rules 6–8 of
+    `docs/academic/c2dta_p0_traceability.md` and propagated to the claim
+    matrix, `experiments/results.md` and `diagrams/README.md`: the smartwatch
+    profile is the paper-aligned workload while smart ring/clothing are
+    dissertation extensions; `twin_creation` is first-contact technical
+    provisioning, never the C2DTA business twinning ceremony; the cloud VM is
+    an edge-class proxy, not a consumer-controlled physical gateway. Frozen
+    contract identifiers are unchanged — the delimitation lives in prose.
+- **Result:** every active record now reads G1 accepted (functional scope,
+  claims untouched) and the C2DTA delimitations are stated where numbers
+  would be interpreted.
+- **Next:** the CONTRACTS.md translation follows as its own pull request, per
+  the language policy's batch plan and the same audit's order.
+
+---
+
+## Entry #C018 — CONTRACTS.md translated into British English
+- **Date:** 2026-08-14
+- **Phase:** Language migration (the active contract), ordered by the external
+  management audit of 2026-08-14 and scheduled by the language policy.
+- **Action:** `src/CONTRACTS.md` translated in place from Portuguese to
+  British English, prose only. An independent adversarial verification
+  compared the translation token-by-token against the Portuguese original at
+  git HEAD: every port, topic string, JSON field, endpoint, status code,
+  environment variable, CLI flag, scenario name, image tag, threshold,
+  duration, regex, placeholder and the UUIDv5 namespace are byte-identical;
+  both fenced code blocks are byte-identical; the 12 headings and 7 tables
+  keep identical structure. Verdict: clean, zero blockers. Deliberate
+  differences, all recorded: the version-line date rendered as ISO 8601;
+  decimal commas normalised to points (values unchanged); six backticked
+  Portuguese metric terms in §9 translated after a repo-wide grep confirmed
+  they are prose, not code identifiers; a one-line translation notice added
+  under the title; the stale "integrated plan §5" citation qualified as
+  archived v1.0 with the v1.1/v1.2 authority stated. The contract version
+  remains v1.1 — translation is not a contract change. The language policy's
+  migration table now records the contract as translated, leaving only
+  isolated Portuguese comments in three code/test files for a bounded pass
+  before `exp-v1`.
+- **Result:** the last active Portuguese document in the repository is
+  migrated; the remaining Portuguese is historical (LOG entries, archive) or
+  exception-covered (supervisor email, Resumo).
+
+---
+
+## Entry #C019 — Final documentation pass of the 2026-08-14 audit cycle
+- **Date:** 2026-08-14
+- **Phase:** Documentation-only pull request closing the residual list of the
+  external management register (post-PR-#24 audit). Every item verified
+  against the repository before acting.
+- **Action:**
+  - **Gate-vs-claim separation completed**: the conflating phrase "formal G1
+    admission" in `src/README.md` (split across a line break, which earlier
+    sweeps missed), plus ambiguous "formal admission" wording in
+    `src/yocto/README.md`, `PROGRESS.md` and the claim matrix, now read
+    "formal claim admission" with the gate decision explicitly admitting no
+    claim; the plan's dated gate-table snapshot gained a note deferring
+    post-baseline outcomes to the gate decision log.
+  - **Traceability and diagram updated**: the C2DTA traceability row that
+    still said "a Yocto build and two QEMU boots" now records both seals and
+    the accepted gate; the two-layer PlantUML dropped "PRELIMINARILY
+    EVIDENCED" for "GATE G1 ACCEPTED 2026-08-14 (FUNCTIONAL SCOPE ONLY)" and
+    its simulator label now reads "paper-aligned smartwatch profile + two
+    dissertation extensions"; the SVG was regenerated from source with
+    PlantUML under WSL2.
+  - **D006 request row** updated to the clean-checkout build and five strict
+    boots (second-operator reproduction still pending).
+  - **Bibliographic protocol v1.1**: normative basis repointed at the
+    in-repository plan v1.2; archived-v1.0 section citations qualified; no
+    method, query, criterion or target changed.
+  - **Template claim corrected**: the ISCTE LaTeX template is no longer
+    described as "official" — its 2026 status is exactly decision D004.
+  - **R31 cause corrected**: the first build's perl failure was misdiagnosed
+    as a parallel-make race; the demonstrated cause was WSL2 host-clock
+    drift, consistent with R2.
+  - **Platform terminology**: "dedicated" replaced by "non-burstable native
+    ARM64" in all active platform terminology (ADR 0007 title and body,
+    ADR 0001, both indexes, the VM guide, PROGRESS, the Yocto README) —
+    dedicated tenancy was never evidenced. "Dedicated ARM family" survives
+    only where it quotes Azure's own family classification or historical risk
+    narrative. The 4 vCPU / 8 GiB / 80 GB profile is now framed as a
+    pre-specified fixed resource envelope selected for feasibility, cost and
+    experimental control — it does not originate in the C2DTA paper (which
+    evaluated on an x86 VM with 16 GB/32 CPUs and sizes no ARM64 host) and
+    the admissibility conditions for a different profile are stated.
+  - **Bundle**: `backups/egw-20260814-post-pr24-merge.bundle` created from
+    `dev` at `e8bf965` before this entry (1,865,313 bytes, SHA-256
+    `95288fba…`, 21 refs, `git bundle verify` passing) — the designated
+    off-machine-copy artefact, inventoried as the tenth bundle.
+  - **Review-application policy change recorded** with a dated note at
+    #C015: the uninstall obligation is lifted; reviewing and commenting are
+    permitted; authorship, co-authorship, trailers and credited metadata
+    remain forbidden and machine-enforced.
+- **Result:** the residual documentation list of the audit cycle is closed.
+  Per the same order, desk work stops here: the next technical action is G2 on
+  a non-burstable native ARM64 host, starting with the paper-aligned
+  smartwatch profile at 1 Hz, as soon as the host exists.
+- **Still outstanding (student actions):** send the alignment email and
+  record `sent_at`; university ARM64 request (48-hour clock); off-machine
+  copy of the `95288fba…` bundle + EXT-014..017 + checksum record, with
+  destination-side hash verification, `git bundle verify` and a restore
+  drill.
+
+---
+
+## Entry #C020 — Post-PR-#25 residuals: the md/CSV matrix contradiction and six leftovers
+- **Date:** 2026-08-14
+- **Phase:** Minimal documentation repair ordered by the post-PR-#25 audit;
+  every finding verified against the repository first. All nine were real.
+- **Action:** The claim matrix's Markdown table rows C01/C02 still carried
+  "G1 acceptance remains pending" and "Formal G1 admission is pending" while
+  the CSV had been corrected — the two forms of the same matrix contradicted
+  each other; the Markdown rows now mirror the CSV wording (gate accepted
+  2026-08-14, functional scope, claim admission a separate pending step).
+  Also fixed: the Yocto README's G1-window paragraph ("remains in progress"
+  → accepted the same day, decision in the gate log); the PROGRESS effort row
+  still calling the gate decision pending; PROGRESS PR ranges through #25;
+  "dedicated" → "non-burstable native" at the three remaining sites in
+  `diagrams/architecture.md` — two prose occurrences plus one Mermaid node
+  label (the node was caught by review after the prose fix); the simulator README's "three C2DTA
+  wearables" → the paper-aligned smartwatch and two dissertation extensions;
+  and `main.tex`'s comment no longer calls the template official (D004).
+- **Deliberately not fixed:** `egw-image.bb`'s DESCRIPTION still says "two
+  QEMU boots" — editing the recipe would change its checksum and force a
+  rebuild for a metadata string; per the management order it is corrected
+  only at the next functional rebuild.
+- **Bundle (unversioned, per the same order):**
+  `backups/egw-20260814-post-pr25-merge.bundle` created from `dev` at the
+  PR #25 merge `2dafae1` — 1,890,507 bytes, SHA-256 `53014902…`, complete
+  history, `git bundle verify` passing — handed to the student with its
+  `.sha256` file for the off-machine copy, deliberately NOT added to the
+  provenance inventory (no dedicated recording pull request). The `95288fba…`
+  post-PR-#24 bundle is preserved as an additional baseline.
+- **Result:** desk work ends here. Next development: the paper-aligned
+  smartwatch at 1 Hz on a non-burstable native ARM64 VM → MQTT/TLS →
+  controller → Ditto → API (gate G2), once the host exists.
+
+---
+
+## Entry #C021 — Import the supplied Word manuscript into canonical LaTeX
+
+- **Date:** 2026-09-17
+- **Phase:** Source-faithful dissertation format conversion; no governance,
+  experimental or bibliographic-metadata revision.
+- **Source:** `Dissertation_Rui Duarte_Digital Twin Edge Gateway.docx`,
+  SHA-256
+  `c589422a42318cf1635ad895cbe23cd24e2157ed569554a8ab3cd5dcaea25945`.
+- **Action:** Import the supplied Introduction and Theoretical Framework,
+  three tables, one research-process figure and 33 reference strings into
+  `thesis/latex/`, retaining the supplied `Template_LaTeX` formatting base,
+  two covers and logos. Preserve the Word title and known administrative
+  fields; leave unknown supervisor details blank. Leave Chapters 3–6 and
+  unprovided front-matter content empty apart from structural headings.
+  Refresh the generated Markdown mirrors and source documentation.
+- **Bibliography boundary:** Preserve the Word reference strings through
+  Biber/IEEE with a custom verbatim-reference driver; no new metadata audit
+  or correction is asserted. The existing research register is unchanged.
+- **Verification record:** [WORD_IMPORT.md](../../thesis/latex/WORD_IMPORT.md) and
+  [word-import-manifest.json](../../thesis/latex/word-import-manifest.json).
+  Local source-fidelity checks, seven projection regression tests, identical
+  Markdown regeneration and both PDF builds passed. The PDFs contain 43 and
+  10 pages respectively, without unresolved citations or overfull boxes;
+  evidence is sealed under `docs/evidence/word-import-2026-09-17/`.
+  Historical page counts and checksums above remain records of earlier
+  drafts; they do not verify the imported manuscript.
+- **Governance boundary:** Integrated-Yocto wording is supplied manuscript
+  content, not adoption or approval of a new plan version. The current
+  source snapshot supersedes earlier draft-completeness descriptions only.
+  No gate, research claim or supervisor decision is accepted by the import;
+  D001/D004 and the existing evidence requirements remain separate controls.
+
+---
+
+## Entry #C022 — Refresh the project overview and complete the CI font dependency
+
+- **Date:** 2026-09-17
+- **Request:** Update the root README to describe current project state, not
+  the manuscript's format conversion.
+- **Action:** Summarise the implemented components, accepted functional G1,
+  pending native deployment, live validation, pilot, campaign and submission.
+  Distinguish the student-directed integrated-Yocto target and unpublished
+  2026-09-16 working reforecast from the published plan v1.2. Do not import the
+  unrelated local edits, adopt the working plan, approve dates or accept claims.
+- **CI correction:** The first Linux thesis build for PR #27 failed at font
+  expansion while both local builds passed. The minimal Ubuntu package list
+  omitted scalable T1 fonts under `--no-install-recommends`; add `cm-super`
+  explicitly, retaining the manuscript and template unchanged. The package
+  provides the corresponding Type 1 fonts with the original metrics
+  ([upstream description](https://ctan.org/pkg/cm-super)).
+- **Verification boundary:** Check README links and patch whitespace locally;
+  the subsequent GitHub workflow result, not this entry, establishes whether
+  the Linux build succeeds. Existing sealed build records remain unchanged.
+
+---
+
+## Entry #C023 — Integrated QEMU/TCG gateway profile (unbuilt proposal)
+
+- **Date:** 2026-09-18
+- **Request:** Verify whether the sealed `egw-image` is fit to host the
+  digital-twin stack, and prepare a first change set limited to an integrated
+  QEMU/TCG profile: the Yocto ARM64 guest emulated on the x86-64 host with the
+  six containers inside the guest. No native ARM64 host could be obtained.
+- **Finding:** The G1 image is a sound container host but cannot run the
+  stack as sealed. Its QEMU profile is `-cpu cortex-a57 -m 256`, while MongoDB 7
+  needs ARMv8.2-A and the compose memory limits alone total 2,432 MiB. It lacks
+  the Compose V2 plugin, `curl`, a non-root operator with key-only SSH, a
+  persistent journal, explicit NTP servers, a Docker `daemon.json`, an event
+  directory writable by uid 1000 and storage for the images. Removable
+  default-feature packages amount to about 24 MiB; size is not the problem.
+- **Action:** Add `kas/egw-qemuarm64-integrated.yml` with its lock file,
+  `egw-gateway-image.bb`, `egw-gateway-image-dev.bb`, the `egw-gateway-config`
+  recipe, `scripts/build-profile.sh`, `scripts/run-qemu-integrated.sh`, the
+  runbook `docs/setup/qemu_integrated_gateway.md` and the audit
+  `docs/reviews/2026-09-17-egw-image-audit.md`. The profile keeps the G1
+  machine, layers and pins, builds only in `build-integrated/`, selects
+  `-cpu cortex-a76`, 8 GiB and four vCPUs, forwards 2222 and 8883, and keeps
+  Docker data on a second ext4 disk outside the clone. The data-disk guard
+  resolves the canonical path before anything is created.
+- **Boundary:** Nothing was built, booted or measured. Every G1 input is
+  byte-identical and the eight evidence seals on this branch verify (59
+  artefacts). The environment is ARM64
+  emulated on x86-64: functional and integration evidence only, never native
+  performance evidence. The profile follows the student-directed
+  integrated-Yocto target, whose plan revision and ADR 0008 are not yet
+  published on `dev`; no plan version is adopted, no gate and no claim is
+  accepted. The native-route files, the deployment corrections (broker secret
+  ownership, ACL probe, prebuilt controller) and the harness reconciliation
+  helper are deliberately left for later pull requests.
+- **Verification record:** YAML and JSON parsing, `sh -n`/`bash -n`, a sandbox
+  run of the data-disk guard, the repository link and evidence-seal checks.
+  ShellCheck is not installed on the workstation, so the `shell safety` check
+  is the first ShellCheck run of the two new scripts.
+
+---
+
+## Entry #C024 — First build and boot of the integrated QEMU/TCG profile
+
+- **Date:** 2026-09-18
+- **Request:** Validate, by a delimited build and boot in WSL2, the integrated
+  profile of entry #C023 from an identified commit, preserving the G1 build
+  artefacts, without deploying the stack, running a campaign or accepting a
+  gate.
+- **What happened:** The first build (commit `68f9ae7`) failed in
+  `egw-gateway-image:do_rootfs` on an RPM conflict: `egw-gateway-config`
+  created `/etc/sudoers.d` 0755 while `sudo-lib` ships it 0750. Commit
+  `03e333e` creates it 0750; the build then succeeded (5,556 tasks). The first
+  boot attempt ended before QEMU started: the pinned `runqemu` cannot resolve
+  `IMAGE_LINK_NAME` when given an image name and a machine. Commit `3209b17`
+  passes the image's own `.qemuboot.conf`; the rebuild was a no-op and two
+  boots followed. Every failed attempt is preserved.
+- **Result:** Every artefact check (runbook 2.4) and guest check (runbook 3.4)
+  passed: Cortex-A76 model, four vCPUs, 8,204,356 kB of memory with
+  `mem=8192M`, `/var/lib/docker` on the labelled data disk, Docker 25.0.9 with
+  Compose v2.26.0, cgroup v2, key-only SSH for `egw` with `root` and password
+  logins refused, NTP synchronised, no failed unit. The second boot showed both
+  boots in the journal, the same SSH host key, data-disk UUID and Docker
+  engine id.
+- **Prediction refuted:** The kernel was re-executed rather than restored
+  from the shared sstate cache, because meta-virtualization signs the whole
+  `DISTRO_FEATURES` value into `do_kernel_metadata` and the profile removes
+  `nfs`. The resulting `Image` is byte-identical to the G1 `Image`. The
+  manifest comment is corrected.
+- **Boundary:** The sealed G1 build tree is unchanged (listing and checksums
+  compared before the first build, after the builds and after the boots). No
+  image was loaded, no container was started, MongoDB 7 was not tried. The
+  environment is ARM64 emulated on x86-64: functional evidence only. The
+  candidate evidence is held outside the repository and is not sealed; no
+  gate and no claim is accepted.
+- **Record:** `docs/reviews/2026-09-17-egw-image-audit.md`, Section 13.
+
+---
+
+## Entry #C025 — Seal the build, boot and MongoDB evidence of the integrated QEMU/TCG profile
+
+- **Date:** 2026-09-18
+- **Request:** Archive, as sealed technical evidence, what was observed on
+  2026-09-18 with the integrated QEMU/TCG profile of pull request #28, keeping
+  the distinction between archiving evidence and accepting a gate or a claim.
+- **Action:** Add `docs/evidence/integrated-qemu/` with two capsules copied
+  byte for byte from the candidate evidence held in the WSL2 home:
+  `2026-09-18-build-boot/` (failed first build at `68f9ae7`, successful build
+  at `03e333e`, boot attempt that failed before QEMU started, no-op rebuild and
+  two boots at `3209b17`, guest acceptance transcripts, persistence, offline
+  SSH host-key record, root file system checksums before and after the boots)
+  and `2026-09-18-mongodb7-isolated/` (MongoDB 7.0.39 pulled by the pinned
+  digest inside the guest; start, write and read, restart, recreation and
+  persistence across a guest power cycle; 35 checks, none failed). Store the
+  directory without text conversion and exclude captured scripts under
+  `docs/evidence/` from ShellCheck.
+- **Review adjustments applied before sealing:** the manifests now cover the
+  nested manifest of the failed attempt, and the SSH host-key continuity, which
+  had not been saved during the run, is recorded offline from the root file
+  system image and qualified as such. A scan found no private key, password or
+  token; two files hold public keys of material created for this validation.
+- **Boundary:** Functional evidence of an ARM64 guest **emulated** on x86-64.
+  The six-container stack was not deployed and nothing was measured; timings
+  in the transcripts are informational. The sealed G1 evidence and every G1
+  build input are unchanged. No gate is accepted and no claim is supported.
+- **Verification record:** `python tools/ci/verify_evidence.py` and
+  `python tools/ci/check_markdown_links.py` on the branch.
+
+---
+
+## Entry #C026 — Broker secret ownership and an ACL probe with known traffic
+
+- **Date:** 2026-09-18
+- **Request:** Correct two deployment defects found by the project review of
+  the integrated profile and make the ACL test prove what it claims.
+- **Finding:** Mosquitto 2 loads its configuration and drops to its
+  unprivileged user before it opens `password_file` and `keyfile`; in the
+  official 2.0 image that user is uid/gid 1883, and the entrypoint cannot
+  `chown` the read-only bind mounts of `compose.yaml`. With files owned by the
+  invoking user and mode 0600 the broker cannot read its own key. Separately,
+  Mosquitto's `acl_file` never refuses a SUBSCRIBE and filters at delivery, and
+  a denied PUBLISH is acknowledged normally under MQTT 3.1.1, so a test without
+  known traffic proves nothing.
+- **Action:** Add `scripts/prepare-broker-secrets.sh` (owner 1883:1883, mode
+  0600, refusal of any permission bit for others, read test as uid 1883 in a
+  one-shot container with the mounts of `compose.yaml`, `--check` mode) and call
+  it as step 3b of `validate-config.sh`; `generate-dev-auth.sh` hands `passwd`
+  to that uid and honours `EGW_BROKER_IMAGE`; `generate-dev-tls.sh --force`
+  removes the old outputs. Add `scripts/probe-acl.sh`: an authorised and an
+  unauthorised subscriber listen concurrently while tagged messages are
+  published by both users; the anonymous case counts only when the refusal is
+  observed; a delivery is a line that starts with the topic; the unauthorised
+  subscriber must be shown connected while the messages were published; an
+  incomplete broker-log collection is INCONCLUSIVE unless independent proof of
+  a security failure exists; preconditions exit 2 with nothing run.
+- **Boundary:** Nothing was run against a Docker engine, a broker or the
+  guest. `src/tests/test_probe_acl_verdict.py` exercises the verdict logic with
+  a stub `docker` under dash and bash (94 cases); behaviour under BusyBox ash
+  and against a real Mosquitto 2.0.22 is unobserved. No gate and no claim is
+  accepted.
+
+---
+
+## Entry #C027 — Third review of the test procedure; isolated MongoDB 7 test recorded
+
+- **Date:** 2026-09-18
+- **Request:** The project review found four residual defects in the
+  published test procedure (one reproduced by running the helper) and asked for
+  a short, focused correction with positive and negative cases; it also
+  recommended, and the student authorised, an isolated MongoDB 7 test on the
+  integrated guest.
+- **Action:** `accounted` now reconciles message identities instead of totals
+  and never states that no work is pending; test 7 cannot be accepted unless
+  the interruption and the recovery are both shown, and always attempts the
+  recovery; failures of evidence capture are binding; tunnels are closed
+  through a project-only control socket instead of a pattern kill. The cases
+  are executable: `src/tests/test_runbook_itest_helpers.py` extracts the text
+  from the runbook at run time (64 cases; the review's case fails against the
+  published text). Report: `docs/reviews/2026-09-18-test-procedure-corrections.md`.
+  The audit report records the round in Section 12.2 and the MongoDB test in
+  Section 13.5; the runbook status and its Section 3.5 note that the guest can
+  pull by the pinned digest.
+- **Boundary:** Stubs only: nothing in runbook Sections 4-9 has run on the
+  real host, guest or broker. The MongoDB test is functional evidence of an
+  emulated guest (record in pull request #29); the stack was not deployed,
+  nothing was measured, no gate and no claim is accepted. The entry ids #C025
+  and #C026 belong to other open pull requests.
+
+---
+
+## Entry #C028 — Publish the integrated-Yocto plan revision v2.0 and ADR 0008 as a proposal
+
+- **Date:** 2026-09-18
+- **Phase:** Governance documentation only; no code, evidence, thesis chapter
+  or search-protocol change. Entry ids #C023–#C027 are reserved for other open
+  work and are not used here.
+- **Request:** Publish the plan revision prepared on 2026-09-16 and ADR 0008 in
+  parallel with the functional tests, distinguishing proposed decisions from
+  decisions approved by the supervisors (none exists at this date), and state
+  what will be demonstrated
+  under QEMU, what still depends on native ARM64, which performance conclusions
+  are permitted and which scope change needs supervisor agreement.
+- **Action:** Bring the 2026-09-16 amendment into a documentation branch:
+  plan v2.0 at the canonical path with a status box, plan v1.2 archived
+  byte-for-byte (SHA-256
+  `c346e4d958d22fad6d4f4635b4176bc2c1b584407199b165a197f94ef0e9fa53`),
+  ADR 0008, scope/RQs v2.0, the revised alignment memo, decisions D011–D013
+  and pointer banners in the ADRs, G0 documents, diagrams, setup guide,
+  experiments and documentation indexes. Add plan section 10 and the ADR 0008
+  amendment of 2026-09-18 (evidence classes: emulated QEMU/TCG versus native
+  ARM64), decision D014 (re-scoping RQ3 or the evaluation to emulated
+  functional evidence if no native ARM64 host is obtained in time) and a
+  PROGRESS.md section for the proposal.
+- **Status of the documents:** ADR 0008 is *Proposed — pending supervisor
+  agreement (accepted by the student for technical planning only)*. Plan v2.0
+  is a proposal published for review. Plan v1.2 remains the plan in force
+  until the student decides after consulting the supervisors. D001–D014 are
+  all `proposed_not_sent`; the alignment email and memo have not been sent;
+  nothing is approved by the supervisors.
+- **Facts recorded (from the 2026-09-16 amendment):** the final services must
+  execute on the student's Yocto-built kernel/root filesystem during the ARM64
+  campaign, and the August separate-platform academic proposal has no recorded
+  supervisor approval. The revision rests on
+  the source documents, configuration, recipes and manifests, a read-only
+  inspection of the existing WSL kernel build and official custom-image
+  references; no cloud resource, new Yocto build, integration run or campaign
+  was executed for it. Estimate 225-345 active hours remaining at a reported
+  8 h/day including weekends; student target
+  2026-10-20 and student-reported extension date 2026-11-03, neither confirmed
+  administratively.
+- **Facts recorded (2026-09-17/18):** on 2026-09-17 no native ARM64 virtual
+  machine had been obtained (attempts with cloud providers had not produced one), so the project review
+  ordered an integrated QEMU/TCG profile first, with the native ARM64 route as
+  the subsequent step. On 2026-09-18, in draft pull request #28 (not on
+  `dev`), the integrated image was built (commit `03e333e`) and booted twice
+  under QEMU/TCG (commit `3209b17`) with every build and boot acceptance check
+  passing. The same day an isolated MongoDB 7.0.39 test passed on that guest;
+  it is recorded in the separate draft pull request #29, branch `evidence/integrated-qemu-2026-09-18`
+  (commit `f03c92c`, not on `dev`), which proposes to seal the build, boot and
+  MongoDB records, and not in pull request #28. The six-container stack has
+  not been deployed, nothing has been measured, and the evidence is candidate
+  evidence, none of it sealed on `dev`; sealing would not be acceptance.
+- **Evidence boundary:** ARM64 emulated on x86-64 yields functional and
+  integration evidence only, never native ARM64 performance evidence; academic
+  use of emulated results needs supervisor agreement. No gate, claim or
+  supervisor decision is accepted by this entry, and no historical seal is
+  changed.
+- **Left out:** the integrated QEMU profile, its runbook and image audit
+  (pull request #28), deployment and harness corrections, a further ADR in
+  preparation,
+  literature-search files, thesis chapters and review notes. The target dates
+  of plan v2.0 section 6 were not reforecast.
+- **Verification boundary:** the Markdown link checker and the evidence-seal
+  checker were run locally on the branch; the GitHub workflow result, not this
+  entry, establishes whether the required checks pass.
+- **Forward pointer (added 2026-09-18):** superseded in part by #C031, which
+  records the layout under `docs/governance/proposals/`, the dates confirmed
+  by the student and the merge of pull requests #28 and #29. The text above is
+  kept as written.
+
+---
+
+## Entry #C029 — Progress counters in the controller's `GET /metrics`
+
+- **Date:** 2026-09-18
+- **Identifier:** `#C023`–`#C028` are used by or reserved for other open work
+  (pull requests #28, #29 and #30) and are not used here; identifiers are
+  never reused. For the same reason the decision record is ADR 0010: 0008 is
+  used by pull request #30 and 0009 is kept for other open work.
+- **Request:** Project review of 2026-09-18, authorised by the student the
+  same day: add `received`, `in_progress` and `processing_errors` to the
+  controller as a delimited observability change, with explicit semantics,
+  tests and restart handling. The counters show the controller's internal
+  state; they do not replace the reconciliation, by identity, of messages
+  sent with logged outcomes.
+- **Finding that motivates it:** `queue_depth` is `Queue.qsize()` and the
+  consumer removes a message before processing it, so a message in a Ditto
+  retry is in no field of `/metrics`; an exception that escapes processing
+  (a failed event-record write included) is logged and reaches no counter.
+  One reading could not distinguish "idle" from "one message in progress".
+- **Action:** Three additive integer fields. `received` is counted in
+  `ControllerService.submit()` before the queue-capacity decision;
+  `in_progress` is raised after the consumer takes a message and lowered in
+  a `finally`; `processing_errors` is the residual, raised in the same lock
+  acquisition when no outcome counter moved for that message. Every term of
+  the identity is written on the event loop and the `/metrics` handler reads
+  there, so one response is one snapshot. Identity, per response of a
+  running controller: `received == accepted + rejected + duplicate + failed
+  + dropped + processing_errors + in_progress + queue_depth`.
+- **Contract rule followed:** plan v1.2 section 1 ("material changes require
+  an ADR and regression tests") →
+  [ADR 0010](../adr/0010-controller-progress-counters.md), status
+  Proposed, and regression tests that keep the exact values of the existing
+  fields. `src/CONTRACTS.md` section 5 gains a dated additive sub-section
+  (semantics, identity, restart rules for readers, shutdown exclusion); the
+  title stays v1.1, as for the P5 confirmation marker, so no version string
+  or diagram moves: the rule of `diagrams/README.md` ("bump the version
+  named here ... in the same change") has no version to bump, a reading the
+  ADR states openly. Gate G3 ("contracts frozen") is `Pending`.
+- **Coordinated update (CONTRACTS header clause):**
+
+  | Component | Verdict | Basis |
+  |---|---|---|
+  | simulator | no change | does not read `/metrics` |
+  | controller | changed | `metrics.py`, `service.py` (`submit`, `run`), docstrings and one comment in `app.py` |
+  | schemas, TDs | no change | none describes `/metrics` |
+  | deployment | no change | only `/health` and `/ready` are probed |
+  | harness | no change | reads six counters and the marker by key; other integer keys are ignored; `controller_metrics.csv` keeps its columns |
+  | tests | updated and added | the two tests that pin the exact key set are updated; new tests cover the identity, the single-snapshot reading, fault, cancellation and shutdown paths |
+
+- **Not changed:** processing behaviour, outcomes, event records, retry
+  policy, `queue_depth`, the MQTT bridge, the shutdown sequence, the
+  simulator and the experiment harness. The defect by which a failed event
+  write leaves a message with no outcome is made visible, not repaired.
+- **Verification boundary:** unit tests with fakes only, outside the sealed
+  suite; the sealed figure stays 701. No live broker, no Ditto, no ARM64, no
+  run on the gateway. Local Markdown link check passed. The test counts of
+  the verified commit are recorded in the pull request; the GitHub workflow
+  result, not this entry, establishes the result on Python 3.11 and 3.14.
+- **Decisions and next steps:** no gate, claim or maturity level changes.
+  Follow-ups, each a separate change: record the new fields in
+  `controller_metrics.csv`; use the single-reading test in the integration
+  runbook (whether its quiet interval may be shortened is decided there);
+  repair the event-write defect.
+
+---
+
+## Entry #C030 — Prebuilt controller image in the deployment; reconciliation helper versioned
+
+- **Date:** 2026-09-18
+- **Request:** Project review of 2026-09-18, authorised by the student the
+  same day, before the first end-to-end functional test inside the
+  integrated QEMU guest: the published Compose file still built the
+  controller and `itest_reconcile.py` was outside `dev`; make the use of a
+  prebuilt image explicit, version the helper, use the external images
+  pinned by digest, publish no controller image, and record that the
+  Dockerfile installs Python dependencies without a reproducible lock.
+- **Action (deployment):** `src/deployment/compose.yaml`, service
+  `controller`: the `build:` stanza is removed and `pull_policy: never` is
+  added; `image: egw-controller:0.1.0` and `platform: linux/arm64` stay. No
+  other service, port, limit, pin or the ACL changes. The only command shape
+  on the gateway is `docker compose --env-file .env --env-file
+  images.lock.env up -d` (no `--build`); `images.lock.env` remains the only
+  source of the five external references, which are pulled by their pinned
+  digests inside the guest. New `scripts/build-controller-image.sh`
+  (provisioning host: `buildx`, `linux/arm64`, refuses a dirty build context
+  — git-ignored files below a path the Dockerfile copies included, since they
+  reach the image while `git status` stays silent about them —, `docker
+  save`, identity record with source commit, base image, image id read from
+  the archive, archive SHA-256, `python --version`, `pip freeze --all`, tool
+  versions and UTC time; pushes nothing; traps `HUP`/`INT`/`TERM` so that an
+  interrupted run leaves no archive without a record in any POSIX shell) and
+  `scripts/verify-controller-image.sh` (gateway: compares the loaded image
+  with the record — image id, architecture, OS and the revision label — and
+  refuses a record from a dirty build context). `scripts/validate-config.sh`
+  gains step 7 (controller image present, remedy `docker load -i <archive>`,
+  never a build or a pull), and its step 1 now looks for `CHANGE_ME` in
+  assignments only: the header comment of `.env.example` carries the word and
+  survives `cp .env.example .env`, so the step failed on every correctly
+  filled `.env` and the `up -d` interlock of runbook 5.5 could never have
+  passed — a defect already on `dev`, found by the project review of this
+  pull request.
+  `scripts/probe-acl.sh` takes `images.lock.env` as its default second env
+  file.
+- **Action (harness):** `src/egw_experiments/itest_reconcile.py` (`mark`,
+  `wait`, `check`, `snap`, `delta`, `same`) is versioned with
+  `src/tests/test_experiments_itest_reconcile.py` (106 cases, fakes only, no
+  network). It imports `CONFIRMATION_WINDOW_S`, `poll_controller_marker` and
+  `compute_run_metrics` from the harness, never redefines the confirmation
+  window and refuses a marker file whose deadline is not marker + window.
+  `mark` measures the lag up to the **return** of the poll, as the harness
+  does, so a slow round trip can no longer hide a lag above the 2 s
+  tolerance; `delta` exits 4 for a device with accepted records that the
+  `from` snapshot does not hold (a snapshot taken with another seed than the
+  run, which used to close vacuously) and says when a `/metrics` reading is
+  missing instead of passing over it; `check` adds warnings about files that
+  are not shown to be this run's and whole, and about a controller clock that
+  decreases along the event log, without changing a count or an exit status.
+  The test module extracts every `$REC` command line from the runbook and
+  parses it, so a drift between document and interface fails a case.
+- **Action (runbook):**
+  [`docs/setup/qemu_integrated_gateway.md`](../setup/qemu_integrated_gateway.md)
+  Sections 3.5, 4, 4.5, 5 to 7 and Appendix B follow the implemented route:
+  controller built with the script from a clean checkout, copied, streamed
+  into `docker load` and compared with its identity record (4.1, 4.3, 4.4,
+  repeated in front of `up -d` in 5.5); five external images pulled in the
+  guest with a `RepoDigests` check (new 5.2a); `EGW_BROKER_IMAGE` no longer
+  exported; every compose command names `images.lock.env`. The offline
+  route (six archives, `images.offline.env`, `images.identity.env`) was
+  never implemented and is removed from the text. The six points of 4.5 are
+  marked done (1, 4, 6), superseded (2, 5) or both (3). Four further
+  corrections came from the project review of this pull request: 4.3 brings
+  the WSL clone
+  to the commit named in the identity record and refuses a dirty `src/`, so
+  the deployment tree (5.1), the guest-side verification script (4.4) and the
+  harness (6.1) cannot come from a different commit than the image, and it
+  records that commit in `deploy_source_commit.txt`, which 6.6 copies next to
+  the Yocto build's own `source_commit.txt`; the pinned-digest verdict of
+  5.2a and the identity verdict of 4.4 are now written to
+  `/opt/egw/evidence/`, which 6.6 already fetches, and the `imagetools-*.txt`
+  files of 4.2 reach the host copy; 4.1 and 4.4 state what the two scripts
+  really print; and 5.7 names which `$REC` subcommand takes which URL option
+  (`delta` and `same` take neither, so the earlier advice would have ended in
+  a usage error).
+- **Limitation — unlocked dependencies:** `src/Dockerfile` still installs
+  with `pip install .`, without hashes or a lock, and its install method is
+  deliberately unchanged here. The first functional demonstration therefore
+  uses a controller image with **unlocked Python dependencies**; the
+  identity record lists `pip freeze --all` of that one build, which
+  documents it and does not make it reproducible. This must be resolved
+  before the experimental freeze (`scripts/generate-runtime-lock.sh`,
+  deployment README "Runtime Python lock"); such an image is not admissible
+  for thesis measurements.
+- **Boundary:** nothing here has run on the guest yet: no image was built,
+  saved, loaded or pulled, no script of this entry has met a Docker engine,
+  the stack was not deployed and no traffic was sent. Verified locally only:
+  `docker compose config` accepts the file and its resolved model differs
+  from the previous one only in the controller's `build`/`pull_policy`; unit
+  tests with a stub `docker` and with fakes (35 cases for the deployment
+  decision and the two image scripts, 106 for the helper; whole suite 1057
+  passed under Linux); the rewritten runbook lines ran verbatim against
+  stub `git`/`ssh`/`docker` commands under WSL (21 assertions for the
+  pull-by-digest route, then 17 more for the lines changed after the project
+  review of this pull request, the guest group under `dash` and `bash`) and
+  `src/tests/test_runbook_itest_helpers.py` passed afterwards under Linux
+  (64 cases). ShellCheck was not run locally; the GitHub workflow
+  establishes that result and the test results on Python 3.11 and 3.14.
+  Open, and named in runbook 4.5 as such:
+  `.github/workflows/manual-arm64-integration.yml` still says `up -d
+  --build` at line 34 and runs `validate-config.sh` at line 30 with no step
+  that provides `egw-controller:0.1.0`, so its step 7 would now fail there —
+  a known regression of a `workflow_dispatch` job whose self-hosted runner
+  does not exist, left to the change that repairs that workflow; the text
+  test of the deployment cases therefore still scans `src/deployment` only.
+  Also open: the header comments of `src/Dockerfile` and `src/.dockerignore`
+  still name the compose build context, and that comment edit belongs before
+  the evidence build, because `dockerfile_sha256` of the identity record
+  hashes the whole file.
+- **Decisions and next steps:** no gate, claim or maturity level is
+  accepted. Next, under the same authorisation: build the image from the
+  merged `dev`, load it, deploy the six services in the guest and run one
+  smartwatch at 1 Hz for 60 s, labelled as emulated functional evidence.
+---
+
+## Entry #C031 — Move the plan v2.0 proposal under `docs/governance/proposals/`; dates confirmed by the student
+
+- **Date:** 2026-09-18
+- **Phase:** Governance documentation only; no code, evidence, thesis chapter
+  or search-protocol change. Identifier `#C030` is reserved for another open
+  pull request and is not used here; entry #C028 is kept as written, with a
+  dated forward pointer to this entry added at its end.
+- **Request:** Two decisions of the project review of 2026-09-18, forwarded by
+  the student. (1) Keep plan v1.2 at the canonical path and place v2.0 under
+  `docs/governance/proposals/`, with references that distinguish the plan in
+  force from the proposal. (2) Align the proposal with the planned submission
+  and the final deadline confirmed by the student, and reforecast the work
+  backwards from the submission without reporting forecasts as completed
+  milestones.
+- **Layout:** `docs/governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md` (plan
+  v1.2, SHA-256
+  `c346e4d958d22fad6d4f4635b4176bc2c1b584407199b165a197f94ef0e9fa53`),
+  `docs/g0/scope_and_rqs.md` (August scope v1.1) and
+  `docs/governance/supervisor_alignment_memo.md` (August memo) are again
+  byte-identical to `dev`. The proposal texts that #C028 had placed at those
+  paths are now
+  `docs/governance/proposals/INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md`,
+  `scope_and_rqs_v2.0_proposal.md` and
+  `supervisor_alignment_memo_v2.0_proposal.md`, with their internal links
+  corrected, and the directory has a README that says what is in force and
+  how a proposal is adopted. The copy
+  `docs/governance/archive/INTEGRATED_DEVELOPMENT_PLAN_2026_v1.2_en.md` added
+  by #C028 is withdrawn, because the plan in force is at its canonical path
+  again; the archive content that was already on `dev` is untouched. ADR 0008
+  stays in `docs/adr/` with the status Proposed. Banners, index rows, the
+  README files, ADR 0008 and `PROGRESS.md` point to the proposal path and say
+  "proposal" when they mean plan v2.0, and to the canonical path when they
+  mean the plan in force. The files on `dev` that call the canonical path the
+  normative plan are correct again without being edited.
+- **Dates decision and its source:** planned submission **2026-10-20** and
+  final delivery deadline **2026-10-31**; the days from 2026-10-21 to
+  2026-10-31 are a contingency window for essential corrections, submission
+  difficulties and administrative recovery only, not the default delivery
+  period and not time for optional scope. Source: the student's confirmation
+  of 2026-09-18 after discussing the dates with the supervisors. It is a
+  first-party statement; no institutional portal or administrative document
+  was checked, and no supervisor reply is recorded by this entry. For current
+  planning the pair supersedes the date 2026-11-03 quoted in #C028 and the
+  2026-09-29 internal cut-off and 2026-09-30 baseline of plan v1.2; all three
+  stay in the historical records, and plan v1.2 is not edited.
+- **Forecast:** sections 6 and 7 of the proposal were rewritten on 2026-09-18
+  as a forecast worked backwards from the submission: a milestone table with a
+  status per milestone (demonstrated, in preparation, pending), the critical
+  path, a native ARM64 decision point forecast for 2026-09-25, reforecast
+  triggers and the cutting order. Capacity from 2026-09-19 to 2026-10-20 at
+  the reported 8 h/day is 256 h against the unrevised estimate of 225-345
+  active hours, so the submission date is feasible only near the lower
+  estimate; the binding constraint is the 152 h before the full draft, which
+  the estimate cannot yet be checked against. Branch C is prepared at risk
+  until D014 is answered, and the native branch has no writing days left with
+  a host obtained on the decision date. Decision D013 carries the
+  review-window dates of the forecast and the dates note, and D014 the
+  decision point and the requested reply date; every status, D001–D014, stays
+  `proposed_not_sent`.
+- **Facts recorded:** pull requests #28, #29, #32 and #31 were merged into
+  `dev` on 2026-09-18; merging validates no stack and accepts no gate.
+  Demonstrated so far, all emulated (ARM64 under QEMU/TCG on x86-64,
+  functional evidence only): the image build, two boots with every acceptance
+  check passing and the isolated MongoDB 7.0.39 test. Not demonstrated: the
+  six-container stack on the guest, the functional path simulator -> MQTT/TLS
+  -> controller -> Ditto -> API, any integration test on the real stack, any
+  measurement. The first bounded end-to-end functional test (one smartwatch,
+  1 Hz, 60 s) was authorised on 2026-09-18 and is in preparation; it has not
+  run. No native ARM64 host has been obtained.
+- **Known stale notes, left for a separate change:**
+  `docs/setup/qemu_integrated_gateway.md`,
+  `docs/reviews/2026-09-17-egw-image-audit.md`,
+  `src/yocto/kas/egw-qemuarm64-integrated.yml` and the `egw-gateway-image`
+  recipe, all on `dev` before this entry, say that the v2.0 revision is not
+  yet published on `dev` and cite "plan v2.0" without a path. After this
+  change the revision is on `dev` as a proposal only; the README of
+  `docs/governance/proposals/` says how to read those citations. The build
+  inputs are not touched by a documentation change.
+- **Not changed and not implied:** no gate is accepted; no RQ or scope
+  changes; no emulated performance claim is approved; nothing has been sent to
+  or approved by the supervisors; plan v1.2 remains the plan in force and
+  merging the pull request adopts nothing. Adoption of the proposal is a
+  separate decision of the student after consulting the supervisors, to be
+  recorded in this log. No historical entry, seal or run metadata is changed.
+- **Verification boundary:** the three restored files were compared with
+  `origin/dev` and show no difference; the Markdown link checker and the
+  evidence-seal checker were run locally; the GitHub workflow result, not this
+  entry, establishes whether the required checks pass.
+
+---
+
+## Entry #C032 — Publish the student's adoption of plan v2.0 with the QEMU-only execution amendment
+
+- **Date:** 2026-09-18
+- **Request:** The student adopted plan v2.0 with a dated QEMU-only execution
+  amendment as the execution baseline on 2026-09-18, after discussing with the
+  project review whether the Yocto image built for QEMU could later be reused
+  on a native ARM64 virtual machine, and instructed that the adoption be
+  published at the canonical plan path through one focused documentation pull
+  request against `dev`.
+- **Decision recorded:** the active baseline is **plan v2.0 with the QEMU-only
+  execution amendment**, not the unmodified proposal. The system under test is
+  the Yocto-produced ARM64 kernel and root filesystem booted under QEMU/TCG on
+  the existing x86-64 workstation, hosting the six-service digital-twin stack,
+  with the simulator and harness outside the guest. Native ARM64 deployment and
+  native measurement leave mandatory scope and become documented, unverified
+  future work: no cloud allocation, spending or native build is requested, the
+  native-host decision deadlines and procurement dependencies are withdrawn
+  from the critical path, and the native boot milestone leaves the gate set.
+  RQ3 is bounded to the specified emulated environment. The native 95-run
+  campaign and the 24-hour soak are **not** transferred to emulation; the
+  emulated functional campaign is selected after the bounded pilot and frozen
+  before execution. The submission target is 2026-10-20, the final delivery
+  deadline 2026-10-31, and 2026-10-21 to 2026-10-31 is a contingency window for
+  essential corrections only.
+- **Boundary — what the adoption is not.** It is a **student decision about
+  execution**. The supervisors approved nothing: not the title, not the
+  research-question wording, not the thresholds and not the revised academic
+  evaluation. Nothing has been sent to them and D001–D014 remain
+  `proposed_not_sent`. The student reported that a supervisor advised
+  proceeding with QEMU tests; that is **student-reported advice**, never
+  approval and never a documented supervisor decision, and it is not written
+  into the supervisor decision log. **Adoption closes no gate and admits no
+  claim**, and it turns no emulated result into native ARM64 evidence. Every
+  date after 2026-09-18 recorded in this change is a planning target. A green
+  documentation pull request confirms consistency checks, not successful
+  integration, supervisor approval or gate acceptance.
+- **Action (records owned by this entry):** `PROGRESS.md` takes a dated
+  adoption note, an "Adopted scope and forecast" section, a gate-status block
+  for 2026-09-18 with G1 unchanged and G0 and G2–G7 Not decided, a row for the
+  first-flow candidate evidence, the two evidence classes in place of the
+  three-tier platform table, and a reforecast effort table whose `actual_h`,
+  `remaining_h` and `forecast` columns stay empty (risk RA15). `README.md` and
+  `docs/README.md` name the adopted plan and its facts. `docs/g0/scope_and_rqs.md`
+  becomes version 2.0 with the integrated objective and the QEMU-bounded
+  RQ1–RQ3, marked **working wording for academic review, not agreed with the
+  supervisors**. `docs/g0/backlog.md` gains the QEMU execution path and keeps
+  the August gate sections as history with their native prerequisites marked
+  deferred. `docs/g0/risks.md` downgrades the native-host risk from blocking
+  dependency to a bound on RQ3, records the residual risks of the adopted
+  baseline against existing identifiers, and retargets the runtime-lock and
+  contention risks. Both forms of the claim→evidence matrix take the evidence
+  classes, the emulated environment and the deferral of the 24-hour soak, and
+  were compared field by field afterwards. `diagrams/architecture.md` replaces
+  the three-tier deployment figure with the integrated emulated topology, and
+  `diagrams/README.md` marks the two-layer PlantUML view historical.
+  `docs/academic/c2dta_p0_traceability.md` retargets its platform rows and its
+  comparison rules.
+- **Action (first end-to-end flow of 2026-09-18, recorded here because the
+  corrected records depend on it):** inside the Yocto guest under QEMU/TCG the
+  six-container stack was deployed and one bounded end-to-end functional test
+  passed — one smartwatch at 1 Hz for 60 s; **60 sent, 60 delivered unique,
+  0 lost, 0 late, 0 duplicate, 0 failed, 0 rejected**; twin
+  `org.c2dta:5689c879-…` with `last_seq` 59; reconciliation by identity exited
+  0. Maximum latency **12,286 ms**, recorded as an **emulated, informational**
+  observation and never as a performance result. The run exposed two defects,
+  both fixed on `dev`: the controller was attached to the wrong Compose network
+  (`9ffd365`) and the host shell inherited a relative schema directory
+  (`dc6d8bb`, `22fb0a9`). A memory-cgroup OOM killed the `ditto-things` JVM
+  **during the power-off** of that session, at the 512 MiB container limit; the
+  diagnosis of the same day found the three Ditto services idle at 94–95 % of
+  that limit and at 98.1 % after a 672-message workload, and a controlled
+  `docker compose stop -t 60` after that workload produced no OOM anywhere in
+  the boot. The corrective work — a graceful stop before power-off and
+  container memory sizing — is a **separate change and remains open**; no
+  stability is claimed.
+- **Evidence boundary:** the record of that flow is **candidate evidence held
+  outside the repository and unsealed**. The only sealed capsules for the
+  integrated profile remain the build, boot and isolated MongoDB records of
+  2026-09-18 under `docs/evidence/integrated-qemu/`, and sealing is not
+  acceptance. Nothing native has been built or booted. **None of the nine
+  integration/recovery test families has been run** and nothing has been
+  measured.
+- **Identifier note:** `#C031` was written on the branch of the earlier
+  governance pull request (`3673910`) and did not survive the merge
+  `f09b0e6`, so it is absent from `LOG.md` on `dev` although `PROGRESS.md` and
+  the D013 note of the supervisor decision log refer to it; the D014 note's
+  citation of it is removed by this change. Identifiers
+  are never reused, so the number stays unused here and the content it carried
+  — the move of the proposal texts under `docs/governance/proposals/`, the
+  return of plan v1.2 to its canonical path and the dates confirmed by the
+  student on 2026-09-18 — is carried by this entry and by the dated update note
+  in `PROGRESS.md`.
+- **Decisions and next steps:** no gate, claim or maturity level is accepted,
+  and no supervisor decision changes state. Next: seal the first-flow record
+  inside the repository; resolve the teardown OOM and the container memory
+  sizing as a separate change; run the nine integration/recovery test families
+  in the guest; send the alignment package so that D004, D007, D011, D013 and
+  D014 can be answered.
+---
+
+## Entry #C033 — Publish the supervisor confirmations reported by the student, the quantity supersession and the authorised terminology
+
+- **Date:** 2026-09-19
+- **Request:** The student reported a set of supervisor confirmations, recorded
+  in the project-management record of 2026-09-18, and instructed that they be
+  published in the canonical repository documents on the branch that already
+  carries the adoption of plan v2.0. The records written before them state, as
+  a blanket fact, that nothing had been sent to the supervisors and that nothing
+  was approved. Those statements are no longer true and had to be replaced.
+- **What is reported, and how it is recorded.** Twelve items, plus the sending
+  of the state-of-the-art material and approval to proceed with the QEMU tests.
+  (1) the title, exact wording *Blockchain-powered Personal AI – Digital Twin
+  Edge Gateway*; (2) the research questions, with RQ3 evaluated in QEMU rather
+  than on a native ARM64 virtual machine; (3) the local-core scope; (4) the
+  literature-review method, settled in a follow-up as a **scoping review**;
+  (5) an instruction to attempt the historical 95-run quantity, the 24-hour soak
+  included, under QEMU; (6) that a second operator is not required; (7) the
+  review schedule — Chapters 1–4 on 2026-10-01, the full draft on 2026-10-08,
+  feedback between 2026-10-09 and 2026-10-14; (8) that the institution-supplied
+  LaTeX template is mandatory; (9) that an AI-use declaration is mandatory by
+  final submission; (10) that a scientific article is optional and not required
+  for delivery; (11) the authorised wearable-data terminology; (12) that a local
+  copy of the work is expected as evidence. **Every one of these is a supervisor
+  confirmation reported by the student.** No date, no message, no supervisor
+  name and no evidence file was reported for any of them, so none is invented:
+  `sent_at` and `response_at` stay empty in every row of the decision log, and
+  nothing is written anywhere as a documented supervisor decision.
+- **What stays open, and stays unsent.** The experimental thresholds (D007); the
+  scope of the evaluation and any academic use of emulated results, with the
+  wording of the limitation that records the absence of native evidence (D014);
+  the authenticity of the local `Template_LaTeX` copy against the current
+  official 2026 source, with its cover and metadata (the open half of D004); and
+  the operational storage semantics (the open half of D010). The alignment
+  package is narrowed to exactly those and is still a draft. D001, D007, D008
+  and D012 remain `proposed_not_sent`.
+- **Boundary — what this entry is not.** **No gate is closed and no claim is
+  admitted.** Approving the QEMU route is not approving the academic use of its
+  results; approving the research questions settles neither the evaluation
+  protocol nor the thresholds; a waived second operator does not license the word
+  *reproducible* and says nothing about literature screening; choosing the review
+  label executes no review; and an instruction to attempt a run quantity approves
+  no threshold. Every reported confirmation stays a report. It never becomes a
+  documented decision by being cited, and no gate row may use one as its decision
+  record.
+- **Action — decision registers.** `docs/governance/supervisor_decision_log.csv`
+  keeps its nine columns and gains two status values,
+  `confirmed_reported_by_student` and
+  `partly_confirmed_reported_by_student`, defined in the authority table of plan
+  section 1 and in `docs/README.md`. Row by row: D001 and D008 keep their
+  historical August wording, which was never sent and is not what the student
+  reports confirmed; D002 and D009 are confirmed; D003, D004, D005, D006, D010,
+  D011, D013 and D014 are split into their confirmed and their unresolved parts;
+  D007 stays unsent with a note recording that the quantity instruction settles
+  no threshold; D012 stays unsent and deferred. `docs/g0/supervisor_decision_matrix.csv`
+  keeps its five columns and its stateless convention, and takes dated
+  supersession notes in the recommended-position and blocking-effect cells.
+- **Action — the 95-run composition.** Plan section 3.3.1 records the
+  composition with its per-condition table as the **target to attempt** under
+  QEMU: 5 QEMU boots, 10 stack cold starts, 10 twin creations, 10 smoke
+  sequences, 10 nominal, a 40-run load sweep at 10, 50, 100 and 250 messages/s,
+  3 invalid payload, 3 dropout/reconnect, 3 controller restart and 1 soak of 24
+  actual elapsed hours — 25 operator-driven and 70 simulator-driven. It is kept
+  separate from the frozen protocol, which is still chosen prospectively at G4,
+  and from the actual valid run count, and it is subject to the bounded pilot's
+  feasibility check. **This supersedes the earlier "not transferred to QEMU"
+  wording**, which is marked where it stands in the plan, the scope document, the
+  backlog, the gate log, `PROGRESS.md`, `README.md` and both forms of the claim
+  matrix rather than deleted. C13 returns from `Deferred — outside the adopted
+  scope` to `Pending — no evidence`, so 13 claims are now pending and 0 of 15 are
+  accepted.
+- **Action — final delivery.** Plan section 4.3 names the institutional LaTeX
+  template, the AI-use declaration and the local evidence archive as G7 criteria
+  in their own right, all prospective. The second-operator requirement and the
+  scientific article leave mandatory acceptance; the article is **deferred, not
+  deleted**. The verified off-machine copy stays a separate resilience control
+  and is still outstanding. C01 drops its D006 dependency and waits only on its
+  formal claim admission, while the repeatability wording stays *versioned* and
+  *repeatable build by the author*.
+- **Action — terminology.** The authorised policy is written down once, in
+  `docs/governance/language-policy.md`, and pointed at from plan section 3.6, from
+  D009 and from `docs/README.md`. Active explanatory prose and diagram labels use
+  *wearable data*, *wearable event data*, *sensor measurements* or *device
+  events*; the literal `/telemetry` topic, API and schema identifiers,
+  `src/CONTRACTS.md`, bibliography titles, quotations, sealed evidence and
+  historical records keep their exact wording. **No blind global replacement was
+  run**: the wording was applied only to the active prose edited in this change.
+- **Action — review method.** D003 records the scoping review as reported
+  settled, with execution unresolved, and plan sections 4.1 and 6 carry its three
+  working targets — protocol by 2026-09-21, search and selection by 2026-09-26,
+  synthesis by 2026-09-30, feeding the chapters sent on 2026-10-01 — to be
+  re-estimated against the real corpus at the 2026-09-21 checkpoint.
+- **Action — the scoping-review protocol.**
+  `thesis/research/literature_review_protocol.md` is revised in place to
+  **version 2.0, dated 2026-09-19**. It designates the review a scoping review
+  and supersedes the combined "structured scoping/narrative" label by a dated
+  note rather than by deletion; it adds the review question with its
+  Population/Concept/Context framing and the recorded engineering adaptation,
+  names JBI as the structuring guidance and PRISMA-ScR as the reporting
+  framework, records the information sources and their access limits, separates
+  the three preliminary rows `Q001`–`Q003` of `search_log.csv` from a formal
+  execution that has not happened, keeps the A–J axis identifiers, describes the
+  single-reviewer screening without claiming dual screening, and adds the
+  charting fields, the five required outputs, the completion criterion, the
+  limitations and departures, and the working schedule. **The revision executed
+  no search, screened no record and charted no study**; it is not registered and
+  not preregistered; `search_log.csv` and `study_selection.csv` are untouched.
+  The lapsed targets of Section 13 — at least 30 verified sources by G6, and the
+  August search window — are marked superseded where they stand, and no paper
+  quota is reinstated. The prose of axis H takes the authorised wearable-data
+  wording while the axis letter and every logged query string keep their exact
+  form. Section 18 records that Section 2.1 of the drafted manuscript still
+  carries the pre-revision description; its source is in the LaTeX tree, it is
+  not edited here, and the correction is tracked as a backlog row due before
+  2026-10-01.
+- **Correction carried in the same change.** Entry `#C031` was restored to this
+  diary on 2026-09-18, so the citations of it in `PROGRESS.md` and in the D013
+  note of the decision log are no longer dangling; both were corrected here. The
+  identifier note in `#C032` is left as written, because a dated diary entry is
+  not rewritten.
+- **Historical records left as written.** `LOG.md` entries `#C031` and `#C032`,
+  the dated `PROGRESS.md` snapshot of 2026-08-14 — which takes a forward pointer
+  only — the August proposals and memos, which take dated banners without their
+  bodies being rewritten, and everything under `docs/evidence/`.
+- **Correction — the nine integration/recovery test families.** The records
+  written before this entry said, as a blanket fact, that none of the nine
+  families had been run. Later on 2026-09-18 they were exercised once: **seven
+  passed, and tests 1 and 6 have a failing harness part**, because the resource
+  sampler under test cannot reach the harness's minimum sample count under
+  emulation; that instrumentation defect is a separate change. The record is
+  held outside the repository and unsealed, so the battery is **not complete**,
+  nothing has been measured and G3 stays `Not decided`. The corrected wording
+  replaces the blanket statement in `README.md`, `PROGRESS.md`, `docs/README.md`,
+  `docs/g0/backlog.md`, `docs/governance/gate_decision_log.md`, section 2 (Baseline at
+  2026-09-18) of the adopted plan and `docs/academic/c2dta_p0_traceability.md`; in
+  `docs/adr/0008-integrated-yocto-arm64-evaluation.md`,
+  `docs/setup/qemu_integrated_gateway.md` and
+  `docs/governance/proposals/supervisor_alignment_memo_v2.0_proposal.md` — in the
+  memo, both the statement of fact in item 6 and the sentence that called the
+  reported QEMU approval student-reported advice — the statements were written in
+  this change, so they are corrected in place and a dated note of 2026-09-19 records
+  the correction. In the ADR, two sentences that did stand on `dev` — that the
+  six-container stack had not been deployed, and that the first bounded
+  functional test had not run — were overtaken by the events of 2026-09-18 and
+  are not carried forward; both facts are restated correctly in the same
+  paragraph, which keeps verbatim that sealing is not acceptance and that no
+  gate and no claim is accepted. Elsewhere the dated
+  sentences are kept where
+  they stand and superseded by a dated note.
+- **Also unchanged and still true.** The August G0 email draft at
+  `docs/g0/supervisor_email_g0.md` is genuinely unsent. The
+  first-flow record of 2026-09-18 remains candidate evidence held outside the
+  repository and unsealed, and the `ditto-things` teardown incident remains open.
+- **Decisions and next steps:** no gate, claim or maturity level changes, and no
+  documented supervisor decision is created. Next: send the reduced alignment
+  package covering D007, D014 and the unresolved halves of D004 and D010;
+  **execute** the protocol published here — the formal searches, the screening,
+  the charting and the synthesis — and correct the manuscript's Section 2.1;
+  seal the first-flow record; resolve the teardown OOM and the container memory
+  sizing; fix the resource sampler and **complete** the nine
+  integration/recovery test families; and check the 95-run attempt target against
+  the pilot's feasibility finding before any campaign window is treated as
+  credible.
+
+---
+
+## Entry #C034 — SUT resource collector: cgroup v2 source, one stamp per wall-clock second, complete diagnostics and lifecycle record
+
+- **Date:** 2026-09-19
+- **Identifier:** the next after `#C033`. Entry `#C035` belongs to the focused
+  governance and acceptance update prepared in parallel on branch
+  `docs/acceptance-governance-2026-09-19` (pull request #36); neither entry
+  depends on the other.
+- **Request:** the PM review of 2026-09-19 (held outside this repository, in the
+  project-management workspace), section 4.2 and step 2 of its work order: one
+  focused collector change carrying the two source fixes it names, complete
+  diagnostics, the service inventory and provenance, documentation that matches
+  what actually ran, and tests at the production ingest limits.
+- **Finding that motivates it.** `src/deployment/scripts/collect-resources.sh`
+  sampled `docker stats --no-stream` once per sample. On the emulated guest one
+  call cost 3-5 s idle and about 21 s under load (2026-09-18) and 3-4 s idle
+  (2026-09-19), so a timed run could not reach the harness's 30 distinct
+  instants. Two cgroup v2 rewrites then ran on the guest and each showed a
+  different pacing defect, with timestamps of whole-second resolution: an
+  uncommitted intermediate version (`f17bdd8c…`) slept a whole interval after
+  each sample, giving 0.84 distinct instants per second over 600 s with a second
+  skipped about every five; commit `aa7440d` (`b7aeddba…`) paced on whole seconds
+  of `/proc/uptime`, and 30 samples in 29 s gave 26 distinct instants because
+  samples shared a second. All of it is candidate evidence held outside the
+  repository, in the WSL2 home of the student's workstation, and unsealed.
+- **Action — source and arithmetic.** The collector reads cgroup v2 accounting
+  directly: `cpu_pct` on docker's single-CPU basis (guest-accounted CPU time, not
+  host QEMU CPU); `mem_bytes` as docker's cgroup v2 "used" (`memory.current`
+  minus `inactive_file` when that is smaller, otherwise `memory.current`);
+  `mem_pct` over `memory.max`. **Only an explicit `max` means unlimited**; an
+  unreadable or empty `memory.max` now writes no row and a diagnostic instead of
+  dividing by the guest's `MemTotal` (the first fix the PM review names). Any
+  unreadable input writes no row: a hole is evidence of a failed sample, a zero
+  would be a claim. The `/proc/uptime` reading is stored exactly as read:
+  written back as an awk number it was rounded to 0.1 s after 2.8 h of uptime,
+  to 1 s after 27.8 h, and turned into exponent form after 11.6 days.
+- **Action — cadence and timestamps.** Built for what the gateway's busybox
+  1.36.1 offers. It has no `$EPOCHREALTIME` (`CONFIG_ASH_RANDOM_SUPPORT` is off —
+  a first draft of this change relied on it and a review caught that by running
+  the image's own busybox) but it has a builtin fractional `sleep`. The
+  timestamp is the second awk reads with `systime()`, checked against
+  `date +%s` at startup and formatted in UTC by arithmetic, with no `strftime`
+  and no time zone. Samples are paced on `/proc/uptime` with the fractional
+  sleep, aimed 0.5 s into a second, with the offset between the two clocks
+  calibrated after the first sample and again when a sample lands in the wrong
+  second — at most once every 10 s, and never turned off: a first version of
+  this redesign stopped calibrating after 20 attempts and fell back to
+  whole-second pacing for good, which a long run under the image's busybox
+  reached in about 11 minutes, because the WSL2 wall clock is stepped about
+  0.5 s every 33 s. The last stamped second is kept in the state file: a sample in
+  that second or an earlier one (a clock stepped back) is withheld with a
+  diagnostic, and forward UTC gaps are counted, in every pacing mode. Withheld
+  samples are counted separately, with the elapsed time they cost (the PM's
+  second review, below).
+- **Action — diagnostics, inventory and provenance.** Every diagnostic goes to
+  `<csv>.diagnostics.log`, timestamped, appended and never deleted (the second
+  fix the PM review names). That includes a sampler process that dies, which
+  previously left a hole with no record. The start line records the collector's
+  own sha256 and the host, so a run is bound to its exact instrument. The stop
+  line records both counts.
+  `<csv>.lifecycle.csv` records each container cgroup appearing, disappearing,
+  resetting its CPU counter and first resolving to a name — the id-to-service
+  mapping and the record of a restart. A container whose first reads fail
+  appears once, not once per failed read. `--expect-services` names the services
+  a run must observe; the stop writes one `inventory:` line (every name observed,
+  the expected names, the missing ones and the ids never named), with or
+  without a declaration.
+- **Action — kept from the review of the first rewrite.** Substituted inputs,
+  including the self-test clock `--stamp-epoch`, are refused without
+  `--self-test`, and a self-test run is marked as such. The source is
+  re-evaluated on every sample. An unresolved name is never cached. The output is
+  locked against a second collector. The state file is replaced whole and
+  validated before use. The Docker CLI is now called only for a container whose
+  own `config.v2.json` cannot be read; before, it ran on the first sample of every
+  run.
+- **Action — documentation.** The script header and section 2 of
+  `src/deployment/README.md` state the harness's real timing — the collector is
+  stopped **before** the 60 s confirmation window, not after it as the earlier
+  text said — and that the 30-instant rule is counted over the whole file. The
+  README records, by exact version, what ran where. `tools/test/make-busybox-wrappers.sh`
+  builds the wrappers that run the tests under the image's own busybox.
+- **Action — the pull request's review.** Three findings, all taken. A sample
+  withheld because the clock stepped back now asks for a recalibration too, as a
+  sample in the wrong second already did. The seconds such a step re-enters
+  stay without rows either way, because they were stamped already and the
+  timestamps never go back. The `docker stats` source now follows the same
+  stamp rules: the second its call starts in, withheld if not after the last
+  one stamped, every forward UTC gap counted, a recalibration when it misses
+  its second. The pass that records
+  the disappearance of every container stamps no second, so it cannot
+  withhold a docker sample in the same second, and it runs once. The service
+  inventory reads the CSV as well as the lifecycle file, so names that only
+  the docker source reports count as observed.
+- **Action — the PM's second review (2026-09-19).** Two bounded findings,
+  both taken. First, the seconds count measured forward UTC gaps only: after a
+  wall clock stepped back and recovered, the stamps resumed at the next second,
+  so the count added zero although elapsed time had passed without rows, and
+  the text above said such a gap was counted. The count is now named
+  `utc_gap_seconds` and defined as forward UTC gaps; withheld samples are
+  counted separately (`withheld_samples`), each with its `/proc/uptime`
+  reading, and every run of them reports the elapsed time from the last
+  accepted sample to the one that ends it, less one interval and less any
+  UTC-gap seconds that sample adds (`withheld_elapsed_s`), so the two counts
+  never hold the same seconds. A run whose elapsed time cannot be measured,
+  and a run still open when the collector stops, are counted apart. Neither
+  count is a measured coverage: a forward clock step inflates the first, and
+  a stamped sample that writes no row for a container is in neither. A
+  withheld sample now updates the state's counters and keeps every container
+  reading. Second, after a successful `docker ps` listing every discovered id
+  was marked as named, so an id that a partial listing omitted was never asked
+  for again; now the ids marked are exactly those the listing kept names, so
+  an id it omits is asked for again even if an earlier listing named it (a
+  restarted container is resolved from the listing kept). Regressions: a
+  clock stepped back and then recovered; a withheld run that ends with a
+  forward UTC gap, in two forms; and three partial listings with a restart
+  between the second and the third, which fails on the old code and on a
+  first draft of this fix. One focused review with a verification of each of
+  its findings found both of those later defects in the draft, and the wrong
+  wording of three messages and comments; all were corrected.
+- **Branch history.** The branch first merged `dev` at `40aae52`. Its own draft
+  edits to the governance records, which described the review findings as
+  unrepaired and the guest as never exercised, were dropped in favour of `dev`'s
+  text. The governance records are updated by entry `#C035`'s change.
+- **Verified, and where.** `src/tests/test_collect_resources.py`: 234 cases on
+  WSL2 Ubuntu 24.04 (Python 3.12.3, pytest 9.1.1), against a synthetic cgroup
+  tree, under sh, dash, bash **and the gateway image's own busybox 1.36.1** (its
+  `sh` and `awk`, sha256 `ebb5f78d…`, under the build's `qemu-aarch64` user
+  emulator; eight cases stay host-shell only, because they put a fake `awk` or
+  `docker` ahead of the real one or run two collectors side by side). They
+  cover:
+  - the exact arithmetic, including the long-uptime precision at 12,345.67,
+    123,456.30 and 1,234,567.89 s;
+  - an empty and a missing `memory.max`, and `inactive_file` above the usage;
+  - a withheld second, a clock stepped back, a clock stepped back and then
+    recovered, and both counts, from the cgroup source and from a fake
+    `docker stats`;
+  - a dying sampler process; two failures within one continuous run; an awk
+    without `systime()` stamped by `date`;
+  - the lifecycle of a restart and of a container whose first reads fail; the
+    single pass that records every container's disappearance; the inventory,
+    including docker-sourced names; a partial `docker ps` listing; the recorded
+    collector hash;
+  - UTC formatting against the calendar, including leap days and the 2100
+    boundary, under a non-UTC time zone;
+  - real-time pacing that never stamps a second twice and records every
+    forward UTC gap, under every shell including that busybox;
+  - a 33-sample run that passes `validate_resources_csv` with its production
+    thresholds and a measured window, under dash and under that busybox.
+  A long run under that busybox (six synthetic containers with moving counters,
+  real clocks, 720 samples requested) kept the wall-clock pacing to the end on
+  `bac41d4` and on `5d3ff8c`: 19 recalibrations, one for each 0.5 s step of the
+  WSL2 wall clock, 18 forward UTC-gap seconds, no sample withheld, 58-60
+  distinct instants in every full minute, and `validate_resources_csv` passed
+  with the collector's start and stop as the window. It is a user-space
+  compatibility run on synthetic cgroup files, not a soak and not 720
+  consecutive one-second observations. For the head of this change, the test
+  output (with JUnit XML), the long run's files and command, the collector's
+  sha256 and the busybox and wrapper identities are kept in a local evidence
+  capsule on the build host, `/home/ruisth/yocto/evidence-candidates/2026-09-19-collector-pr37/`, outside the
+  published evidence and not admitted; the pull request description gives its
+  figures.
+  ShellCheck is not installed on this host; its error-level gate runs in CI.
+- **What is NOT shown.** This version has **not run on the emulated guest**. Under
+  the busybox emulation the shell and awk are the guest's, but the kernel,
+  `/proc` and the cgroup trees are the build host's. The harness parts of
+  integration tests 1 and 6 have not been re-run, and acceptance remains paused
+  at the student's request. No official campaign has been completed or
+  admitted, no run is admitted, no gate is closed and no claim is supported. The harness's start hook does not
+  yet pass `--expect-services`, and its fetch hook collects the CSV alone. Those
+  two points, the short-run margin and the treatment of a deliberate restart
+  belong to the acceptance update (entry `#C035`, pull request #36), not to this
+  script.
+- **Decisions and next steps:** none taken here. After the student's instruction
+  to resume and the relevant protocol decisions, the first guest run of this
+  version is the acceptance pair the PM review sets out: resource ingestion and
+  end-to-end deadline accounting and recovery evidence, on a nominal entry.
+
+---
+
+## Entry #C035 — Governance and acceptance update: G0 accepted, the integration battery restated test by test, the acceptance proposals
+
+- **Date:** 2026-09-19
+- **Identifier:** `#C034` belongs to the resource-sampler pull request prepared
+  in parallel on branch `fix/resource-sampler-cgroup` and is not used here.
+  Identifiers are never reused; when that pull request merges, its entry sits
+  before this one.
+- **Request:** The project review of 2026-09-19 (sections 2, 4.3, 4.4 and 5,
+  and step 3 of section 7) asked for one bounded governance and acceptance
+  update: correct the account of the integration battery of 2026-09-18, which
+  the repository gave in 19 places across 12 files as "seven passed, and tests
+  1 and 6 carry a failing harness part"; state the exclusion rule by evidence
+  validity rather than by outcome; stop reopening the reported QEMU evaluation
+  scope of RQ3 through D014; and write the acceptance and protocol proposals
+  for review. The dated entry "2026-09-19 03:29 WEST - G0 closure" of the
+  project-management instruction register, held outside the repository,
+  together with its amendment at line 59, records the student's statement,
+  verbatim "Penso que o G0 se pode considerar fechado", and the project
+  manager's concurrence, and asks that the G0 decision and its scope amendment
+  be published together in this update. **The guest stays off, and test
+  acceptance remains paused at the student's request.**
+- **Findings — the integration battery of 2026-09-18, test by test.** The
+  record is the candidate archive
+  `~/yocto/evidence-candidates/2026-09-18-integration-tests/` in the WSL2 home
+  of the workstation. A confirmation is late when its Ditto acknowledgement
+  falls after the controller-clock deadline, the controller marker plus 60 s;
+  a late record does not rescue its message. The nine families were exercised
+  once:
+  1. *Smoke and harness artefacts:* three ad-hoc repetitions are recorded; the
+     timed harness runs `smoke_sequence-r01` (2026-09-18) and `-r02`
+     (2026-09-19) are **invalid**, their resource files not ingested.
+  2. *Three wearables:* **functional result demonstrated** — 672 valid events,
+     672 delivered in time, 0 lost, 0 late (600 from the smart clothing, 60
+     from the smartwatch and 12 from the smart ring). The margin is thin: the
+     last acknowledgement came 3.1 s before the deadline, and an earlier
+     672-message preflight run had 378 late.
+  3. *Invalid payloads:* **rejection behaviour demonstrated** — 67
+     intended-invalid payloads rejected, none accepted and no valid one
+     rejected — but 132 of the 1,277 valid events were confirmed late, so it is
+     not a zero-late run.
+  4. *Duplicates and sequence:* **duplicate handling demonstrated** — 672
+     duplicates, none double-accepted. **The required sequence-reset sub-check
+     `itest-dup-02` was not run**: the runbook states it in prose, the
+     battery's commands were extracted from fenced code blocks only, and the
+     archive holds no such record. The post-replay warning "IMPLAUSIBLE
+     controller confirmation marker" is explained: the deliberate replay falls
+     after the window and the guard compares the deadline with the latest
+     receive time over all records, so the in-window figures are unaffected.
+  5. *Disconnect and reconnect:* **fails its stated temporal criterion** — all
+     2,016 valid events were eventually accepted, but only 1,690 within the
+     deadline and **326 late**, where the runbook requires `lost = 0` and
+     `late_confirmations = 0`. Three deliberate disconnects and 165 buffered
+     events were observed. Two validation paths disagree: the reconciliation
+     warns that the simulator manifest is absent from the harness layout,
+     while the totals it appends from the simulator's own manifest show them.
+  6. *Controller restart:* the timed harness runs `controller_restart-r01`
+     (2026-09-18) and `-r02` (2026-09-19) are **invalid** (resource gaps and a
+     controller-metrics outage), so recovery and delivery are not accepted.
+  7. *MongoDB fault:* **bounded retry and fault behaviour demonstrated**, not
+     lossless delivery — 62 events failed after their three attempts, and of
+     the 3,298 accepted, 1,012 were late. The runbook's repeat for Ditto
+     (`itest-ditto-fault-01`) was **not run** either, for the same extraction
+     reason, so test 7 covers only its MongoDB half.
+  8. *Guest reboot:* **reboot and persistence demonstrated** — the boot id
+     changed, the twin counters persisted and a fresh 336-event run reconciled
+     with 0 lost and 0 late. The controller's own counters restarted at 0, as
+     the runbook expects.
+  9. *TLS and authorisation:* **the tested checks passed** — wrong CA, wrong
+     password and plaintext refused, the ACL probe passed and anonymous access
+     was refused (exit code 5). This is not a general security assurance.
+
+  All 312 entries of the archive's `SHA256SUMS` verify. It is a **locally
+  hash-sealed candidate archive, not incorporated into or admitted by the
+  project evidence record**, and an outer archive seal does not make a nested
+  invalid run valid. Two sub-checks were not run, the sequence reset of test 4
+  and the Ditto repeat of test 7: both stood in the runbook's prose, and the
+  tooling that extracted the battery's commands took only fenced code blocks
+  and dropped them. The battery is **not complete** and no official campaign has
+  been completed or admitted; its measurements are diagnostic, not accepted
+  campaign results or native performance evidence.
+- **Findings — the invalid timed attempts of 2026-09-19.** Both
+  `smoke_sequence-r02` and `controller_restart-r02` (run directories under
+  `~/egw-tcg/pilot/results/raw/`) are **invalid**: ingestion rejected the first
+  run's resource file for 25 distinct sample instants against a minimum of 30,
+  and the second's for one 6.0 s gap in the controller's series, 00:18:29Z to
+  00:18:35Z, inside the recorded restart interval, against the 5 s limit; the
+  second run's `controller_metrics.csv` also has 26 failed polls and a
+  29.115 s gap. Counted by exact message ID against each manifest's
+  controller-clock deadline — **diagnostic counts, never campaign results** —
+  `smoke_sequence-r02` published 336: 236 in time, 15 late and 85 with no
+  accepted record in the fetched log, all 85 a backlog that the controller's
+  accepted counter shows was accepted later (a check on the counter, not on
+  message identities); `controller_restart-r02` published 6,720: 3,795 in
+  time, 24 late and 2,901 with no record. Two findings follow, with their
+  limits:
+  - **Throughput.** Under QEMU/TCG the controller's single consumer, which
+    processes messages one at a time with one sequential Ditto request each,
+    sustained about 3–8 acknowledgements per second against a publishing rate
+    of 11.2 msg/s; its queue grew by 4.7–10.6 per second, and latency was
+    50–86 s at the median and 69–157 s at the 95th percentile (emulated,
+    informational). The broker kept up, with a median transit of 2–14 ms. The
+    late confirmations of tests 3, 5 and 7 of the battery fit the same
+    backlog: in every battery run the controller had received every message by
+    the marker.
+  - **The restart appears to discard the controller's in-memory queue.** Of
+    the 2,901 messages of `controller_restart-r02` without an accepted record,
+    about 765 fit the backlog, but about 2,136 do not: 1,765 were published
+    before the restart and about 371 during the outage. The MQTT client
+    acknowledges on enqueue, the queue is in memory and the client uses a clean
+    session with a fixed client id, so messages queued, or published while no
+    session existed, would not survive a restart. This bears directly on claim
+    C12 and on RQ2, and it is a design and data-path issue, not only a matter
+    of emulator speed.
+  - **Limits of both.** They come from two invalid runs, under emulation. The
+    guest-side event log on the data disk, the twins' ingestion counters and
+    the container logs were **not read**; the fetched event log is a snapshot
+    taken about 2.6 s after the deadline; the stop timeline is inferred; and no
+    permanent loss is asserted. The controller code is identical between the
+    harness commit of the r02 runs (`8e88670`) and `dev`, but the commit of the
+    image deployed in the guest was not verified. The restart finding needs
+    confirmation from the guest-side logs after resumption, and then a separate
+    design decision.
+  - **Instrument binding and hook order.** Both r02 runs used an intermediate
+    collector, sha256 `f17bdd8c66da…4e47a`, that matches no committed version;
+    the version pushed as `aa7440d` (`b7aeddba…136e`) was installed at
+    00:26:31Z, after both runs had begun, and has been exercised only idle. The
+    manifests record the harness commit, whose collector is a different one,
+    and no collector hash. The harness stops the collector **before** the 60 s
+    confirmation window (`run.py` lines 1941–1943), so a condition without a
+    warm-up gives the collector almost no pre-roll and its priming sample falls
+    inside the measured window (first rows 1.4 s and 1.7 s after the start of
+    the window in the two r02 runs).
+- **Findings — governance.** Section 4.3 of the canonical plan excluded "an
+  unsealed or failing run" from every summary, acceptance and figure. That
+  contradicted the plan's own "Failures kept" condition and its rule that
+  slowness alone never excludes a run, and it is broader than the implemented
+  analysis (`analyze.py` lines 312–342 and 3498–3534), which excludes by
+  validity and integrity and keeps a valid run with `lost > 0`, so that the run
+  fails its criterion. D014 held open, as a blanket blocker of G4–G7 and of the
+  final academic release, a question the student reports already answered: the
+  research questions approved with RQ3 evaluated with QEMU tests. And three
+  documents disagreed about G0's conditions: plan section 4.2 named the
+  alignment package and not the off-machine copy, which the plan's G7 criterion
+  already carried; the gate log named both; `PROGRESS.md` tagged the
+  off-machine copy "G0 — In progress" and the alignment email "G0 — Blocked".
+- **Action — the G0 decision.**
+  [`docs/governance/decisions/2026-09-19-g0-closure.md`](../governance/decisions/2026-09-19-g0-closure.md)
+  (new) is the durable decision record, readable from a clean checkout: G0
+  **Accepted** on 2026-09-19 for project initiation and baseline alignment,
+  authority Student (Rui Duarte), with the project manager's concurrence; the
+  accepted scope; the register's residual-obligation table, with a column
+  naming where this repository tracks each obligation; the previous state;
+  what the decision does not do; and the source entry and its amendment quoted
+  verbatim, the register named by its file name only. It is a dated change of
+  G0's exit scope, **not** a retroactive pass against the legacy conditions.
+  `docs/governance/gate_decision_log.md`: the G0 row reads Accepted,
+  2026-09-19, Student (Rui Duarte), citing the record and this entry; the
+  replaced `Not decided` row is kept verbatim under a new "Superseded row
+  states" section; a dated sentence says that the decision rests on the
+  student's own statement, not on a reported confirmation. Plan section 4.2:
+  the G0 bullet states the decision, with its former wording kept as a dated
+  note, and the "G0 external actions" row of section 2 and section 6 say that
+  the alignment package is no longer a G0 condition. `PROGRESS.md`,
+  `README.md`, `docs/README.md`, `docs/g0/backlog.md` and `docs/g0/risks.md`
+  record the acceptance and the reallocation: integration defects and
+  admissible run evidence to G2/G3; D007, the fault-window rules, the loads,
+  the 95-run feasibility and the frozen protocol to G4; genuinely unsettled
+  method or claim detail tracked at G4/G6, with no blanket D014 blocker; the
+  scoping review's execution and the writing to Chapters 1–4 and G6; the
+  template check, the AI-use declaration and the final evidence package to G7;
+  and the verified off-machine copy, its hash and its restore path as an active
+  resilience action owned by the student — R25's owner changes from "Both" to
+  the student — retained in the risk register and the backlog and required at
+  G7, **neither verified nor waived**.
+- **Action — the battery restated in place.** Each current-state statement is
+  corrected where it stands, with a short dated note: the status section and
+  G3 row of `README.md`; in `PROGRESS.md`, the gate-status block, now dated
+  2026-09-19, with its G3 bullet, and the effort row of the nine families; the
+  runbook row of `docs/README.md`; both battery rows of `docs/g0/backlog.md`;
+  the G3 note of the gate log; the unit-evidence row of plan section 2; the
+  Evaluation automation cell of `docs/academic/c2dta_p0_traceability.md`; the
+  status note of `docs/setup/qemu_integrated_gateway.md`; and, in
+  `docs/adr/0008-integrated-yocto-arm64-evaluation.md`, the Consequences
+  bullet and the corrected statement of the 2026-09-19 amendment, which no
+  longer says that the sampler defect is fixed — it is addressed under its own
+  change, not merged into `dev`. "Unsealed" becomes "locally hash-sealed
+  candidate archive, not admitted" in the same places. In the same pass, the first-flow record of 2026-09-18, all 51 entries of whose `SHA256SUMS` verify, becomes a "locally hash-sealed candidate, outside the published evidence package, not admitted" wherever current state called it unsealed; blanket statements that nothing has been measured become "no official campaign has been completed or admitted", the diagnostic measurements being neither accepted campaign results nor native performance evidence; and the memory and graceful-stop correction merged through pull request #34 is no longer called open, general or prolonged stability staying not demonstrated. Where such a statement stood on `dev` in the runbook status, ADR 0008's amendment of 2026-09-18 or a historical proposal, it is kept and superseded by a dated note or marker. The historical
+  proposals under `docs/governance/proposals/` take dated markers beside the
+  false sentences, without rewriting them: sections 6.1 and 6.2 of the plan
+  v2.0 proposal, and the banner and item 6 of the v2.0 alignment memo, whose
+  bold sentences are marked not to be sent as written. The runbook also gains
+  dated notes on the failure of test 5, on the invalid timed runs of test 6,
+  the latter pointing to the proposed restart rule, and on test 7, which
+  covered the MongoDB fault only; and, in the test 1 paragraph, the hook order
+  as implemented — stop hook before the 60 s window, fetch hook after it.
+- **Action — the two prose steps of the runbook fenced.** In
+  `docs/setup/qemu_integrated_gateway.md` the two steps that the extraction
+  tooling dropped are now fenced `host$` blocks, their commands unchanged, so
+  that they cannot be skipped the same way: the test 4 sequence reset
+  (`run_test itest-dup-02 ...`), right after test 4's expected results, and
+  the test 7 Ditto repeat (`R=itest-ditto-fault-01; SVC=ditto-things`, then
+  test 7's test line and evaluation line, copied unchanged), under a heading
+  of its own, "Repeat of test 7 for Ditto", because the runbook's tests
+  (`src/tests/test_runbook_itest_helpers.py`) read the fenced commands of the
+  test 7 section as a single run. A dated note in test 4 and in test 7 records
+  that the step was not run. This is a change of form only: no command,
+  criterion or result changes, and neither sub-check has been run.
+- **Action — the exclusion rule and D014.** Plan section 4.3 (G5) now excludes
+  by evidence validity, never by outcome: a run with missing or corrupted
+  provenance or invalid instrumentation is excluded from the eligible
+  quantitative aggregates but retained and reported with its reason; a valid
+  run showing overload, loss, late confirmation or failed recovery is retained
+  and analysed — the system fails the criterion and the observation does not
+  vanish; conditions are never repeated until they pass, and changed
+  configurations or protocols are never mixed unidentified. This is a wording
+  correction; the analysis code already behaves this way. D014, in the plan
+  (banner and sections 1.1, 2, 3.2, 3.5, 4.3, 4.4 and 6) and in
+  `docs/governance/supervisor_decision_log.csv`: the QEMU evaluation scope of
+  RQ3 is recorded as **reported approved** — reported by the student, undated,
+  not a documented supervisor decision — and is not reopened; the open part is
+  narrowed to the wording of the limitation that records the absence of native
+  evidence and of any claim about emulated timing or resource figures, tracked
+  at G4 and G6, with the numerical criteria under D007; D014 is no longer a
+  blanket blocker of G4–G7 or of the final academic release. Its status stays
+  `partly_confirmed_reported_by_student`, with `sent_at` and `response_at`
+  empty. D008 and D011 in the decision log, and D008 in
+  `docs/g0/supervisor_decision_matrix.csv`, take dated notes that point to the
+  narrowed D014, their statuses unchanged. The plan also states the scoping
+  review (D003) and the waiver of a second software tester (D006) as settled
+  decisions, separate from their incomplete execution and documentation, and
+  its section 9 itemises this update. Current-state text elsewhere that still
+  described the QEMU evaluation scope or the academic use of emulated results
+  as open under D014 is corrected in place, each with a dated note — rule 6 of
+  Section 8 of the runbook among them — and the historical v2.0 alignment memo
+  takes dated markers, without rewriting, beside its banner sentence, its D014
+  request and the two sentences that treat the evaluation scope as unagreed or
+  as a condition of submission. Where any such wording remains, rule 5 of plan
+  section 3.5 and the D014 row of the decision log govern.
+- **Action — what is new and true.** `PROGRESS.md`: a row for the per-test
+  record of the battery, a row for the diagnostic findings of the r02
+  attempts, and the controller row corrected, which said that no real restart
+  had been exercised. `docs/g0/backlog.md`: four G2 actions — run the two
+  missing sub-checks, the test 4 sequence reset and the Ditto repeat of
+  test 7; retain and follow up the test 5 deadline failure; diagnose the
+  delivery backlog under QEMU/TCG; and confirm the controller-restart queue
+  finding before a design decision. `docs/g0/risks.md`: a section "Findings recorded on 2026-09-19"
+  registers the restart queue finding against R31 (with C12 and RQ2) and the
+  throughput finding against R13 and R23, with cross-notes; no identifier is
+  created, because the range is frozen. `docs/claim_evidence_matrix.md` and
+  `docs/claim_evidence_matrix.csv`: C12 stays `Pending — no evidence` and takes
+  a dated note, admitting nothing, that points to the findings and to the
+  proposed restart rule.
+- **Action — the acceptance and protocol proposals.**
+  [`docs/governance/proposals/acceptance_protocol_update_2026-09-19.md`](../governance/proposals/acceptance_protocol_update_2026-09-19.md)
+  (new), marked **PROPOSED — for review, not adopted**, gives the verified facts
+  and, per item, what stays unchanged and who decides: (1) short-run selection
+  — keep the 30-distinct-instant minimum and the 60 s confirmation rule, and
+  run the next instrumentation acceptance as a nominal entry with its declared
+  duration unchanged, under a new run identity, which is not a passed 30-second
+  smoke; whether the count should be taken inside the window and whether
+  duplicate `(container, ts)` rows should be rejected stay open questions;
+  (2) a lifecycle-aware rule for a deliberate restart — a designated window for
+  the restarted container only, opened at the start of the restart command,
+  closed at the first successful `/ready` answered by the new instance and
+  capped at the command's finish plus `RESTART_RECOVERY_MAX_S`, the run failing
+  its recovery criteria if the cap is reached; the 5 s limit everywhere else;
+  data never zero-filled or interpolated; the first post-start CPU-delta sample
+  within 5 s of the close; no exemption for delivery accounting; fifteen
+  regression cases; (3) late delivery as its own issue, with the two findings
+  above and unchanged deadline semantics; (4) the test 4 sequence-reset
+  coverage, with the Ditto half of test 7, recording that both prose steps
+  were moved into fenced blocks on 2026-09-19 as a change of form only;
+  (5) binding every run to the hashes
+  of its exact helper, deployment configuration, controller image and
+  collector; (6) the acceptance sequence after resumption — one fresh bounded
+  acceptance pair first, stop on failure, then only the affected or missing
+  checks, then G3, with no jump to the 95 runs or the 24-hour soak.
+  `docs/governance/proposals/README.md` gains its index row.
+- **Verified, and how.** Every fact above was verified on 2026-09-19,
+  read-only, against primary evidence: the battery archive (`sha256sum -c`
+  over its 312 entries; every per-test figure recomputed from
+  `sent_events.jsonl`, `events.jsonl` and the controller marker, and matching
+  the reconciliation outputs exactly); the r02 run directories (manifests,
+  `controller_metrics.csv` and the fetched event logs, counted by exact message
+  ID); the candidate archive
+  `~/yocto/evidence-candidates/2026-09-19-sampler-fix/` for the collector
+  installations and their hashes; and the source at `dev` revision `40aae52`
+  and at `aa7440d`, read with `git show` and `git grep`. The reconciliation and
+  analysis code is byte-identical between `8e88670`, `9ffd365` and `40aae52`.
+  Both quotations in the decision record were compared with the register and
+  are identical. On this change, from the work-tree root:
+  `python tools/ci/check_markdown_links.py` (91 Markdown files) and
+  `python tools/ci/verify_evidence.py` (304 artefacts across 14 evidence
+  seals) pass; the three edited CSV files parse with their column counts
+  unchanged (9, 9 and 5); the runbook's code fences balance, and
+  `src/tests/test_experiments_itest_reconcile.py`, which parses the runbook's
+  `$REC` lines, passes (106 cases); `src/tests/test_runbook_itest_helpers.py`,
+  which does not run on Windows, passes on the WSL2 Ubuntu host (64 cases)
+  with both fenced sub-check steps in place. The GitHub workflow result, not
+  this entry, establishes whether the required checks pass.
+- **Not shown and not done.** The guest was not booted and its data disk was
+  not accessed; no test, harness run or campaign was executed; **test
+  acceptance stays paused at the student's request** and nothing here resumes
+  it. **No evidence is admitted**: the battery archive and the first-flow
+  record stay outside `docs/evidence/`, and every r02 figure is diagnostic.
+  **No gate beyond G0 is decided** — G1 stays accepted as recorded on
+  2026-08-14 and G2–G7 stay `Not decided` — and **no claim is admitted**: 0 of
+  15, C12 included. The G0 decision marks neither the historical alignment
+  package as sent nor the off-machine copy as made, verified or waived; nothing
+  is sent to the supervisors; no supervisor date, message or name is recorded,
+  and no reported confirmation becomes a documented supervisor decision. None
+  of the proposals is adopted: no protocol constant, validator, harness
+  behaviour or code changes; D007's numbers and the protocol freeze stay
+  separate decisions; and the old runs stay invalid under their original rules.
+  The restart queue finding is not confirmed, no permanent loss is claimed and
+  no design decision on the restart path is taken. Neither missing sub-check
+  was run — the test 4 sequence reset and the Ditto repeat of test 7 were only
+  moved into fenced blocks. The docstring of `resources.py` (lines 92–95)
+  that places the collector stop after the confirmation window is code and is
+  not changed here; the same wording on the sampler branch belongs to that pull
+  request.
+- **Correction of entries #C032 and #C033, which are not rewritten.** #C033
+  said that the nine families were exercised once, that "seven passed, and
+  tests 1 and 6 have a failing harness part", and that the record was "held
+  outside the repository and unsealed". The first overstates the record and
+  the second misclassifies it; the per-test account and the classification
+  above replace both. #C032's statement that none of the nine families had
+  been run was superseded by #C033 and is replaced, like #C033's, by the
+  per-test account above. #C033's description of D014 as
+  holding open the scope of the evaluation and any academic use of emulated
+  results, and its sentence that approving the QEMU route is not approving the
+  academic use of its results, are superseded by the D014 revision above. The
+  other boundaries of both entries stand, with three exceptions, the dated entries themselves being kept as written: the first-flow record they call unsealed is a locally hash-sealed candidate (all 51 `SHA256SUMS` entries verify), outside the published evidence package and not admitted; the `ditto-things` teardown correction they call open has since been merged into `dev` through pull request #34, with general or prolonged stability not demonstrated; and "nothing has been measured" is too broad — no official campaign has been completed or admitted, and the diagnostic measurements are not accepted campaign results or native performance evidence.
+- **Decisions and next steps.** Decided by the student on 2026-09-19: **G0
+  Accepted** for project initiation and baseline alignment. No other gate,
+  claim or maturity level changes, no documented supervisor decision is
+  created, and none of the proposals is adopted. Next: the student verifies
+  the off-machine copy, its hash and its restore path promptly, as an active
+  resilience action required at G7, and decides on each proposal as the
+  proposal document names. After the student resumes test acceptance, and not
+  before: read the guest-side event log, the twins' ingestion counters and the
+  container logs of `controller_restart-r02`, read-only, to confirm or refute
+  the restart queue finding, and take a separate design decision on the
+  restart path before any C12 evidence is collected; then, if the proposed
+  acceptance sequence is adopted, one fresh bounded acceptance pair requiring
+  resource ingestion, end-to-end deadline accounting and recovery evidence,
+  stopping on failure, and afterwards only the affected or missing checks —
+  `itest-dup-02` and the Ditto repeat of test 7 among them — under new run
+  identities, unchanged deadline semantics and recorded instrument hashes; then
+  G3. No jump to the 95 runs or the 24-hour soak. The resource-sampler change
+  (`#C034`) proceeds under its own review, and D007 is still owed before
+  `exp-v1`.
+
+---
+
+## Entry #C036 — Local test outputs, the collector's six services before the seal, and the first valid harness run on the emulated guest
+
+- **Date:** 2026-09-19
+- **Request:** the project-management work order of 2026-09-19 (held outside
+  this repository), packages A to C and its first checkpoint: a clean
+  execution baseline, a local `output_test` folder in which every test attempt
+  is exported with verified checksums at completion and on failure, the
+  collector's expected services and companions accounted for in the executable
+  workflow before the seal, then a live preflight, a smartwatch slice and the
+  nominal instrumentation entry. The 95 runs and the 24-hour soak are not part
+  of it, and the acceptance proposal of `#C035` stays unadopted.
+- **Action — baseline.** A clean clone of `dev` for execution
+  (`/home/ruisth/egw-exec/repo`, with its own virtual environment from
+  `src/requirements.lock`) and a clean worktree for development; the old
+  Windows working tree is preserved untouched. The OS image is not rebuilt: its
+  build inputs (`src/yocto/kas`, `meta-egw`) did not change from `03e333e` to
+  `fb1690d`, nor did the controller image's (`0dfa531`), so the identified
+  kernel, rootfs and controller archive are reused; each guest session records
+  how the Yocto checkout, the clean clone and the deployed tree differ.
+- **Action — local outputs.** `egw_experiments.local_export`
+  ([`docs/setup/local_test_outputs.md`](../setup/local_test_outputs.md)):
+  one package per attempt under `output_test/runs/<date>/<run_id>/`, never
+  replacing an earlier one, with every copied file re-read and compared by
+  SHA-256, raw capsules copied byte for byte with their own seals, secrets and
+  private keys excluded with redacted derivatives, special files listed and
+  never read, instrumentation validity, system outcome and copy verification
+  kept apart, and an index regenerated from the packages on disk. The session
+  drivers of [`tools/session/`](../../tools/session/README.md) run the bounded
+  checks and export every attempt on every exit path.
+- **Action — the collector in the executable workflow.** `--expect-services`
+  with the six Compose names reaches the collector through the start hook;
+  `src/deployment/scripts/fetch-collector-output.sh` fetches the CSV with its
+  `.diagnostics.log` and `.lifecycle.csv` companions (and a `.self-test`
+  marker), each checked against the guest's own sha256; before the seal the
+  manifest records the deployed collector hash, the fetch helper's hash, the
+  inventory and the rows of every expected service, and a missing companion, a
+  self-test marker, a missing or different expected set, a missing service or
+  an expected service without rows makes a timed run invalid. The manual path
+  (`--resources-from`) is accounted for the same way. A timed-out hook's whole
+  process group is killed. No ingest threshold and no delivery rule changed.
+- **Review.** One static review of the branch, with an adversarial
+  verification of each finding, confirmed 26 defects: the export's recovery
+  could mark a still-running attempt interrupted and freeze that verdict, a
+  secret in an attempt field could reach the summary, an unscanned package
+  looked scanned, and smaller ones in the export and the harness. All were
+  fixed with tests before this entry.
+- **Verified, and where.** Unit suite in WSL2 Ubuntu 24.04 (Python 3.12.3):
+  1,364 passed and 53 skipped at `fe954a9` (the busybox variants of the
+  collector tests, which need the wrapper environment); 1,369 passed at
+  `03958c2`, the head reviewed on 2026-09-19, and 1,765 passed with 64 skipped
+  after the corrections of 2026-09-20 below. Each count belongs to the commit
+  beside it. Every attempt below is a package in
+  `C:\Users\ruimf\Documents\Projeto Mestrado\output_test` with a verified seal,
+  listed in its `INDEX.md`:
+  - export checks: one passing test module and one deliberately failing test,
+    both exported, the failure kept as a failure;
+  - fifteen historical packages backfilled (the 2026-09-18 capsules, the
+    invalid r01 and r02 harness runs, the unclosed session `sampler-01`, the
+    collector capsule), copied as preserved and indexed as historical;
+  - one guest session: boot to SSH in 34 s after an ext4 journal recovery on
+    both disks, the stack stopped before power-off, no memory-cgroup OOM, the
+    G1 artefacts unchanged;
+  - **live preflight — valid, pass:** the stack started through the 5.5
+    interlock; the clone's collector (`d3b219bc…`) replaced `b7aeddba…` on the
+    guest; a 45 s run gave 45 distinct instants for each of the six services,
+    no UTC gap, no withheld sample, inventory `missing=none`, and
+    `validate_resources_csv` passed; the deployed tree equals the clone except
+    `README.md`;
+  - **smartwatch slice — valid, pass:** `itest-slice-01`, seed 20260920 (a fresh
+    twin): 60 sent, 60 delivered, 0 lost, 0 late, `check` and `delta` 0, twin
+    `accepted_count` from absent to 60, marker lag 0.148 s;
+  - **nominal entry `nominal-r01` — instrumentation valid, system fail:** the
+    first harness run on the emulated guest that the harness itself marks
+    valid and seals, with `resources.csv` ingested (720 rows for each of the
+    six services), the companions and hook outputs sealed, the controller
+    marker lag 0.019 s and collector hash `11444c0a…` (the clone at `fe954a9`).
+    At the controller-clock deadline 3,794 of 6,720 valid messages were
+    delivered and 2,926 were lost at the deadline (85 of them confirmed late
+    before the harness fetch); after the drain all 6,720 had an `accepted`
+    outcome, 2,926 of them late. Latency p50 264 s. This is a system result on
+    ARM64 EMULATED (QEMU/TCG): the controller processes about 5 to 6 messages
+    per second against 11.2 offered.
+- **What is not shown.** No gate is decided and no claim moves: the preflight,
+  the slice and the nominal entry are engineering diagnostics, not acceptance
+  runs under an adopted rule. The nominal outcome is not a capacity
+  measurement. The controller's restart recovery (package D) and the final
+  battery (package E) have not started. `output_test` is a local copy, neither
+  published evidence nor a backup.
+- **Provenance of the live observations** (corrected here on 2026-09-20, after
+  the project review: the earlier draft of this pull request described them as
+  one commit). The export checks, the guest session, the live preflight and the
+  smartwatch slice ran from `a3b0d56`; only the nominal entry ran from
+  `fe954a9`. `tools/session/` did not exist in the repository at either commit:
+  it was versioned at `d7b7a72`, **after** every live command. What ran were the
+  working copies in `/home/ruisth/egw-exec/drivers`, whose concatenated sha256
+  each attempt records (`identities.drivers_sha256`: `8be60f66…` for the export
+  checks, `ca0eb1f6…` for the session and the preflight, `aab9fff5…` for the
+  slice, `9e3a334b…` for the nominal entry, as `slice.sh` and then `nominal.sh`
+  were added). The seven drivers that existed when the session opened were
+  byte-identical throughout it, and the copies preserved inside the guest-session
+  package equal those working copies file by file. The versioned drivers differ
+  from them substantially — between 6 and 229 changed lines per file — first
+  because every workstation path became overridable and then because of the
+  corrections below, so the observations of 2026-09-19 were not produced by the
+  drivers this pull request versions.
+- **Corrections after the project review of 2026-09-19** (made on 2026-09-20,
+  before any merge; three commits). The review asked for five: the export
+  destination is now confined physically (a symbolic link, a Windows junction,
+  another reparse point or a hard link at an owned path is refused instead of
+  written through, and every generated file is written through a temporary file
+  and one rename); a console capture that fails is recorded with its byte
+  counts, exits 74 and cannot be finished as valid, and one rule now decides
+  that verdict for the attempt, the package, the summary and the index; the
+  preflight and the harness both require a usable start, inventory and closing
+  record with an ordered window, and reconcile the closing record with the CSV
+  only where it contradicts itself, leaving spacing and coverage to
+  `validate_resources_csv` against the protocol's own tolerance; a registered
+  source keeps its own name, so a linked, dangling or relative root is listed
+  and never read; and every driver derives its exit status from the verdicts it
+  recorded (0 pass, 1 a valid negative result, 2 a prerequisite, 3 invalid
+  instrumentation or a mandatory step, 4 an export that could not be verified,
+  5 a controlled stop, 130 interrupted), skipping what depends on a failed
+  prerequisite. Six adversarial reviews of the corrections themselves, each
+  with reproductions, found 84 further defects — among them a hard link that
+  defeated the confinement, a capture failure that could be lost, an export
+  check that read any non-zero code as the intended failure, a tree comparison
+  that looked in one direction only, and, twice, a correction of ours that
+  would have invalidated runs the protocol accepts. All were fixed with tests.
+  The known limitations that remain are recorded in the pull request. No
+  acceptance threshold, delivery rule, deadline or ingest limit was changed, and
+  regenerating the index from the twenty-one existing packages reproduces them
+  unchanged: no earlier verdict moved.
+- **One more correction, after the project review of 2026-09-20.** The review
+  held the pull request for a semantic defect of the work above, introduced by
+  this developer: an OOM kill or a restart the run positively showed made the
+  driver record the instrumentation invalid, which would discard exactly the
+  negative results this dissertation has to analyse. Observing the system fail
+  is a result; failing to observe is an invalid measurement. Every step after
+  the harness now falls into one of three groups — evidence that is missing,
+  unreadable or incomparable (the measurement is invalid, naming the
+  requirement), a fault the run showed (the system outcome fails, the
+  measurement stays as valid as the evidence says) and a post-window
+  observation that could not be made (recorded as incomplete, leaving the
+  sealed window's verdict alone, with nothing claiming eventual delivery or a
+  complete tail) — and a fault that also breaks the clock domain the
+  confirmation deadline rests on gives that specific invalidity with the fault
+  kept as a fact. Four further review rounds of that correction found fifteen
+  defects in it, all fixed with tests, three of which were the same error
+  reversed: a comparison that crashed, or a record left incomplete by a lost
+  console capture, could have been written up as a failure of the guest; a
+  clean pass could be claimed on incomplete evidence; and the new health rule
+  would have failed the very preflight of 2026-09-19 that passed, whose record
+  reads `egw-controller-1 running starting`. A criterion that rejects the
+  evidence already held is as wrong as one that admits what it should not.
+- **Decisions and next steps:** none taken here. The next packages are the
+  bounded recovery ADR and fix (D), then the coordinated battery on one
+  unchanged candidate (E). The authorship rule of 2026-09-19 (author and
+  committer both `Ruisth` for every commit, merges included) is not met by a
+  merge made on GitHub, whose committer is `GitHub`; the repository ruleset
+  requires pull requests and has no bypass actor, so a compliant merge
+  procedure needs a decision by the student on the ruleset.
+
+
+## #C037 — Requirements matrix and supervisor deliverables — 2026-09-21
+
+- **Request:** after supplying the supervisor's implementation-focused email,
+  the student asked to create the matrix and add the deliverables to planning.
+- **Base and preservation:** fetched origin; dev/origin-dev resolved to
+  ccd5fd647a57842707999fa3f2492befa228e11b. Prepared the change on
+  docs/g0-supervisor-matrix in an isolated worktree. Preserved the older dirty
+  Windows checkout, the original manuscript and all experimental records.
+- **Delivered:** 18 requirements with sources, authority, criteria and test/gate
+  mappings; primary-source platform comparison and provisional Pi 5 8 GB
+  recommendation; i.MX95 EVK alternative and Pi 4 exclusion for MongoDB 7;
+  research-question crosswalk and V1 consumer-control inventory.
+- **Planning:** version 2.1 adds SUP-01–SUP-07 with owners, dates, dependencies
+  and exit criteria, in parallel with existing implementation/review work.
+  Updated PROGRESS, backlog, risk entries RS01–RS03 and documentation links.
+  Archived the source plan v2.0 exactly, SHA-256 dcbccda1477d1dd4ddce6fb451457e9ec37ff608045eae141bd998f0907b4d1a.
+- **Evidence:** inspected the local 2026-09-20 smartwatch/persistence summaries
+  for planning; recorded them as unadmitted engineering candidates in PROGRESS.
+  No experiment was run, record resealed, acceptance resumed, threshold changed
+  or claim/gate admitted. QEMU-only execution, title/RQ numbering, the
+  95-attempt target and delivery dates remain unchanged.
+- **Decision boundary:** the student's request authorises the documentary and
+  planning changes; it is not a supervisor approval of a board or revised RQs.
+  No spending, physical build or native evaluation was undertaken. Publication
+  and integration follow the repository review workflow.
+- **Verification:** repository-local links passed for 94 Markdown files;
+  evidence verification passed for 304 artefacts across 14 seals; the archived
+  v2.0 matches the source Git blob byte for byte; 18 unique requirement rows
+  and seven deliverables were checked against the plan/state/backlog IDs.
+  Active-document whitespace checks passed; the archive retains its exact
+  historical bytes. A separate documentary review identified only version-link
+  ambiguity, corrected before publication. No application tests were required
+  for this documentation-only change.
+
+---
+
+## Entry #C038 — The complete G2 flow inside the emulated guest, and the acceptance proposal it is presented with
+
+- **Date:** 2026-09-21
+- **Request:** the project-management work order of 2026-09-20 (held outside
+  this repository) and its five clauses — preparation, complete path,
+  persistence, evidence and acceptance: assemble the complete G2 candidate on a
+  clean identified baseline, establish the gate preconditions the plan asks for
+  rather than the weaker ones an engineering preflight accepts, run exactly one
+  bounded flow, prove stored-state persistence while nothing is in flight,
+  publish the capsule and put the gate to the student clause by clause. The
+  nine integration families, the nominal workload, the soak and the 95 runs are
+  not part of it.
+- **Action — the two drivers.** `tools/session/gate_health.sh` for the stricter
+  G2 preconditions and `tools/session/persistence.sh` for section 6.5 of the
+  runbook, versioned at `b7e0c83` on `feat/g2-session-drivers` above the merged
+  `dev` at `ccd5fd6`. Unlike the session of 2026-09-19, whose live observations
+  came from unversioned working copies, **six of the seven attempts of this
+  session record `repo_commit b7e0c83…` with `repo_dirty_lines: 0`**, read by
+  the driver itself: what ran is what the repository holds. The seventh, the
+  single-file deployment between the two preflights, was not run by a driver;
+  its identities were written by hand and name the commit without a dirty-line
+  count.
+- **Action — the session.** One guest session
+  (`20260920T231756Z_guest-session_attempt02`): identities read before the boot,
+  boot, state after the boot, the stack stopped before power-off, and the three
+  artefacts the G1 seal covers — `Image`, `egw-image-qemuarm64.rootfs.ext4` and
+  `egw-image-qemuarm64.rootfs.manifest` — each read back `OK` afterwards; every
+  command of the attempt exited 0. The
+  candidate is the image `egw-gateway-image-qemuarm64` of build
+  `20260918120819` (kernel
+  `Image-qemuarm64.bin` `4457ef38…`, rootfs archive `d4569c0e…`) under QEMU
+  8.2.7 TCG, `-machine virt -cpu cortex-a76 -smp 4 -m 8192`, with the six
+  container identities and the controller build identity `0dfa5314…`. **ARM64
+  EMULATED (QEMU/TCG) on an x86-64 host; never native ARM64, never KVM.**
+- **The preflight that failed, and why.**
+  `20260920T231844Z_live-preflight_attempt02` is recorded **`failed`, with the
+  instrumentation invalid and the system not run, and is kept**. The
+  two-directional comparison of the deployed tree against the clean clone found
+  `src/deployment/scripts/fetch-collector-output.sh` in the clone and not on the
+  guest — a file the clone has carried since pull request #38 — so the driver
+  stopped at that prerequisite and recorded the eleven checks after it as not
+  run, rather than reporting a preflight it could no longer trust. **The
+  six-container stack was started inside this failed attempt**, not inside the
+  one that repeated it: its first command ran the 5.5 interlock and `up -d`
+  between 23:18:44 and 23:21:18, creating and starting all six containers, and
+  the failure came four commands later. This is the one-directional comparison
+  corrected on 2026-09-20 doing its work: the earlier
+  form compared only the paths the guest listed, so a file the clone held and
+  the guest had never received was not a difference at all, and the preflight
+  would have passed.
+- **What was fixed, and how.**
+  `20260920T232205Z_deploy-the-clone-fetch-helper_attempt01` deployed that
+  single file in one command, whose argv the package seals: the session's own
+  `gscp` helper copied `src/deployment/scripts/fetch-collector-output.sh` from
+  the execution clone to `/tmp/fetch-collector-output.sh` on the guest, then
+  `gssh` ran `sudo cp`
+  of it into `/opt/egw/deployment/scripts/`, `sudo chmod 0755` and `sha256sum`
+  over the two guest paths. **That was a bounded single-file deployment made by
+  the developer between the two preflight attempts, not the runbook's
+  deployment step**: the attempt's own note cites runbook 5.1 as the provenance
+  of the deployed tree, but no step 5.1 was run. The two hashes the attempt
+  holds are **both hashes on the guest** — `/tmp/fetch-collector-output.sh` and
+  `/opt/egw/deployment/scripts/fetch-collector-output.sh`, each
+  `9ae07b0c…` — so what they show is that the copy which arrived equals the
+  file that was installed; the clone-side hash was printed outside the attempt
+  and is not in the package. The repeat ran under a new attempt identity,
+  `20260920T232219Z_live-preflight_attempt03`, whose sixteen commands all
+  exited 0: the 5.5 interlock re-run, its `up -d` finding all six containers
+  already `Running`, the clone's collector deployed and checked live (46 samples, 45 distinct instants, 45 rows for each of the six services,
+  no UTC gap, no withheld sample, `missing=none`, no problem), and the deployed
+  tree equal to the clone except `README.md`. The services had been started from
+  the tree as it stood before that copy; the file is an instrumentation helper
+  and not a service input, and the tree was equal to the clone before the gate
+  snapshot and before the flow.
+- **Results — the gate preconditions.**
+  `20260920T232447Z_g2-gate-preconditions_attempt01`, all seven commands exit
+  0: the six expected services **running and healthy** — the plan's condition, not the
+  `running starting` of the older snapshot — `/health` 200 `{"status":"ok"}`,
+  `/ready` 200 with MQTT connected and Ditto reachable, and `/metrics` 200 with
+  every counter and `queue_depth` at 0 for the controller process identified by
+  `started_at 2026-09-20T23:21:31.554Z`; the six container identities, **five of
+  which carry a pinned repository digest** — the controller's records
+  `repo_digest=none`, because that image was built locally and never pulled
+  from a registry, and it is identified instead by its image id and its build
+  record; the controller build identity verified against its record, and the
+  broker's TLS configuration recorded as configuration only (listener 8883,
+  `cafile`/`certfile`/`keyfile`, `tls_version tlsv1.2`, `allow_anonymous false`,
+  CA fingerprint `AA:34:ED:1E:…`, private material at mode 600, read as uid:gid
+  1883:1883). **Anonymous access is disabled in that configuration and its
+  refusal was not exercised in this session.** The attempt's console closes with
+  the sentence "anonymous access is refused"; that is the check reading the
+  setting, not an observed refusal, and it stands in the sealed package exactly
+  as it was written — the distinction is carried by the narrative, not by an
+  edit to the evidence. The driver was corrected afterwards, at the head of this
+  branch, to say in its own words that `allow_anonymous` is false, "which is the
+  configuration and not an exercised refusal"; that changes what future runs
+  record and nothing in this one. **An unexercised case is not a passed one**,
+  and exercised invalid-input rejection, duplicate replay and transport or
+  authorisation refusal are G3 conditions.
+- **Results — the flow.**
+  `20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02`, all seven commands
+  exit 0, run `itest-g2-01`, seed 20260921, one smartwatch at 1 Hz for 60 s over TLS to port
+  8883: 60 sent valid, 60 delivered unique, **lost 0, late 0, double-accepted 0,
+  intended-invalid accepted 0**, deadline from the controller marker, marker lag
+  0.184 s, nothing unaccounted. The twin
+  `org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84` did not exist before and came
+  out with `last_run_id itest-g2-01`, `last_seq 59`, `accepted_count 60`, its
+  fields matching section 4 of `src/CONTRACTS.md`; `/metrics accepted 0 -> 60`
+  and `received 0 -> 60` as well, with every other counter and `queue_depth` at
+  0. The latency block it also produced carries its own emulation label and is
+  not a performance result; its figures — p50 274.2 ms, p95 8 114.7 ms, max
+  9 999.0 ms over 60 confirmations at 1 msg/s — are written out in limitation
+  15 of the proposal so that the student reads them rather than passes them.
+- **Results — persistence.**
+  `20260920T233212Z_g2-twin-persistence-restart_attempt01`, all seventeen
+  commands exit 0: publication stopped and the queue drained (`queue_depth 0` and identical counters on 27
+  consecutive readings over 131 s, recorded as an observation and not as proof
+  that processing had finished); state saved; `compose down` then `up -d` with
+  **no volume removed**; the restart **shown**, controller
+  `started_at 23:21:31.554Z -> 23:37:38.535Z` and all six containers new objects
+  started later; all six healthy again at sample 2 of the poll that followed,
+  and readiness re-checked by `wait_ready 3600`, which exited 0 — **that exit
+  status is the whole of the evidence for the readiness half**, because the
+  helper requests `/ready` with the body discarded by construction, returns 0
+  **only** when the status is 200 and deliberately prints nothing when it
+  succeeds, so both console files of that command are empty. The helper's text
+  is bound to the attempt by hash (`f94cff6f…`, the same SHA-256 as the one the
+  runbook generates at revision `0fd75b9`), so what that 0 means is fixed by a
+  text the evidence names rather than assumed, and the six healthy containers
+  and the intact twin corroborate the recovery. **No response body was captured,
+  and none is reconstructed or inserted into the sealed attempt afterwards**: it
+  is a recording limitation of this attempt, disclosed as limitation 16 of the
+  proposal, to be repaired in future planned runs by recording the explicit HTTP
+  status and the `/ready` body — not by repeating this session. And, before
+  anything further was published, the same twin read back
+  identical, with the run's event log holding
+  60 records before and 60 after. The new controller process's counters are 0
+  again, which is expected of a per-process counter and is not loss.
+- **Published.** The capsule `docs/evidence/g2-complete-flow/` holds the seven
+  attempts, the failed preflight among them, each with its own seal and
+  manifest; the local packages are under `output_test/runs/2026-09-20/`, which
+  is a local copy and neither published evidence nor a backup.
+- **Published — the supplement of 2026-09-18, for one clause only.** Beside the
+  seven attempts the capsule carries
+  `docs/evidence/g2-complete-flow/supplement-2026-09-18-image-architecture/`: a
+  byte-for-byte copy of the already sealed local package of the stack image
+  provisioning of **2026-09-18**
+  (`output_test/runs/2026-09-18/HIST_2026-09-18-stack-images-provisioning`), its
+  32 files at the exact relative paths its own two seals record — 31 entries and
+  25 — so that both still verify in place, with one `README.md` added by this
+  repository and covered by the capsule's outer seal. **The seven attempt
+  packages were not altered or re-sealed**; only the outer `SHA256SUMS` was
+  written again so that it covers the supplement as well. It answers clause G2.3
+  and nothing else: `arch=arm64 os=linux` for each of the five registry images,
+  read from `guest/image-identities.txt` (`7419ce94…`, 2026-09-18 17:01:19 UTC,
+  20 checks, `failed_checks=0`), over the **same five full image ids and the
+  same five repository digests** as this session's gate snapshot. **Those fields
+  were recorded on 2026-09-18 and were not captured during the G2 session**, no
+  artefact of the seven packages holds them, and the bridge holds only for these
+  exact image ids: a later candidate that changes an image needs it reassessed
+  for that image. The earlier guest session of that day, whose pull transcript
+  ends `failed_checks=9` because the check template asked for a field the Ditto
+  image configurations do not carry, is kept in the package and is **not** read
+  as a pass. No flow, timing, persistence or health result of 2026-09-20 depends
+  on this directory, and none is imported from 2026-09-18.
+- **Why the supplement and the qualifications were added.** A project-management
+  review of this G2 package, recorded 2026-09-21 and held outside this
+  repository, found that the architecture question could be closed from evidence
+  that already existed and was already sealed, rather than by waiving the
+  requirement or running the guest again; that the missing readiness body is a
+  disclosed recording limitation with hash-linked exit-status evidence; and that
+  the unexercised negative cases belong to G3, with the wording about anonymous
+  access corrected because configuration is not an exercised refusal. The work
+  that followed is documentary: publication, traceability and wording. **No test
+  was repeated, no sealed record was rewritten and no gate was decided.**
+- **The proposal.**
+  [`docs/governance/proposals/2026-09-21-g2-acceptance-proposal.md`](../governance/proposals/2026-09-21-g2-acceptance-proposal.md)
+  sets the session against the normative G2 clauses and the conditions common to
+  G2–G7 one row at a time, with the exact evidence path for each. It resolves
+  G2.3 by the supplement, under the qualification stated there; it qualifies the
+  readiness half of the restart as indirect and as a disclosed recording
+  limitation; it records what holds **without being exercised** (no
+  intended-invalid payload was offered, and no refusal probe was run — anonymous
+  access is disabled in configuration and its refusal was not tested, which
+  belongs to G3); and it keeps the residual limitations of the demonstration
+  itself: one device, sixty messages, one restart, one guest, one repetition, an
+  emulated platform, a publisher that runs on the host and reaches the guest
+  through port-forwards, and a controller image whose Python dependencies are
+  still unlocked. Its closing section gives a clause-by-clause closure
+  recommendation, one bounded sentence of what the student would accept, and
+  what stays open — a recommendation, not a decision.
+- **What is not shown.** No gate is decided and no claim moves. **G2 remains
+  `Not decided`**, and stays so until the student records a dated decision with
+  an authority and a durable decision record; sealing a capsule, a green pull
+  request and this entry are none of them that decision. Nothing here accepts
+  the nine integration/recovery families, in-flight restart recovery, the
+  nominal 11.2 msg/s workload — which failed its delivery deadline on 2026-09-19
+  and **stays open** — the soak, the 95-run campaign, any native evidence or any
+  capacity figure.
+- **Verification.** Over the tree as this change leaves it:
+  `python tools/ci/verify_evidence.py` verified **909 artefacts across 24
+  evidence seals**; the capsule's outer seal lists **295 files** — the 261 of
+  the seven attempt packages, the capsule's own README and the supplement's 33 — and
+  verifies, as do the supplement's own two seals where they stand;
+  `python tools/ci/check_markdown_links.py` checked repository-local links in
+  **107 Markdown files**. These counts are read over this working tree and
+  supersede the earlier 820-across-22 and 262-file readings taken before the
+  supplement; they are not a substitute for the required checks running on the
+  final head, which is what clauses C3 and G2.12 wait on. No experiment was run,
+  no sealed package was altered or re-sealed, and no gate or claim moved.
+- **Decisions and next steps:** none taken here. The proposal is for the
+  student; the points it leaves to him are the capsule's evidence check, whether
+  the attempts of 2026-09-19 must be referenced from the capsule, whether the
+  unexercised sub-clauses are acceptable as unexercised at G2, whether the
+  architecture read on 2026-09-18 closes G2.3 on the strength of the matching
+  image ids, whether readiness may rest on a hash-identified exit status with no
+  captured body, and the wording of the scope he would be accepting. The
+  controller's backlog and in-flight recovery remain
+  the open downstream work, and D007 is still owed before `exp-v1`.
+
+---
+
+## Entry #C039 — The student's G2 decision: accepted in a bounded functional scope, and where it is transcribed
+
+- **Date:** 2026-09-21
+- **Request:** the student, Rui Duarte, took the G2 decision on 2026-09-21,
+  immediately after the final project-management review of the G2 publication
+  at pull request 40 (head `2d70143`). His approval, issued in Portuguese, in
+  the faithful English translation carried by the source record: "I approve
+  the closure of G2 within the bounded functional scope and with the
+  qualifications of the review, without accepting any other gates or claims."
+  The source is the project-management acceptance record
+  `G2_ACCEPTANCE_DECISION_2026-09-21.md`, held outside this repository, whose
+  section 5 asks for the decision to be transcribed into a durable decision
+  record and the G2 row of the gate log, and for `PROGRESS.md` and the active
+  gate-status summaries to be synchronised. The project manager
+  registered that record at 2026-09-21 07:14:37 WEST: that is the time of the
+  registration, **not** the time at which any experiment ran, **not** a
+  supervisor approval and **not** a merge. The decision date, 2026-09-21, is
+  the student's own. His approval is the decision; the decision record is its
+  durable transcription, and this entry is the diary of that transcription and
+  is not the decision authority.
+- **What the decision accepts.** G2 — live vertical slice — **Accepted** on
+  2026-09-21, authority Student (Rui Duarte), for *one bounded smartwatch →
+  MQTT/TLS → controller → Ditto → API flow, and stored-twin persistence across
+  one declared, quiescent whole-stack service restart, on the identified Yocto
+  ARM64 guest **emulated with QEMU/TCG on an x86-64 host*** — and for nothing
+  else: one smartwatch at 1 Hz for 60 s, 60 valid messages confirmed within the
+  controller-clock deadline with nothing lost, late, duplicated or unaccounted;
+  twin `org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84`, run `itest-g2-01`,
+  seed `20260921`, final sequence 59 and persisted accepted count 60, intact
+  across the declared restart with the queue quiescent and no intervening
+  publication; and six services healthy, the recorded initial health and
+  readiness with the counters at zero, the identified images and the
+  demonstrated TLS publication path — the six services observed healthy at the
+  gate snapshot and again after the declared restart, point-in-time readings
+  with no interval of sustained health claimed. The evidence is the capsule
+  `docs/evidence/g2-complete-flow/` of `#C038` — the seven attempts of the
+  guest session of 2026-09-20/21, the failed preflight among them and kept —
+  executed at `b7e0c83c3277f7469c05336f91949e7d1b89489a`, with its architecture
+  supplement of 2026-09-18, reviewed at pull request 40, head
+  `2d70143533d2ed12cce4e0df585365f2d353518d`, tree
+  `99b0387f05bc33833aac7c5993c45a6c923a9ded`, where the six required checks
+  passed. The candidate is the image `egw-gateway-image-qemuarm64`, build stamp
+  `20260918120819`, under QEMU 8.2.7 TCG — **ARM64 emulated, never native ARM64
+  and never KVM**.
+- **The qualifications it keeps.** The approval is given "with the
+  qualifications of the review", which are the four the source record lists,
+  and those four are what it retains: (1) the architecture of the five registry
+  images is established by the separately dated record of 2026-09-18 and by
+  exact image-id and digest correspondence, not by architecture fields captured
+  during G2, and a later changed image needs its own verification;
+  (2) post-restart readiness rests on the exit status of a hash-identified
+  helper whose success requires HTTP 200, with no response body retained —
+  disclosed indirect evidence, accepted for this gate, and future planned runs
+  should capture the status and the body explicitly; (3) anonymous access was
+  disabled **in configuration**, a refusal was **not exercised** in this session
+  and no intentionally invalid payload was offered, so neither absence is
+  presented as a passed negative test, and exercised negative cases remain G3
+  work; (4) the original attempts, the failed preflight included, retain their
+  original bytes, timestamps, provenance and outcomes, and the post-session
+  driver fixes are **not** credited as having run during the accepted session.
+  Section 6 of the acceptance proposal also discloses sixteen residual
+  limitations of the demonstration itself. The approval does not mention them:
+  they are neither accepted nor waived by it, and they remain disclosed
+  limitations of the evidence, referenced as such wherever the decision is
+  transcribed.
+- **What it explicitly does not accept.** **No claim is admitted** — 0 of 15
+  claims are accepted, as before, and no C-claim changes state — and **no other
+  gate is accepted**. The nine G3 integration/recovery families, recovery with
+  messages in flight, the nominal 11.2 msg/s workload that **failed** its
+  delivery deadline on 2026-09-19, the 24-hour soak, the official campaign, the
+  reproducibility and experimental freezes and gates G3 to G7 stay open as
+  previously recorded; G0 and G1 stand as recorded. No native ARM64,
+  physical-gateway performance, capacity, efficiency or long-term-stability
+  conclusion follows from G2. The decision changes no deadline (target
+  submission 2026-10-20, latest deadline 2026-10-31), no experimental
+  threshold, no scope beyond G2 and no Git identity policy; it is not a
+  supervisor decision, cites none and changes no supervisor decision; and it
+  grants no merge-policy exception,
+  protection bypass, history rewrite or further unbounded guest or test
+  execution.
+- **Which plan the criteria come from.** The acceptance proposal assessed G2
+  against section 4.3 of plan version 2.0. Version 2.1, in force since
+  2026-09-21, is an additive amendment (the requirements and platform matrix
+  and the deliverables SUP-01 to SUP-07); its section 4.3 is byte-identical to
+  version 2.0's, so the criteria assessed are the criteria in force.
+- **Where it is recorded.**
+  [`docs/governance/decisions/2026-09-21-g2-closure.md`](../governance/decisions/2026-09-21-g2-closure.md)
+  (new) is the durable transcription of the decision, readable from a clean
+  checkout — the student's approval being the decision: the decision and its
+  source, the approval quoted in translation, the accepted scope verbatim, the
+  candidate's identities, the evidence references, the four qualifications, a
+  reference to the limitations the proposal discloses, the exclusions and what
+  the decision does not change. `docs/governance/gate_decision_log.md`: the G2
+  row reads **Accepted**, 2026-09-21, Student (Rui Duarte), citing that record
+  and this entry, with the scope, the four qualifications in full, a reference
+  to the disclosed limitations and the exclusions in its notes; the replaced
+  `Not decided` row is kept verbatim under "Superseded row states", after G0's,
+  with a dated preface; a dated marker on the paragraph about the prospective
+  criteria keeps that paragraph as written and says that the decision is not a
+  finding that the G2 criteria are met — the student accepted G2 in the bounded
+  scope with the qualifications; no other row changes. `PROGRESS.md`: a dated update note,
+  which also records the student's answer on the pause of test acceptance;
+  the G2 bullet of the gate-status block, now dated 2026-09-21, with the state
+  it replaces kept in a closing note; the accepted-gates sentence; the
+  "Services on Yocto (G2)" row; the "Accepted at gate" cells of the contracts,
+  compose, controller and simulator rows, each bounded to the accepted scope
+  and each keeping its previous value; dated markers on the verification cells
+  of the contracts and controller rows where they would otherwise contradict
+  the accepted evidence beside them; and dated markers where earlier text had
+  said that G2 was unchanged or pending, and on the G3 bullet's pause of test
+  acceptance. The Thing Descriptions row, which the scope does not cover, is not
+  changed. No maturity level moves: the acceptance covers a slice of each
+  deliverable it touches, never a deliverable's whole functional scope. The
+  active gate-status summaries are synchronised as well: in `README.md`, a dated
+  note under the current-status heading, the G2 row of the status table, the
+  accepted-gates sentence (now three gates) and the closing pointer to the
+  decision records; in `docs/README.md`, the gate line and the governance index,
+  which now lists the new decision record. Each carries the same scope wording
+  and a pointer to the decision record, and each keeps the text it replaces in a
+  dated marker. Left as they were: section 4.2 of the adopted plan, which still
+  lists G2 to G7 as *Not decided*, because the plan is not edited by this
+  transcription and formal gate outcomes live solely in the gate log; the
+  acceptance proposal and entry `#C038`, which say that G2 remains
+  `Not decided`, because that was true when they were written and this decision
+  supersedes it; everything under `docs/evidence/` and in `output_test`. No
+  test, guest session, harness run or code change was made, and no supervisor
+  date, message or name is recorded or implied.
+- **Pull request 40 and its merge.** In the repository's history, pull request
+  40 is merged into `dev` as `bfaca4b`, whose tree is the reviewed tree
+  `99b0387…`. That merge is **not** the decision and dates nothing in it.
+- **The merge procedure recorded as open in `#C036`.** The student has stated
+  that the merges of pull requests into `dev` are his own, made manually through
+  the GitHub web interface, and that the `GitHub` committer field such a merge
+  carries is not to be treated as a departure from his authorship rule. That
+  closes the question `#C036` left open. The rule itself is unchanged for every
+  commit made on a branch: author and committer are the student's identity, with
+  no co-author or tool trailer.
+- **Verification.** Over the working tree as this change leaves it:
+  `python tools/ci/check_markdown_links.py` checked repository-local links in
+  **108 Markdown files**, the new decision record included, and
+  `python tools/ci/verify_evidence.py` verified **909 artefacts across 24
+  evidence seals**, unchanged. The superseded G2 row was compared with the row
+  at `2d70143` and is byte-identical, and every other gate row is unchanged.
+  The Thing Descriptions row of `PROGRESS.md` is byte-identical to its previous
+  text, and every table row this change touches in `PROGRESS.md`, `README.md`,
+  `docs/README.md` and the gate log keeps its table's column count. The GitHub
+  workflow result, not this entry, establishes whether the required checks pass
+  on the change that publishes it.
+- **Decisions and next steps.** Decided by the student on 2026-09-21: **G2
+  Accepted — bounded functional scope**, with the four qualifications and the
+  exclusions above. No other gate, claim or maturity level changes, and no
+  documented supervisor decision is created. **The pause on test acceptance.**
+  The decision record did not say whether it is lifted for the G3 battery; asked,
+  the student decided on 2026-09-21 that it stays on the G3 qualifying runs — the runs whose results count towards G3 — until the candidate is frozen after package D (the controller's recovery decision and its fix); bounded engineering diagnostics continue, as they have since the continuation of 2026-09-19, and the nine families then run as one qualifying battery on the frozen candidate.
+  Next: the downstream work this decision leaves
+  open — the controller's backlog and in-flight recovery, the G3 families with
+  their exercised negative cases, a readiness step that records the status and
+  the body, and a locked set of controller Python dependencies — with D007
+  still owed before `exp-v1`.
+
+## Entry #C040 — The broker-hold measurement tool (ADR 0011, condition C3): the clients, the guest recorder, the session driver and their tests
+
+- **Date:** 2026-09-23. **Scope:** package D, stage 1 of the project manager's
+  staged advice of 2026-09-23 (`PM_PACKAGE_D_DECISION_ADVICE_2026-09-23.md`,
+  section 4): the scripts and deterministic local tests of the one bounded
+  broker-only measurement that ADR 0011 (a proposed record, not yet in this
+  repository) names as its condition C3. No production controller change, no
+  guest session and no measurement result are part of this entry.
+- **What.** `tools/probe/broker_hold.py` (the host-side clients `generate`,
+  `publish`, `hold`, `sysreader`, `discard`, and the `verdict` that applies the
+  design's S1–S5, R1–R6 and inconclusive rules to the records),
+  `tools/probe/guest/probe_recorder.sh` (the 1 s cgroup recorder of the probe
+  broker, BusyBox ash), `tools/session/broker_measure.sh` (the session driver:
+  the deployed stack stopped, a throwaway pinned broker on its own fresh volume
+  with measurement copies of `mosquitto.conf` and `acl`, the phases P0–P8, the
+  probe removed, the stack started and waited for with the G2 drivers' shared
+  wait, the verdict, the export; the interrupt handler restores the same way),
+  `tools/probe/README.md` (the phases, rules, stop rules, identities, export
+  paths and restoration — the session plan the student is asked to authorise
+  or not) and `src/tests/test_broker_hold.py`. The measurement's values (W =
+  4,999, Q = 1,000, expiry 1 h, A = 4,999, B = 1,100, 128 MiB) are **probe
+  settings**, not adopted production or campaign settings; the `$SYS` read is
+  a measurement-only grant in the measurement copy of the acl, never a change
+  to the deployed file. The clients read their passwords from the
+  environment; no secret is on a command line or in a record.
+- **Why.** The recovery option ADR 0011 recommends cannot run on today's
+  broker configuration (defaults of 20 in flight and 1,000 queued), and
+  whether the pinned broker honours a window of 4,999 within 128 MiB, keeps a
+  persistent session's held messages across a kill and redelivers them in
+  per-device order cannot be established from the documentation. The
+  measurement is the smallest feasibility test before any implementation is
+  decided; an inconclusive run is not passing, and a refutation is a result
+  that is recorded and never re-run away.
+- **Verification.** `src/tests/test_broker_hold.py`: 30 cases pass in the
+  execution venv (paho-mqtt 2.1.0, the repository's simulator): the holding
+  subscriber acknowledges nothing without `--ack` and each delivery after
+  recording it with `--ack`; the publisher publishes exactly its slice, in
+  order, at the generated cadence, and counts a missing PUBACK as not exact;
+  the `$SYS` reader refuses a subscription the broker does not grant;
+  `generate` reproduces the nominal three-device mix in order with gap-free
+  per-device `seq` and real sizes; the verdict supports only when S1–S5 all
+  hold, refutes on each of R1–R6, is inconclusive for each inconclusive shape
+  and lets a refutation stand when the run is also inconclusive. The recorder
+  was run under the image's own busybox through
+  `tools/test/make-busybox-wrappers.sh` (`wc -c` stands in for `stat`, which
+  the image's busybox does not offer). `bash -n` and ShellCheck 0.11.0 on the
+  two scripts: no error-severity finding. **Not verified here:** the driver
+  against a broker or the guest (no session was opened), and the clients
+  against a real Mosquitto 2.0.22 (Docker Desktop was not running on the
+  workstation when this entry was written; that local functional check is
+  the next step and is a tool check, not evidence).
+- **Corrections after the review of 2026-09-23** (the project manager's
+  `PM_REVIEW_PR43_BROKER_PROBE_2026-09-23.md`, findings PR43-01 to PR43-05,
+  all confirmed against the code of `d9b3563`). *PR43-01:* the background
+  clients were started inside a command substitution, so the driver could not
+  wait for them and could end P7 before the redelivery client had ended; each
+  client is now a child of the driver's shell, waited for with a bound
+  (`P7_LIMIT` plus a grace), its exit status recorded in `phases.jsonl`, and
+  ended by the driver only when the bound is reached, which is a stop rule
+  and never the broker's behaviour. *PR43-02:* an unreadable counter was read
+  as zero, a non-empty recorder sufficed for S4, the 128 MiB limit was a
+  figure and not a condition, the recorder's coverage of P2–P7 was not
+  required, and the guest clock offset was applied with the wrong sign
+  (subtracted where it must be added); the verdict now requires full coverage
+  of the window, readable and ordered counters, the container running with
+  the expected `memory.max`, and `docker inspect`'s `OOMKilled` read before
+  removal (`probe_state.json`), and carries host instants onto the guest clock
+  by adding the offset. *PR43-03:* a refutation could rest on records that
+  were missing (a short offer, a P7 at its limit, an empty log); every
+  refutation now rests on something observed and an absence makes the run
+  inconclusive, while an observed refutation stands when the run is also
+  inconclusive. *PR43-04:* P7's identities were counted and not reconciled
+  against the P2 and P5 populations; the SUBACK's granted QoS and the CONNACK's
+  `session_present` were figures and not conditions; and the PUBACK was
+  requested before the delivery's record was written. The verdict now
+  reconciles by identity (the P2 set in full, of P5 exactly the first queued
+  by the broker's own count, nothing unknown); the subscriber insists on QoS 1
+  and, in P7, on a resumed session; and the record is written first, the
+  PUBACK requested only then, its outcome recorded beside it, and nothing
+  acknowledged once a record has failed. *PR43-05:* the guest-state flags were
+  set only after a mutating command returned, there was no ownership guard on
+  the fixed container name, and a missing mandatory record did not change a
+  passing verdict. The intent is now recorded before each dispatch and the
+  restoration reads the guest back; the probe carries the attempt's label and
+  only a container with that label is removed; an existing container, volume,
+  directory or unit of the probe's names stops the driver before it touches
+  anything; every setup and restoration command is bounded by `timeout`; and
+  the attempt records `broker_verdict` and `restoration` as two outputs, with
+  a pass only when the observation supports, every record was made and the
+  guest is restored. The decision brief's categorical statement that test 6
+  fails "in every option" was replaced by what is established (the current
+  candidate failed; a changed candidate is unmeasured; recovery alone is not
+  evidence of meeting the deadline).
+- **Verification of the corrections.** `src/tests/test_broker_hold.py`: 55
+  cases pass, among them the record-before-PUBACK order (spied), no PUBACK for
+  a record that failed, a failed PUBACK recorded separately, a SUBACK not
+  granting QoS 1 refused, the offset carried with either sign, each of R1–R6
+  from observed evidence, eighteen inconclusive shapes (coverage head and
+  tail, unknown and disordered counters, the wrong limit, a missing probe
+  state, a short offer, P7 at its limit or without an end, a failed PUBACK,
+  no `$SYS`, no disconnection line, a stop rule, a missing log, an unrelated
+  identity, a subscriber that ended early), and four shapes in which a
+  missing record makes no refutation. `src/tests/test_broker_measure_driver.py`:
+  10 lifecycle cases pass on the drivers' stub bench, with a stateful
+  `docker`, a `systemd-run` that really runs the guest recorder and a stub of
+  the probe tool whose verdict is the real one — P7 ends after the client's
+  end record with its status captured (a client delayed 3 s is never ended by
+  the driver); a client that does not end is ended and the run is
+  inconclusive; an interruption in P3, and one that lands while `compose stop`
+  is in flight, reap the clients and start the stack again; a container of
+  the probe's name that exists stops the driver before it touches anything and
+  is not removed; a `compose start` that fails, a stack not healthy again and
+  a recorder CSV that could not be fetched never yield a pass while
+  `broker_verdict` keeps the observation; a broker that refuses its
+  configuration is R1 with the guest restored; a publisher that is not exact
+  is inconclusive, not a refutation. ShellCheck 0.11.0 at `--severity=error`:
+  clean.
+- **The local functional check (2026-09-23, the workstation's Docker, the
+  amd64 variant of the pinned digest `sha256:212f89e1…`; a tool check, not
+  QEMU evidence and not a measurement of the guest).** `tools/probe/local_check.py`
+  runs the real clients and the real verdict through the same phases against
+  an isolated container of the pinned image with the deployment's dev TLS,
+  throwaway passwords handed through the environment and the 6,099 messages
+  of `generate` (273 to 320 B; 5,445 of them, 89.3 %, from the one
+  `smart_clothing` device, as in `nominal-r01`). Three attempts, each carried
+  into `output_test` by `local_export backfill` as
+  `HIST_2026-09-23-broker-probe-local-check-{smoke03,full01,fail01}`,
+  labelled as local functional tool verifications: **smoke03** (W = 30, Q = 5,
+  A = 30, B = 10) — supports for those counts; **full01** (W = 4,999, Q = 1,000,
+  A = 4,999, B = 1,100 at 11.2 msg/s, the design's durations) — the broker
+  held 4,999 distinct deliveries with none acknowledged, held 5,999 with the
+  subscriber away (the queue counted **above** the in-flight window: store
+  W + Q, dropped B − Q = 100, the drop logged as `Outgoing messages are being
+  dropped for client egw-probe-hold.` at the deployed log types), redelivered
+  all 5,999 on the resumed session with DUP = 1 on the 4,999 and per-device
+  `seq` ascending, every acknowledgement succeeded, the store returned to its
+  baseline; peak memory 17,649,664 bytes, 16.83 MiB, against the 128 MiB limit
+  (anon 6,307,840 bytes, about 763 B of anon per held message in P2 on that
+  host), no OOM, no restart, the
+  recorder's 878 rows without a gap; 14.6 minutes from the container's start
+  to the end of P8; verdict **supports**, S1–S5 all holding; **fail01** (the
+  small counts with the redelivery client limited to 2 s) — P7 reaches its
+  limit, the broker verdict is **inconclusive** with no refutation made, and
+  the container and volume are removed: the tool's negative path passed its
+  check, which is not a successful broker measurement (the package's outer
+  `pass` is the tool check's). Two earlier smokes (`smoke01`, `smoke02`,
+  kept locally and not carried) showed what the tool had wrong and led to the
+  corrections of the same day: the store count includes the broker's own
+  retained messages (51 `$SYS` topics on that broker), so every store figure
+  is read relative to the baseline at the end of P1, the subscriber's expected
+  count in P7 is that difference and the store's return to its baseline is
+  read at the end of P8; the pinned 2.0.22 publishes no
+  `$SYS/broker/messages/inflight`; a subscriber killed without a DISCONNECT
+  leaves an `OpenSSL Error … unexpected eof` line, which is a session line
+  and not a refused configuration. What the check does not show: anything
+  about the emulated guest, its timing, its memory or the arm64 variant's
+  accounting of the queue; those are what the guest measurement records.
+- **Corrections after the follow-up review of 2026-09-23**
+  (`PM_REVIEW_PR43_FOLLOWUP_2026-09-23.md`, blockers B1 and B2, items C1 to
+  C3, all confirmed against `f62af8c`). *B1:* a recorder whose start was not
+  confirmed was left in the state `unknown`, which the restoration did not
+  handle, and the stop command's success could come from `tail` while
+  `systemctl stop` had failed; the restoration now handles every non-terminal
+  state by reading the unit's real state, stopping it when active and
+  declaring it stopped only when `systemctl is-active` answers inactive after
+  the stop, fetches the CSV as a separate step either way, and a session is
+  fully restored only when the recorder is verified stopped as well as the
+  stack healthy and the probe gone. *B2:* the setup's 300 s limit was checked
+  only after every setup command had returned, each with its own full bound,
+  and a stop rule reached in P4 still let P5 publish and P7 resume; the setup
+  now runs on one budget from one clock, each command bounded by what is left
+  and no step started once it is spent, and no later phase starts after any
+  stop rule — the partial observation is kept, the final readings and the
+  discard still run, the guest is restored. *C1:* an unreadable counter set
+  its aggregate to `None` and could erase an OOM observed in another row; the
+  observation and the completeness are now kept apart (R4 from what was
+  read, inconclusive from what was not), and rows without a readable epoch
+  give a structured inconclusive rather than an exception. *C2:* ownership is
+  the label being exactly this attempt's id, for the container and for the
+  volume; a resource of the probe's name with another label is left alone and
+  reported, and its records are not read as this attempt's. *C3:* the phase
+  table no longer expects `messages/inflight`, the preserved peak is given as
+  17,649,664 bytes (16.83 MiB), and the summaries keep the tool's passed
+  negative-path check apart from the broker verdict it reports.
+- **Verification of the follow-up.** `test_broker_hold.py`: 59 cases
+  (added: an observed OOM survives an unreadable sample elsewhere; rows
+  without a readable epoch are inconclusive). `test_broker_measure_driver.py`:
+  16 lifecycle cases (added: a recorder whose start was not confirmed is found,
+  stopped and fetched; a stop that failed is never declared stopped even with
+  a readable CSV and the session is not a pass; the setup budget is one budget
+  and no stage starts beyond it; a P4 stop rule ends the measurement before
+  P5 and P7 with the partial observation kept; a container whose label merely
+  contains the attempt id, and a volume whose label is not exactly it, are
+  left alone and reported). ShellCheck at `--severity=error`: clean; links:
+  108 files. **Offline reconciliation:** the corrected `verdict` re-run on
+  unmodified copies of the three preserved local records reproduces each
+  sealed verdict — `full01` supports, `fail01` inconclusive, `smoke03`
+  supports — with every figure equal and `full01`'s `verdict.json` byte for
+  byte identical (sha256 `b0bc63ce…`); the sealed packages were not touched
+  and no live run was repeated.
+- **Correction after the delta review of 2026-09-23 at `6e3f456`**
+  (`PM_PR43_DELTA_6e3f456_2026-09-23.md`, section 3). The setup's transfers
+  (the two measurement copies fetched, the recorder copied) ran outside the
+  setup budget, and a transfer that spent it left the next command a bound of
+  zero seconds — which `timeout` reads as no bound at all, so the probe or
+  the recorder could still start after the allowance had expired. Now every
+  setup transfer is guarded and bounded like the commands, the two bounded
+  dispatchers (`gxt`, `gcpt`) refuse a spent or unreadable allowance before
+  invoking anything, and a transfer the budget ends records the stop, keeps
+  what was observed and enters the restoration with nothing after it started.
+  The C1 regression is sharpened to the same counter (a positive `ev_oom` and
+  an unreadable `ev_oom`, in either order), the case the earlier aggregation
+  lost. Regressions: a configuration transfer that spends the budget starts no
+  probe; a recorder transfer that spends it starts no recorder and removes the
+  probe it owns; the dispatchers given `0`, an empty value or a non-number call
+  nothing and answer 124. `test_broker_measure_driver.py`: 19 cases;
+  `test_broker_hold.py`: 60. The sealed local records were not touched and
+  no live run was repeated.
+- **The first authorised C3 session (2026-09-23) and what stopped it on its
+  first host step.** With the student's explicit authorisation for one C3
+  diagnostic on the reviewed code (`f119887`, the tree PR #43 merged into
+  `dev` as `43ee9ce`), the session `20260923T165315Z_guest-session_attempt03`
+  was opened from the execution clone at `f119887` and the live preflight
+  `20260923T165407Z_live-preflight_attempt04` passed (valid, pass, exported).
+  `broker_measure.sh` then ended on its first host step, before anything on
+  the guest was touched: `20260923T165939Z_broker-hold-measurement-c3_attempt01`,
+  outcome not-run, exit 2, `restoration=untouched`, exported as an incomplete
+  package. The cause, read from the step's console record: the host preamble
+  sources the secrets file of runbook 5.2, which also carries the controller's
+  settings for the guest, among them `EGW_SCHEMA_DIR=src/schemas`, a path
+  relative to the deployment tree; the repository's simulator, run by
+  `generate` from `src/` of the clone, resolved the schemas from that value
+  and found no such file (`STOP: [Errno 2] … src/schemas/telemetry-envelope-v1.schema.json`).
+  The workstation's local check had not met it because it never sourced that
+  file. The guest was read back through the session's own helpers afterwards:
+  the six services running and healthy, no probe container, volume, directory
+  or recorder unit. **Correction:** `generate` runs with the venv only, from
+  the clone's root (`hv`), and never inherits the guest's settings; the other
+  host steps keep the secrets they need. The stub bench's secrets file now
+  carries the same guest-relative schema path and its `generate` fails on it
+  as the real one does, so the lifecycle cases would fail on the previous
+  driver; the real `generate` was also re-run on the host both ways (exit 2
+  with the sourced file from `src/`, exit 0 with the venv only from the clone
+  root). 19 lifecycle cases pass. No measurement was made and none is repeated
+  here: the session stays open, untouched, for the student's decision on
+  running the measurement with the corrected driver.
+- **The C3 measurement on the guest (2026-09-23): four attempts in one
+  session, the fourth complete.** After the student's authorisation to keep
+  correcting prerequisite and instrument defects and retrying in the same
+  session (`20260923T165315Z_guest-session_attempt03`, booted from `f119887`;
+  live preflight `20260923T165407Z_live-preflight_attempt04` valid, pass):
+  `attempt02` (`20260923T192226Z…`, code `4736aee`'s predecessor `b1493c7`)
+  ended in `probe-config` after the stack had been stopped — the provenance
+  line hashed the deployed `acl` without `sudo`, and on the guest that file is
+  readable by root only (runbook 5.4a); the measurement copies had been made,
+  nothing of the probe was created, the restoration started the stack again
+  (`compose start` 151 s, healthy again 48 s) and verified it; corrected by
+  hashing the deployed originals with `sudo`, verified read-only on the guest.
+  `attempt03` (`20260923T193227Z…`, code `4736aee`) ran P0–P8 in full: S1, S2,
+  S3 and S5 held, and the verdict was **inconclusive** on one row of the
+  recorder — the stop of the recorder unit arrived during the `docker
+  inspect` of its last sample, the interrupted read gave `?` for the
+  container's state and restart count, and that partial row was written;
+  corrected in the recorder (a sample the stop interrupted is not written;
+  `tr` no longer used), pinned by `src/tests/test_probe_recorder.py` under
+  `sh` and the image's own busybox, whose case ends the recorder's whole
+  process group inside a sample's `docker inspect`, as `systemctl stop` ends
+  the unit, and asserts the interrupted sample is not written. **`attempt04`
+  (`20260923T195448Z_broker-hold-measurement-c3_attempt04`, execution commit
+  `8e68017`, drivers sha256 `64c7c314…`, export tool `544c9b3d…`, clone
+  clean): the broker verdict is `supports` — every one of S1–S5 holds —
+  instrumentation valid, system outcome pass, restoration
+  `stack=healthy probe=removed recorder=stopped`, exported and verified
+  (81 entries).** The broker: the pinned image
+  `eclipse-mosquitto:2.0.22@sha256:212f89e1…` as the guest's engine holds it
+  (image id `sha256:5fef2509…`, container `19fb23a0…`, labelled with the
+  attempt; `memory.max` 134,217,728 in
+  `/sys/fs/cgroup/system.slice/docker-19fb23a0….scope`; `$SYS/broker/version`
+  `mosquitto version 2.0.22`), with the measurement copies
+  `mosquitto.measure.conf` sha256 `5ea34d9f…` and `acl.measure` `3b1cc2af…`
+  (the deployed originals `057c0919…` and `76804469…`), W = 4,999, Q = 1,000,
+  expiry 1 h, A = 4,999, B = 1,100 at 11.2 msg/s, the phases at the design's
+  durations (P0 61 s, P1 11 s, P2 446 s, P3 130 s, P4 2 s, P5 98 s, P6 70 s,
+  P7 33 s, P8 30 s), 1,100.0 s (18 min 20 s) between the attempt's recorded
+  start and end, the stack's stop (17.9 s) and restart (122.9 s, healthy
+  again in 49.1 s) included, and 18 min 37 s from the driver's invocation to
+  its exit with the export. What the records show: the subscriber held 4,999 distinct
+  deliveries with DUP = 0 and acknowledged nothing (S2); the store rose from
+  its baseline of 51 to 5,050 by the end of P3 and to 6,050 by the end of P6,
+  with no drop through P4 and 100 dropped in P5–P6 — the queue counted
+  **above** the in-flight window (store W + Q, dropped B − Q), and the broker
+  logged `Outgoing messages are being dropped for client egw-probe-hold.` at
+  the deployed log types (S3, N4); no OOM, no restart, the container running
+  throughout, the recorder's 635 rows covering P2–P7 with no unreadable value
+  and no interval over the 5 s limit (385 intervals of 1 s and 249 of 2 s: not
+  an unqualified 1 Hz), docker reporting `OOMKilled=false` and `RestartCount=0`
+  before removal; peak memory 12,750,848 bytes (12.16 MiB) against 128 MiB,
+  anon 6,111,232 and file 2,854,912 at the peak; about 771 B of anon per held
+  message in P2 and about 737 B per queued message in P5, figures of this one
+  run (S4); on the resumed session (`session_present` true) every one of the
+  5,999 held messages came back once, the 4,999 with DUP = 1, first copies in
+  ascending `seq` per device, all 5,999 acknowledgements succeeded, the 1,000
+  P5 messages redelivered being exactly the first 1,000 published and the
+  other 100 the ones the broker's own count dropped, the store back at 51 by
+  the end of P8 (S5); the broker started with the five added lines and logged
+  no configuration error (S1). The only error line in its log is the TLS
+  `unexpected eof` of the subscriber killed without a DISCONNECT, and the
+  only warnings are about the measurement acl's permissions. **What this
+  establishes:** the broker-side premise of option 5 holds on this guest for
+  this run, as ADR 0011's condition C3 asks; nothing more — not the
+  controller's recovery, not timely delivery at 11.2 msg/s, no gate and no
+  claim. The queue's accounting and the drop line settle two of gate item 1's
+  open points for 2.0.22 as pulled by this guest.
+- **The session's close, and a false reading of it.**
+  `guest_session_close.sh` stopped the stack, recorded no OOM in the boot,
+  powered the guest off (QEMU ended with exit 0 at 20:14:28Z), recorded the
+  root file system and the data disk afterwards and exported the session —
+  then ended 5 with "a qemu-system-aarch64 process is STILL running",
+  because its final check, `pgrep -af qemu-system-aarch64`, matched the
+  **calling shell**, whose own command line held that string (the wrapper
+  this session used to run the driver). No such process existed
+  (`pgrep -x`), the guest refused ssh, and the session was closed. The
+  exported package `20260923T165315Z_guest-session_attempt03` keeps its
+  recorded verdict (`controlled_stop=failed`) as every package does; this
+  entry and `~/egw-exec/notes/2026-09-23-current_session-cleared.txt` record
+  the correction, and `current_session` was cleared by hand after the check.
+  The sealed session spans 16:53:15–20:14:32 UTC (17:53–21:14 in Lisbon),
+  3 h 21 min including the waits between attempts; that is the session's
+  elapsed time, not its measured windows and not the attended engineering
+  effort. **The first correction was itself wrong:** `86fc50d` matched the
+  process by its exact name (`pgrep -x qemu-system-aarch64`), but the name
+  Linux keeps for a process is cut at 15 characters and this one has 19, so
+  that test can never see a running guest — a defect the project manager
+  found on inspection, after the measurement and never exercised in it. The
+  open and close drivers now ask `qemu_procs` (`guest_common.sh`), which
+  matches the executable at the start of the command line and keeps pgrep's
+  three answers apart (present, absent, indeterminate);
+  `src/tests/test_qemu_process_guard.py` shows it on real processes — a
+  `sleep` reached through a symbolic link named `qemu-system-aarch64`, a shell
+  whose command line merely holds the string, nothing, and a `pgrep` that is
+  not there — and shows the two obvious tests wrong on the same processes.
+- **Decisions and next steps.** No decision. The measurement's result goes
+  to the student and the project manager for the recovery and scope decision
+  on package D, with the remaining hours and the full schedule; option 5
+  stays a proposal, the qualifying G3 runs stay paused.
+
+## Entry #C041 — The student's decision on package D: option 5 for bounded implementation; ADR 0011 enters the repository with its review record
+
+- **Date:** 2026-09-24. **Scope:** documentation only — the decision record,
+  its index row, the amendment note in ADR 0010, the review record, a marker
+  in `PROGRESS.md` and this entry. No code, contract text, deployment file,
+  test, guest session or measurement is part of this entry; the implementation
+  follows in its own pull request.
+- **What.** `docs/adr/0011-controller-restart-recovery.md` — status: accepted
+  by the student for bounded implementation (2026-09-24). Its section "The
+  decision recorded on 2026-09-24" records the decision and the choices that go
+  with it: A3(a) in process under A5's bound; `max_queued_messages 1000` and
+  `persistent_client_expiration 1h` as the candidate's configuration, not a
+  validated capacity or expiry; C2 declined knowingly, with what is lost
+  stated; T1; no optional proof extension, no T2, no T3; the checkpoints of
+  2026-09-27 (or eight reported engineering hours), 2026-10-01 and 2026-10-03
+  with the return to the student if a terminal one is missed; and what the
+  decision does not authorise (no guest session, no gate, no claim, the pause
+  on the qualifying G3 runs in force). The review record
+  `docs/reviews/2026-09-23-adr-0011-package-d/` — the two first analyses, the
+  backlog diagnosis, the four gate notes with their scripts and outputs, the
+  refutation check, the verification reports, the review annex and the
+  decision request; its `README.md` says what is not kept there (third-party
+  documentation copies, identified by hash; the guest files extracted for gate
+  item 2, held in `output_test`; superseded versions) and where it is. The
+  index row in `docs/adr/README.md`; the amendment note at the head of ADR
+  0010; the marker in `PROGRESS.md` beside the student's answer on the pause.
+- **Why.** The G3 qualifying runs are paused until the candidate is frozen
+  after package D (the student's answer of 2026-09-21). The diagnosis of
+  2026-09-20/21, the four gate notes of 2026-09-21, the refutation check
+  applied on 2026-09-23, the broker measurement that met condition C3 on
+  2026-09-23 (#C040), and the project manager's corrections D1–D3 of
+  2026-09-23 and note of 2026-09-24 brought the decision to the student, who
+  decided option 5 on 2026-09-24 ("Avança com a opção 5").
+- **Corrections carried into the published record.** (i) Mosquitto 2.0.22
+  logs `Outgoing messages are being dropped for client <id>.` once per client
+  at the transition into dropping and clears that flag only at the client's
+  next CONNECT (`src/database.c`, `src/handle_connect.c` of the tagged
+  source); every drop increments only the broker-wide `$SYS` counter. The
+  line is presence for that connection, not a count and not per run, so
+  declining C2 loses run-level drop accounting (N4, C2; the earlier wording
+  "the run-level drop evidence is in the broker log, C2 or not" was wrong).
+  (ii) Two paragraphs of "Relationship with the throughput problem" no longer
+  say that nothing in option 5 would improve the timing figures, nor that the
+  zero-lost gate is expected to fail under every option: recovery is not a
+  timing change and the changed candidate is unmeasured either way. (iii)
+  Q = 1,000 and the one-hour expiry are exercised configuration values — the
+  expiry of a disconnected session, not a message lifetime — not a validated
+  capacity; the 28.5 s × 11.2 msg/s sizing holds for r02's outage only.
+- **Result.** Documentation. The link checker (122 Markdown files) and the evidence verifier (909 artefacts across 24 seals) pass locally with the record and the review record in place. The code at `dev` implements
+  none of ADR 0011.
+- **Decisions and next steps.** The student's decision is recorded; nothing
+  here accepts a gate or admits a claim. Next: the bounded implementation on a
+  branch from `dev` — the twenty items of "What must change", the contract
+  text, the regression tests with fakes and an identified controller image —
+  with the progress return by 2026-09-27 or after eight reported engineering
+  hours, whichever comes first. The finite proof, the resumption of the
+  qualifying battery and the G4 pilot each need the student's separate
+  authorisation.
+
+## Entry #C042 — The bounded implementation of ADR 0011: acknowledgement after the outcome line on a persistent session, the connection end, the stop, the session fields, the harness and runbook evidence, the hashed dependency lock
+
+- **Date:** 2026-09-24. **Scope:** the twenty items of ADR 0011's "What must
+  change" except item 17 (the `$SYS` grant, declined by the student), the
+  contract v1.2, the regression tests with fakes, and the record of the
+  implementer's choices in the ADR. Verified with fakes only: no broker,
+  Ditto, guest, image build or measurement is part of this entry. The
+  qualifying G3 runs stay paused; the finite proof, the battery and the G4
+  pilot each need the student's separate authorisation.
+- **What.** Controller (`src/egw_controller/`): the client built with a
+  persistent session and manual acknowledgement; the delivery identity
+  stamped on the network thread; one lock for the connection identity, the
+  acknowledgement window, `unacked`, the CONNACK count and the subscription;
+  the PUBACK of a QoS 1 delivery requested by the consumer from the flag set
+  after its outcome line was written, before the next delivery is taken, and
+  only on the connection that delivered it; a delivery without a line — the
+  event log unwritable, an exception after the Ditto 2xx — ends
+  acknowledgement and the connection, in process, through a supervisor
+  thread with a back-off (1 to 30 s) and a bound (ten consecutive ends
+  without an acknowledged delivery leave the client disconnected, visibly);
+  the purge and skip of an ended connection's deliveries, counted `dropped`;
+  every other exception before the `PATCH` a `failed` line naming it, the
+  decode stage catching `ValueError` and `RecursionError`, a non-string
+  `device_type` rejected, an unusable twin body and a non-transport `httpx`
+  error `failed` and never retried, odd twin containers read as empty;
+  `on_message` never raising; readiness only on a QoS 1 grant; the stop
+  without a marker or a post-disconnect drain; `mqtt_subscribed`,
+  `mqtt_connection` and `unacked` in `/metrics`; one unbuffered write per
+  event line with nothing kept for a later flush. Deployment: the six C1
+  options in `mosquitto.conf`, `stop_grace_period: 130s`,
+  `src/requirements-runtime.lock` (hashed; paho-mqtt 2.1.0) installed by the
+  Dockerfile with `--require-hashes`. Harness (`src/egw_experiments/`): ten
+  added columns in `controller_metrics.csv`; the broker-log, controller-log
+  and docker-events fetches; for `controller_restart`, the twin snapshots,
+  the blocking drain and the post-drain fetch, or the same artefacts
+  ingested from the runbook helpers' files and verified against the run;
+  the configuration identity validated and embedded in the manifest; a
+  configured hook that fails, a file that does not verify and a drain
+  that errs are validity reasons, a drain that gives up a valid
+  observation of failed recovery. Runbook 6.1:
+  `_mline` with the thirteen fields and the identity, `drained` quiet only
+  on a subscribed connection with nothing unacknowledged, the Section 7 and
+  Appendix B passages restated, test 6's expected list. Contract v1.2
+  (`src/CONTRACTS.md` sections 1, 5, 9). ADR 0011: the implementation record
+  (choices, deviations, what stays outside); ADR 0010 amended (#C041).
+- **Corrections after the reviews of 2026-09-24**, each with a regression:
+  the bot review of the pull request — one A5 occurrence per connection;
+  the restart evidence required; the configuration identity validated
+  (F4) — and the project manager's findings F1, F2, F3, F5 and F6: an
+  ended connection is retired the moment the end is requested, so no
+  later delivery of it is applied ahead of the one the broker resends (a
+  never-applied identity can no longer become a duplicate); a drain that
+  gives up is a valid observation of failed recovery, not invalid
+  evidence; a cancelled consumer ends the connection, the bridge stays
+  disconnected, readiness needs a live consumer and shutdown cleans up
+  whatever awaiting the pipeline raised; the collector's window carries
+  the snapshot's allowance; the missing-evidence flag is gone — the
+  runbook helpers' files are ingested and verified instead. The ADR's
+  implementation record and the contract state the repaired rules.
+- **Why.** The student decided option 5 on 2026-09-24 (#C041). The
+  implementation is the second of the four things the record requires
+  before the behaviour becomes the one it proposes; the third and fourth —
+  the finite proof and its support — follow on the guest under separate
+  authorisation.
+- **How it was verified.** The full suite ran in the WSL venv (Python 3.12)
+  on `95ed23d`, after which only the ADR's implementation record changed (a
+  file no test reads): 2,283 passed, 64 skipped, 3 failed, in 18 min 15 s.
+  The package `HIST_2026-09-24-pr46-full-suite-attempt01` under the local
+  `output_test` holds the output with every skip reason, the JUnit report,
+  the isolated reruns, the clock evidence and the checksums. The three
+  failures are cases of the broker-measurement driver's stub bench
+  (`test_generate_never_inherits_a_schema_directory_from_the_callers_environment`,
+  `test_a_recorder_stop_that_failed_is_never_declared_stopped_even_with_a_readable_csv`,
+  `test_a_volume_whose_label_is_not_exactly_the_attempt_id_is_left_alone`),
+  whose files this entry does not touch: the WSL2 host clock is stepped
+  backwards by 2–3 s about every 30 s, the recorder script the bench runs
+  stamps its rows with `date +%s`, and the probe's verdict rightly calls a
+  run with a decreasing epoch inconclusive, so a bench case fails whenever a
+  step falls inside its window. Rerun alone, two passed and one failed again
+  with the same reason; the whole bench module failed four cases; the same
+  module on plain `dev` (`f64a57f`) failed one case with the same reason.
+  The failures are recorded as they happened; no bench rule was changed, and
+  the bench's immunity to a backward host clock step is a separate task. The
+  64 skips are the platform skips (53 guest-shell cases that need the
+  BusyBox wrappers, 11 NTFS-junction cases). The Markdown link checker, the
+  evidence verifier and shellcheck at error severity pass on the final tree;
+  the hashed lock was resolved inside the pinned base image under
+  `linux/arm64` user-mode emulation on the workstation (the container
+  reports `aarch64`), by the lock script's own steps, with `pip check` clean.
+- **What it does not establish.** Nothing about the controller's recovery,
+  timely delivery or the broker's behaviour with this controller: the code
+  ran only against fakes. The changed candidate is unmeasured. The controller
+  image for the proof is not built; the log-fetch helpers, the regeneration
+  of the deployed helper file and the proof's evaluator (S1–S6, R1–R4, S4
+  with the twin's evidence of a named N1 case) are the next work, before the
+  proof (the capture of the configuration identity is the runbook's
+  `config_identity` helper, corrected on 2026-09-25, below).
+- **Delta of 2026-09-25 (review at `d561978`).** Three corrections, each
+  with a regression. D1: `qualify_recovery` fails its criterion whenever the
+  campaign plan lists no `controller_restart` run, whatever `raw/` holds
+  (an unplanned directory stays listed, marked unplanned, and never stands
+  for a planned run); an unreadable plan is named as such in the detail.
+  D2: the runbook's `config_identity` reads the broker log into a variable
+  with the exit status of `docker compose logs`; a non-zero status or an
+  empty output stops on the guest with the reason and exit 5, the host stops
+  naming it, and no identity is written, so a count of zero reload lines
+  comes only from a log that was read; the regressions execute the remote
+  fragment itself under stubs (the ssh stub's executing mode runs it with
+  `sh -c`, `cd` sent to a stub deployment directory, stub `docker` and
+  `sudo`): a read without a reload line gives false, one with a reload line
+  true, a failed read with nothing streamed or with part of the log streamed
+  stops, an empty read stops. D3: the warm-up variant's example of test 6
+  (which named the preceding restart run's post-drain copy) is withdrawn;
+  the passage states that no executable procedure is given and what the
+  variant needs (its own `before` snapshot, a drain, its own post-drain copy
+  with `--events`, the warm-up log with `--also`, the `after` snapshot after
+  the drain); test 6's main lines are unchanged and a test holds the section
+  to that. The ADR's implementation record now names the capture helper as
+  part of the pull request. Verified: the three modules
+  `test_recovery_qualification.py`, `test_runbook_itest_helpers.py` and
+  `test_experiments_cli.py`, 194 passed, in the WSL venv, recorded in the
+  local package `HIST_2026-09-25-pr46-delta-regressions-attempt02` with the
+  commit (`178775a`), the tree hash, the branch and a clean status captured
+  before the tests ran (attempt01 of the same selection is kept as the
+  record of a failed identity capture, with a note and its first seal kept
+  as `SHA256SUMS.1`); the link checker, the evidence verifier and shellcheck
+  pass. The CI of `7fd72d4` then failed one case, the runbook-parsing test
+  of `itest_reconcile` whose anchor was the withdrawn `--also` example (the
+  focused selection had not included the modules that read the runbook):
+  the anchor moved to test 6's `--events` line (`44d2e41`), and the six
+  modules that read the runbook or belong to the delta (679 passed) are
+  recorded in `HIST_2026-09-25-pr46-delta-regressions-attempt03` with the
+  commit `44d2e41`, the tree hash and a clean status captured before the
+  run; the CI of the final head is the record for the whole suite. A
+  qualification of the full-suite statement above: the association of that
+  run with `95ed23d` is a reconstruction from commit times, because the
+  script's identity capture failed and its empty status lines do not
+  establish a clean tree; the correction note beside that capsule
+  (`HIST_2026-09-24-pr46-full-suite-attempt01_CORRECTION_NOTE_2026-09-25.txt`)
+  states this, the inferred causes of two of the three bench failures and
+  the replaced first seal.
+- **Decisions and next steps.** No decision; nothing accepted. Next: the
+  progress return of the 2026-09-27 checkpoint (or the eighth reported
+  engineering hour), the proof's session driver, evaluator and identified
+  image, then the finite proof under the student's authorisation.
+
+## Entry #C043 — The finite proof's tooling (ADR 0011): the evaluator, the session driver and its hooks, the diagnostic plan, the session facts and the guest-state extension; no session run
+
+- **Date:** 2026-09-25. **Scope:** the preparation the Project Manager's
+  final advice on PR #46 lists (section 5, items 2 and 4): the finite-proof
+  evaluator and the session driver, as code and unit tests only. No guest
+  session, no image build, no C3 repeat, no change to any criterion,
+  threshold, count, stop rule or validator. Branch
+  `feat/adr-0011-finite-proof` on `dev` at `60ebd8c` (the merge of PR #46).
+- **What.** `src/egw_experiments/proof_evaluator.py`: S1–S6, R1–R4 and the
+  inconclusive rule applied by identity to the post-drain copy of the
+  events, the twin snapshots, `controller_metrics.csv` (file order; an empty
+  cell is absent, never zero; `started_at` splits the processes; the kill
+  placed on the controller clock between the last pre-kill and the first
+  post-kill reading) and the controller log's A5 occurrences; the ADR's rule
+  texts verbatim as constants and pinned to the ADR by a test; the verdict
+  document `proof_verdict.json` with three sections never merged
+  (instrumentation, system outcome, restoration), every identification rule
+  labelled (P-1 to P-7 of the design, E-1 to E-9 of the implementation and
+  its reviews), the named N1 cases with source and twin surplus, the
+  harness's validity quoted and never decisive, no timestamp, exit codes
+  0 supports / 1 refutes / 3 inconclusive / 2 not evaluated. A refutation
+  rests only on evidence that was read and verified (E-7): an absent,
+  unverified or unreadable post-drain copy or twin snapshot makes the
+  affected criteria null and the run inconclusive, never a refutation.
+  `tools/session/proof.sh`: the session driver in the pattern of
+  `nominal.sh` and `broker_measure.sh` — prerequisites and every value
+  recorded before the first `drained` (on the attempt and in
+  `analysis/proof_session.json`), the deployed helper file byte-equal to the
+  runbook's 6.1 heredoc, the stack healthy as stop rule 1, the SUT
+  environment, guest state, containers and controller process before, the
+  one-entry diagnostic plan (`proof_plan.py`: a `controller_restart` entry
+  of 300 s at 11.2 msg/s, seed derived, refusing any campaign or pilot id),
+  the `/ready` wait as a step of its own before the attempt's clock, `pre` (starting with `drained`) with the configuration identity checked against the expected source
+  commit and `broker_reloaded` false, the harness run of the runbook's
+  `harness_cmd` arguments with the proof's hooks appended under `timeout`
+  on `/proc/uptime` as stop rule 2 (measured from the instant before the first `drained`), the restart shown from the driver's own
+  records, `metrics after`, the runbook's `delta` on the post-drain copy,
+  the prefix snapshots into the package, the session facts, the evaluator,
+  `guest_state_delta.py --expect-restarted egw-controller-1`, the healthy
+  wait as the restoration before the evaluator runs, the optional extension only with
+  `EGW_PROOF_EXTENSION=yes`, bounded by the ADR's two per-step stop rules and recorded apart, the three verdicts never
+  merged, the interrupt forwarded to the harness, every exit through
+  `driver_status.py`. The hooks: `proof_hook_twins.sh` (the `before` and
+  `after` snapshots through `$REC snap`, write-once), `proof_hook_drained.sh`
+  (the runbook's `drained`, refusing `DRAIN_QUIET_S` below 130),
+  `proof_fetch_sut_log.sh` (the broker, controller and docker-events logs
+  under the D2 rule: a non-zero status or an empty output is "not read",
+  no file), `proof_restart_controller.sh` (the fault: SIGKILL of the
+  controller's container followed by a start, the guest instants and the
+  container's id and start instant recorded before and after, write-once).
+  `proof_session.py` (the session facts, write-once then updated through
+  rename) and `proof_helpers_check.py` (the deployed helper file against the
+  heredoc, the extraction pinned to `regen_helpers.py`).
+  `guest_state_delta.py --expect-restarted <name>`: one in-place restart of
+  that container (same id, later start, restart count unchanged, no OOM) is
+  reported as expected, never a fault; anything else stays a fault, and an
+  expectation the pair does not show is a problem (exit 2). `tools/session/README.md`
+  and `experiments/README.md` describe the driver, its values and the layer.
+- **Why.** ADR 0011's implementation record reserved these for the proof's
+  session driver and evaluator; the Project Manager's advice of 2026-09-25
+  asks for them to be completed and unit-checked, reusing the configuration
+  identity's capture, before one short execution request is presented for
+  the student's authorisation. The identification rules that turn the
+  criteria into code are stated and labelled rather than decided silently:
+  they need the Project Manager's confirmation, listed in the pull request.
+- **How it was verified.** Unit tests only, under stubs, in the WSL venv
+  (Python 3.12): on the merged branch at `1cfd626` the seven modules the
+  branch adds or that read its files ran together, 903 passed
+  (`test_proof_evaluator.py` 54, `test_proof_driver.py` 62,
+  `test_proof_hooks.py` 24, `test_proof_plan.py` 25,
+  `test_session_drivers.py`, `test_runbook_itest_helpers.py`,
+  `test_experiments_run.py`); after the four editorial corrections of the
+  driver that followed its re-review, the driver module ran again (one case
+  adjusted to the refusal of a results base with a double quote, the rest
+  unchanged). Every part was reviewed by an independent reader and every
+  confirmed finding corrected with a regression: the phase-1 reviews (a P1
+  on the evaluator's refutations over evidence it did not read, a P2 on the
+  restart hook's stderr budget), the driver's review (a P1 on the interrupt
+  not reaching the harness under `timeout`, two P2s on the extension), the
+  branch review (a P1 on a duplicate-only identity inside the sampling band
+  read as R3, three P2s on the evaluator's evidence rules and tests) and
+  the re-reviews (a P2 on R4 suppressed on read twin evidence); mutation
+  checks pinned the rules the reviews named. shellcheck at error severity
+  is clean over the driver and its hooks; the Markdown link checker and the
+  evidence verifier pass. The package
+  `HIST_2026-09-25-finite-proof-tooling-attempt01` under the local
+  `output_test/runs/2026-09-25/` records the same seven modules run on the
+  committed tree `277092b` (tree `9982256`, clean status, captured before
+  the run): 903 passed, sealed; the commit after it changes this entry
+  only. The CI of the final head is the record for the whole suite.
+- **Delta of 2026-09-25/26 (the Project Manager's review of the pull
+  request at `3bf2fd5`).** Four findings corrected, each with regressions,
+  then checked by an independent joint review that ran the proof's cases
+  through the harness's own functions, which found two further defects the
+  per-part reviews had missed; both corrected. F1, eligibility: the proof
+  is evaluated only on the prescribed execution and its records (E-11,
+  P-16): the plan's load and the fault requested at t+150 s, simulator
+  exit 0, a completed publication against a whole population record, the
+  fault executed and shown, both event copies, the collector file. The
+  harness's validity is admitted by one function both parts call (E-12,
+  `harness_admission`): a valid run, or the exact form the harness writes
+  when the ADR's `MAX_SAMPLE_GAP_S` exception applies — the collector
+  file rejected for sampling gaps alone and kept under `logs/collector/`,
+  two reasons derived from it, the seal withheld for it — which the first
+  correction had made unreachable because it looked for a reason the
+  harness never writes; the archived r02 run is recognised as that form.
+  F2, the stop rules: one deadline from the first `drained` over every
+  live observation, the harness's runbook preamble included; the
+  candidate's health measured from the stack's start; any rule reached
+  records the proof inconclusive; the restoration never cut. F3, N1
+  sources: each recorded death, and each A5 occurrence of the device's
+  own, serves at most one case and only a candidate whose redelivery it
+  may have preceded, across the whole run (E-10); a case is named only as
+  every legitimate assignment names it, and contending candidates are R3
+  as a group with no member singled out (E-13); an unreadable reading
+  never makes a death vanish. R1: the next action follows the attempt's
+  final verdicts (P-17). Tests that encoded a wrong rule were corrected
+  and say so. Verified: the eight modules `test_proof_evaluator.py`,
+  `test_proof_driver.py`, `test_proof_hooks.py`, `test_proof_plan.py`,
+  `test_session_drivers.py`, `test_runbook_itest_helpers.py`,
+  `test_experiments_run.py` and `test_experiments_itest_reconcile.py`
+  together, 1,080 passed, recorded in the local package `HIST_2026-09-26-pr47-review-corrections-attempt01` with the commit
+  (`8eb6f99`), the tree (`38a7376`) and a clean status captured before
+  the run; mutation checks and a fuzz against a brute-force enumeration of
+  the source assignments pinned the naming rules. The package is at the
+  local `output_test/runs/2026-09-26/`; the commit after it changes this
+  entry only. Known and stated: a
+  candidate every legitimate assignment names can, in one reading order,
+  be left unshown in a run that is already inconclusive or refuted on
+  other grounds — the result is the same in every order (fuzzed). (The
+  first version of this paragraph also left the harness step's own
+  preamble outside the 50-minute bound; that is superseded by the closure
+  batch of 2026-09-26 below.)
+- **Closure batch of 2026-09-26 (the Project Manager's delta review of
+  `f8465b4` and the closure work order).** Three corrections, each
+  reproduced first on `f8465b4` (the failing output kept in the local
+  package `HIST_2026-09-26-pr47-closure-red-and-iterations`). F1b: a lost,
+  malformed or torn sent record of an N1 identity no longer produces an
+  R4 — when the population is not whole, a duplicate-only identity the
+  post-drain copy shows without a readable record is an undecided
+  candidate of its device (E-7, E-9), while a double acceptance, a
+  `last_seq` regression and a surplus beyond what the unread identities
+  could explain still refute. F2a: the harness step's own runbook preamble
+  and its body run together under the attempt's remaining bound, so a
+  tunnel that drops after `tunnel-ready` is ended by the 50-minute rule
+  before any harness or fault starts, the restoration still attempted.
+  F2b: the shared healthy wait prints when the healthy sample completed
+  (one additive line; its other consumers parse as before) and the
+  20-minute rule judges that completion, not the sample's start; the
+  acquisition runs under the remaining allowance, so a blocked inspection
+  ends in the rule reached; an earlier health record is reused only when it
+  carries a completion within the allowance. A console capture lost after
+  the 50-minute rule names the rule in the final reason. Verified on the
+  integrated tree: `test_proof_evaluator.py`, `test_proof_driver.py`,
+  `test_session_drivers.py`, `test_proof_hooks.py`,
+  `test_broker_measure_driver.py` and `test_qemu_process_guard.py`
+  together, 557 passed, in the local package `HIST_2026-09-26-pr47-closure-integrated-attempt01` with the
+  commit (`79cc809`), the tree (`5323608`) and a clean status captured
+  before the run; the commit after it changes this entry only. The
+  closure review of `5a7b967` found one interaction left: a device holding
+  an unread identity was taken out of E-10's capacity check, so a lost
+  record hid an aggregate R4 that the complete source records establish
+  (one death, no A5 occurrence, two increments); the unread identity now
+  stays in the check, offered every source that may have preceded its
+  redelivery, the attribution uncertain but not the sources. The
+  regression failed first on `5a7b967` (local package
+  `HIST_2026-09-26-pr47-capacity-fix-red`); `test_proof_evaluator.py` and
+  `test_proof_driver.py` together, 203 passed, in
+  `HIST_2026-09-26-pr47-capacity-fix-attempt01` with the commit
+  (`55c3986`), the tree (`be8c075`) and a clean status captured before the
+  run.
+- **What it does not establish.** Nothing ran on the guest: no recovery was
+  observed, the candidate is unmeasured, and the identification rules are
+  proposals until confirmed. The identified ARM64 controller image is not
+  built and not loaded (the student's build authorisation is to be
+  confirmed); the deployed helper file was regenerated on the WSL host from
+  `60ebd8c` on 2026-09-25 (sha256 `e76f036e…`, the previous kept beside it),
+  not on the guest; it is regenerated again from the merged source before
+  any session. The first version of this entry left the post-window
+  observations outside the 50-minute rule as a scope question; that is
+  superseded: after the Project Manager's review of 2026-09-25 one
+  deadline bounds every live observation after the first `drained` (P-10).
+  Open before the session: whether `restart: unless-stopped` restarts the
+  container by itself before the explicit start (V-1), the restart-shown
+  step observing the effect either way, and that the hooks' ssh alias and
+  the driver's pinned host key reach the same guest (V-2).
+- **Decisions and next steps.** No decision; nothing accepted. For the
+  Project Manager: the identification rules as they now stand (P-1 to
+  P-17, E-1 to E-13), the driver's additions (`EGW_PROOF_MASTER_SEED`
+  required, `EGW_PROOF_RUNBOOK`, `EGW_PROOF_EXTENSION_LIMIT_S` 1790, the
+  extension's "not-refuted" label) and the plan helper's guards. For the
+  student: the build and archive authorisation, separate from the load,
+  deployment and session authorisation; the run id and master seed;
+  `DRAIN_QUIET_S`; the optional extension; the image kept after the proof;
+  a verified offline copy of the current data disk before the next boot,
+  or an explicit waiver of it; and the session authorisation itself. Then the image
+  from a clean checkout, the execution request with the identities filled
+  in, and the session under separate authorisation. G3 stays paused; C3 is
+  not repeated.
+
+## Entry #C044 — The quiet timer of `drained` on `/proc/uptime` (review of finite proof r01)
+
+- **Date:** 2026-09-26. **Scope:** the Project Manager's bounded work order
+  after the result of `proof-adr0011-r01`
+  (`ChatGPT/FINITE_PROOF_R01_RESULT_REVIEW_2026-09-26.md`, section 3): the
+  quiet timer only. No criterion, threshold, count, stop rule or validator
+  changed; the 490 s window (as exported for the proof), the 900 s limit
+  and the reset on activity are unchanged. Branch
+  `fix/quiet-window-monotonic` on `dev` at `489bc9e`.
+- **Defect.** `drained` (runbook 6.1) timed its window and its limit on
+  Bash `SECONDS`, that is on the WSL2 host's wall clock. In r01 the host's
+  `/proc/uptime` advanced 484 s from the first `drained` to the harness
+  start while its wall clock advanced 500 s
+  (`analysis/proof_session.json`), so the 490 s window is not demonstrated
+  on the drivers' monotonic basis. The cause is not established. A
+  10-minute host-only trace (idle, then every CPU busy; local
+  `output_test/runs/2026-09-26/HIST_2026-09-26-quiet-timer-clock-trace`)
+  kept `/proc/uptime`, `CLOCK_MONOTONIC`, `CLOCK_BOOTTIME` and the WSL wall
+  clock within 0.4 s of the Windows clock and `SECONDS` within its
+  one-second resolution: the disagreement was not reproduced. In r01,
+  whole-second readings taken in sequence (guest first) differ by 2 s at
+  the proof's start and 1 s at the fault; they bound how far the host clock
+  could lead the NTP-synchronised guest clock, not how far it could lag.
+- **Correction.** Runbook 6.1: `_upcs` reads `/proc/uptime` in
+  centiseconds; `drained` reads it before and after every reading, opens a
+  window at the clock read after the reading that opens it and closes it on
+  the clock read before the reading that reaches `DRAIN_QUIET_S`, so the
+  elapsed figure is a lower bound on the time between the two `/metrics`
+  snapshots; `DRAIN_LIMIT_S` runs on the same clock. A clock that cannot be
+  read or goes back, and a `DRAIN_QUIET_S` or `DRAIN_LIMIT_S` that is not a
+  whole number of seconds (a leading zero would read as octal), end
+  `drained` non-zero with neither the success line nor the give-up line (an
+  untimed window is never quiet). Both lines keep their prefixes and whole
+  seconds; the success line ends with the timer's basis and the window's
+  start, end and elapsed, with the wall clock and `SECONDS` recorded beside
+  them (they decide nothing), and the give-up line with the drain's start,
+  end and elapsed. The deployed helper file must be regenerated from this
+  runbook (`regen_helpers.py`): `proof.sh`'s helpers check refuses the old
+  one. The three runbook sentences, the helper table's stop column and the
+  `tools/session/README.md` paragraphs that described the window or the
+  helper's stops now name the clock. The comments of `run.py` (lines
+  529-535, 1337-1340) and `proof_hook_drained.sh` (lines 10-12) still name
+  one stop besides the give-up; a clock stop is classified there as an
+  error, as intended, and those files are left unchanged in this repair.
+- **Tests.** `src/tests/test_runbook_itest_helpers.py`, 20 new cases: the
+  window closes at 490.00 s of `/proc/uptime` and not at 489.99 s, with no
+  wall-clock step, a forward step and a backward step of 1000 s between
+  readings; a slow closing reading (started at 489.99 s, returned at
+  500.00 s) does not close the window; the limit ends the drain at
+  900.00 s of `/proc/uptime` under the three wall-clock cases; activity
+  restarts the window; 490 s since the window opened do not pass when the
+  reading that reaches them is not quiet; an unreadable clock (before the
+  first reading, before a reading, after a reading) and a clock that goes
+  back (between and during readings) are never a quiet window; values that
+  are not whole numbers are refused before anything is timed; `_upcs`
+  reads the real `/proc/uptime`; no decision in `drained` uses `SECONDS`.
+  On the `489bc9e` helper the forward-step and text cases fail by assertion
+  (the window closes after two readings, the limit after two) and the other
+  clock cases do not end; on the corrected helper the module passes
+  (161 cases). The one consolidated review of the first version
+  (`921aca2`) found no blocker; its minor findings are applied here.
+- **Not changed.** `wait_ready` (its 300 s readiness allowance stays on
+  `SECONDS`), the evaluator, the harness, the controller, the controller
+  image. The one ambiguous identity of r01 is a separate question (the
+  execution hand-off records a proposal only).
+- **Decisions and next steps.** None accepted here. The second finite-proof
+  attempt, authorised by the student on 2026-09-26 after this correction is
+  verified, runs the tools at this branch's commit against the controller
+  image built from `489bc9e`.
+
+## Entry #C045 — The finite proof's failed-poll retry of the controller /metrics sampler (review of r02)
+
+- **Date:** 2026-09-26. **Scope:** the Project Manager's brief on PR #48 and
+  r02 (`ChatGPT/PR48_AND_FINITE_PROOF_R02_REVIEW_2026-09-26.md`, section 3),
+  authorised by the student the same day: offline implementation and tests
+  only. The controller, the broker, the image, the evaluator, every
+  criterion and every campaign, pilot and nominal run are unchanged; no
+  guest session. Branch `feat/proof-metrics-fast-retry` on `dev` at
+  `2f5b531` (the merge of PR #48).
+- **Why.** In r01 and r02 one identity's only line was a `duplicate`
+  received inside the band between the last pre-kill and the first answered
+  post-kill `/metrics` reading (E-8), about 0.74 s and 0.56 s before that
+  reading; the 1 Hz sampler had polled the absent controller and then waited
+  the rest of the second. In r01 Uvicorn's startup log precedes "MQTT
+  connected" by about 0.22 s, but no answered `/metrics` request is recorded
+  in that interval (the first logged 200 is at 18:14:40.382, guest clock).
+- **What.** `egw_experiments.controller_metrics`: with `fast_retry_s` set, a
+  poll that failed is followed, once it completed, by the next one after
+  that wait (50 ms) instead of the rest of the second; a success returns to
+  the normal cadence; an uninterrupted failure episode is retried at that
+  pace for at most `fast_retry_cap_s` (60 s) from its first failed request.
+  Requests stay serial with the same five-second timeout, the stop event
+  cancels every wait, and in this mode the thread keeps the wait left by the
+  entry poll (the default thread still polls at once after it); an attempts
+  log without the mode is refused. Every attempt is written to `controller_metrics.attempts.csv`
+  (host instants, outcome, wait); no reading is changed, interpolated or
+  replaced by a host instant. The `run` subcommand's `--metrics-fast-retry`
+  (refused without `--controller-url`) enables it and the manifest's
+  `controller_metrics.fast_retry` records the settings and figures; the
+  campaign has no such option and every other run builds the sampler as
+  before. `tools/session/proof.sh` passes it and records it in the attempt's
+  workload.
+- **Tests.** `src/tests/test_metrics_fast_retry.py`: the scheduling
+  rule with explicit instants (default unchanged; 50 ms after a completed
+  failure; the rest of the second after a success; a failure that took the
+  whole timeout still waits 50 ms; the 60 s cap, counted once per episode,
+  and a new episode after a success; settings out of range refused) and the
+  running thread with a stub fetch (serial requests, never two in flight,
+  the attempts log, the cap, the stop event ending a 5 s retry wait and a
+  10 s first wait within a second, the default's immediate first thread
+  poll and no log); 15 cases;
+  `test_experiments_run.py`: the manifest record and the attempts log only
+  when asked, the option on `run` only, the usage error without a URL;
+  `test_proof_driver.py`: the proof driver passes it and the runbook's
+  harness command does not; `test_proof_evaluator.py`: with the unchanged
+  evaluator, a post-kill reading taken before the redelivered duplicate
+  (early) names the N1 case and the run supports, one taken after it (late)
+  leaves the identity in the band, inconclusive and never refuted.
+- **Limits.** A retry can only observe what the controller answers: the
+  request's own latency adds to the 50 ms, the first answered reading may
+  still come after a redelivery, and a missed observation stays
+  inconclusive. Neither run shows that this setting would have caught an
+  early enough reading. The review found one older defect: an
+  `http.client.HTTPException` that is not an `OSError` (for example
+  `IncompleteRead`, a kill between the headers and the body) is not caught
+  by `_sample_once` and ends the sampler thread (or, on the entry poll,
+  raises in the caller). The Project Manager's closing order for this pull
+  request (`ChatGPT/PR49_BOUNDED_REVIEW_2026-09-27.md`) closes it in the
+  retry mode only: there it is a failed poll, counted, logged and retried
+  after 50 ms, with no metrics row; tests cover it on the entry poll and in
+  the running thread, each followed by a genuine reading. The default
+  sampler keeps propagating it; repairing that is a separate decision, to
+  be revisited before the default sampler is relied on for qualifying
+  failure tests.
+- **Decisions and next steps.** None accepted here. A further finite-proof
+  attempt needs the student's separate decision.
+
+## Entry #C046 — r03 closure: decision, published evidence, normal-sampler repair, run-scoped logs and events, G3 readiness map
+
+- **Date:** 2026-09-29. **Scope:** the Project Manager's work order of
+  2026-09-29 (`ChatGPT/WORK_ORDER_R03_CLOSURE_G3_PREPARATION_2026-09-29.md`),
+  on the student's "Confirmo e autorizo" of the same day: one bounded offline
+  block, four deliverables (A–D), one pull request. No guest session, build,
+  load, proof attempt, pilot or G3 run; the controller, the broker, the image
+  (`489bc9e`), the evaluator and every criterion, threshold and load are
+  unchanged. Branch `feat/r03-closure-g3-prep` on `dev` at `b65a06d` (the
+  merge of PR #49).
+- **Why.** On 2026-09-29 the student accepted r03 (2026-09-28, `supports`) as
+  meeting the finite proof's diagnostic purpose for that run, with the missing
+  Docker kill/start timeline acknowledged. Three things stood between that
+  record and a qualifying battery: the default sampler's handling of a typed
+  HTTP failure (#C045, Limits), SUT log copies that held every earlier session,
+  and a Docker event query that returned only the tail of a bounded history.
+- **What.**
+  - *A, decision and evidence.* ADR 0011 gains "The decision recorded on
+    2026-09-29" (what r01–r03 recorded, what the decision keeps, what it is
+    not, what it authorises) and an implementation record for 2026-09-26 to
+    2026-09-29; its status, its index row and a PROGRESS marker follow. The
+    seven r03 packages are published byte for byte in
+    `docs/evidence/finite-proof-r03/` with a README and an outer seal (the
+    301 package files, 8.15 MiB, and those two); the local originals, their
+    seals and `SHA256SUMS.1` are
+    untouched. `tools/ci/verify_evidence.py` now also reads the coreutils
+    binary-mode marker (`<hash> *<name>`), which the host-preparation seal
+    uses, instead of that seal being rewritten.
+  - *B, the normal sampler.* `controller_metrics._sample_once` counts a typed
+    `http.client.HTTPException` (`IncompleteRead`, `BadStatusLine`,
+    `LineTooLong`) as a failed poll in every mode: `poll_errors`, `last_error`
+    as `Name: message`, no row, the next poll at the mode's cadence. The
+    default sampler used to end its thread (or raise from the entry poll).
+    Cadence, the five-second timeout, the stop event and the retry mode are
+    unchanged; other exceptions still propagate.
+  - *C, logs and events.* In the proof driver, `proof_fetch_sut_log.sh` reads the
+    controller and broker logs with `--since RUN_T0 --until UNTIL` on the
+    guest clock (RUN_T0: the guest epoch at which the run's events recorder
+    was found ready, before tunnel-ready, the harness, the load and the fault;
+    UNTIL: the guest's clock at the fetch), counts and hashes on the guest
+    what the bound leaves out, and checks on the host that every line carries
+    a stamp inside the window; a line outside it or without a stamp fails the
+    read with no file, since `--since` alone is no evidence of the bound. The
+    Docker events come from `proof_events_recorder.sh`, started by `proof.sh`
+    as the unit `egw-events-RUN_ID` (`systemd-run`, write-once directory,
+    recorder checked by sha256, boot id and daemon facts recorded, readiness
+    polled) before the harness, and stopped by the docker-events fetch after
+    the post-drain copy, which causes a closing marker and waits for it,
+    copies the files and runs `events_coverage.py` (R1–R7: start, readiness
+    before RUN_T0, the same boot and daemon, one stop-requested exit, empty
+    CLI stderr, the closing marker captured, JSON lines with `timeNano`, and
+    the fault's kill, die and start only when the run passes them). Only `complete` writes
+    `docker-events.log`; otherwise the hook exits 1 and keeps
+    `docker-events.partial.jsonl`, with the lifecycle, start facts, stop and
+    coverage records kept either way. A recorder that fails to start or is
+    not ready leaves the harness undispatched; the restoration stops a unit
+    the harness did not and records the capture incomplete. No change to
+    `run.py`, the eligibility rules or the evaluator: an incomplete capture
+    reaches `invalid` and `complete=false` through the existing fetch-failure
+    rules.
+  - *D, G3 readiness.* `docs/governance/g3-readiness-map-2026-09-29.md`: the
+    nine families against the plan's criterion (T2 ready; T9 pending the
+    run-scoped broker log its (b) and (c) read; T1, T3, T4
+    with its sequence reset, T5, T7 with its Ditto half and T8 pending; T6
+    blocked), the restart resource gap, N1 under the ordinary rules, the
+    timed-delivery findings and five decisions it surfaces without making.
+- **Tests.** `test_metrics_fast_retry.py`: the typed failures (three kinds)
+  counted without a row in the default mode; on the entry poll, with a
+  genuine reading after it; in the running thread, recovering at the normal
+  cadence (no 50 ms retry); no fabricated row; the stop event ending a
+  failing sampler; a programming error still propagating in both modes; the
+  plain message of `RemoteDisconnected` kept. `test_experiments_run.py`: a
+  run whose default sampler meets only typed failures completes with them
+  counted. `test_events_coverage.py` (26 cases): each rule held and broken,
+  unreadable input `unknown`, guest-clock fields only.
+  `test_proof_events_recorder.py` (9 cases, under the host `sh` and the
+  image's BusyBox): stop, a CLI ending first, a CLI failing at start, the
+  wrapper killed, a stop before the CLI. `test_proof_hooks.py`: old-session
+  exclusion for both logs (an old A5 line on the same device included), a
+  daemon ignoring `--since`, an unstamped line, argument refusals, the
+  recorder's start, readiness and failures, events beyond a 256-event
+  history with the kill captured while the history query lacks it, a
+  fault-free run complete, broken captures (CLI end with rc 0, daemon
+  restart, stderr, no marker), a refused stop and a missing recorder
+  `unknown`, and the resulting validity reason through the harness hook
+  runner. `test_proof_driver.py`: step order, session facts, recorder
+  failure or not ready leaving the harness unstarted, the restoration's
+  cleanup after an early harness end, the 50-minute rule and an interrupt.
+  `test_proof_evaluator.py`: a failed docker-events fetch gives
+  `complete=false` without making the controller log unusable. The runs,
+  the identities they were taken on and their results are in the pull
+  request and `output_test/runs/2026-09-29/`.
+- **Review.** One consolidated review of the integrated delta (five parts,
+  each finding checked by an adversarial verifier) found no material defect.
+  Its minor findings were corrected with regressions: the log check now
+  follows the daemon's own `--since` rule, under which a line of the run
+  stepped back by the guest clock (within 3 s) after the first in-window line
+  is kept and counted apart; the exclusion witness reads the same stream as
+  the log and reports `unknown` when its own read failed; the start step no
+  longer uses `head -c`, which the image's BusyBox lacks (now banned in the
+  guest-command test); the coverage record states its method, not a
+  continuity it may not have shown; and wording in R3's reasons, the sampler
+  comment, this entry, the capsule README, ADR 0011 and the readiness map
+  (T3 and T4 questions surfaced, not answered; nominal-r01's served rate).
+- **Closing review (Project Manager, 2026-09-29, F1 and F2).** F1: the
+  capture's closing witness was an event stamped after the stop request; the
+  guest clock steps back, so an event stored before the request could pass
+  for one captured after it (event at 100, request at 98, no fresh event).
+  The witness is now causal: after recording the request, the stop step
+  reads a nonce, records it, and runs a no-op `docker exec egw-mosquitto-1
+  sh -c ": egw-events-close NONCE"` (bounded to 45 s: the image's BusyBox
+  has no `timeout`; a hung exec is killed and recorded as `timeout`), then
+  waits for a captured line carrying the nonce; R5 holds only when the
+  capture holds an exec event of that container carrying it and the exec
+  ended 0, never on a timestamp or on the guest's own `closing_marker_seen`.
+  The marker runs in the broker's container, which the proof never faults,
+  so a controller not running at the fetch stays an outcome of the run, not
+  a failure of the capture. The regressions failed on the reviewed tools
+  first (`HIST_2026-09-29-pr50-f1-red`). F2: the readiness map no longer
+  calls T9 ready: its (b) and (c) read the broker's log, which is not yet
+  scoped to the run.
+- **Limits.** The r03 record stays what it was: its events do not cover the
+  kill, its logs are unscoped, its harness run invalid, its N1 identity `lost`
+  under the ordinary rules. C is verified with stubs only; its first use on a
+  guest is still to come, and the runbook families are not yet wired to it.
+  Deferred with a trigger: `run.poll_controller_marker` catches only `OSError`
+  and `ValueError`, so a typed HTTP failure there would still end the run
+  without a manifest; and an I/O error writing a metrics or attempts row still
+  ends the sampler's thread — both before any qualifying G3 run that uses
+  `--controller-url`. This entry supersedes #C045's sentence "The default
+  sampler keeps propagating it"; #C045 itself is unchanged.
+- **Decisions and next steps.** None made here. Before G3: the lifecycle-aware
+  restart rule, the N1 analysis rule, which families are timed, T4's
+  reconnection duplicates, the candidate lock and the student's authorisation
+  of the battery (readiness map, "Decisions to
+  surface").
+
+## Entry #C047 — G3 instrumentation: acquisition defects repaired, run-scoped capture wired into the runbook, pending decisions set out
+
+- **Date:** 2026-09-29. **Scope:** the Project Manager's work order of
+  2026-09-29 (`ChatGPT/WORK_ORDER_G3_INSTRUMENTATION_READINESS_2026-09-29.md`),
+  issued at the student's request for the next orders: offline only, three
+  parts (A, B, C), one pull request. No guest session, image build or load,
+  fault, criterion, threshold, workload or scope change; the controller, the broker, the
+  image (`489bc9e`), the proof evaluator and `analyze.py`'s rules are
+  unchanged. Branch `feat/g3-instrumentation-readiness` on `dev` at `4e3c18f`
+  (the merge of PR #50).
+- **Why.** Two acquisition defects were deferred by #C046 until before any
+  qualifying G3 run using `--controller-url`, and the run-scoped capture of
+  PR #50 existed only in the finite proof's driver: the runbook's own G3
+  procedures still read whole-history logs and captured no Docker events.
+- **What.**
+  - *A1, the marker poll.* `run.poll_controller_marker` also catches a typed
+    `http.client.HTTPException` (`IncompleteRead`, `BadStatusLine`) as a failed
+    acquisition named in the record: no marker, `monotonic_ns` or deadline.
+    `execute_run` keeps its manifest and applies its existing rules for a
+    marker that is not ok; the reconcile helper's `mark` fails with the reason,
+    and its `wait` keeps polling at its cadence until a real reading or its
+    give-up. One request, the timeouts and cancellation are unchanged; no 50 ms
+    retry; programming errors propagate.
+  - *A2, the sampler's writes.* A write, flush, open or close failure of the
+    metrics CSV or the attempts log (`OSError`, or a `ValueError` such as an
+    unencodable value or a closed file) is recorded as `write_error` and stops
+    sampling, and so is a sampling thread still running when `__exit__`'s join
+    gives up, before its files are closed and cleared under the lock (review
+    of 2026-09-30: its late write used to fail after the validity was
+    computed); the files are closed with their partial bytes; `execute_run`
+    makes the run invalid with a named reason, a warning and the manifest
+    fields `controller_metrics.write_error`/`write_errors`, and `collect`
+    cannot make it valid again. It is never a poll error, a retry or a row.
+    HTTP failures of a running system stay poll errors. A manifest that cannot
+    be written is said so on the console, with the non-zero exit it had.
+    Every run using `--controller-url` is affected: a failed write of the
+    metrics evidence now invalidates it.
+  - *B, the wiring.* The recorder's start and cleanup guest scripts move from
+    `proof.sh` to `tools/session/events_capture.sh`, which `proof.sh` sources
+    (its capture unchanged) and which runs them over ssh for the runbook.
+    Runbook 6.1 gains `guest_epoch`, `sut_log`, `events_start`, `events_stop`
+    and `events_cleanup`. `harness_cmd` (T1, T6) starts the recorder before the
+    workload, passes the harness the three run-bounded fetches, and stops the
+    unit and keeps its partial capture on every ending, interruptions
+    included; T6 expects `die`, `start` of the controller (a graceful restart,
+    not the proof's SIGKILL), T1 nothing. T3, T5 and T9(b)/(c) read their
+    acceptance evidence from logs bounded to their own run (T9's bound taken
+    3 s back for the guest clock's steps); a failed or empty read is a STOP.
+    T7 records each fault's events and judges `die`, `stop`, `start` on the
+    container it stops (`proof_fetch_sut_log.sh docker-events` takes an
+    optional CONTAINER). T8, the ACL probe, credentials, counts and timing are
+    untouched.
+  - *C, decisions.*
+    `docs/governance/proposals/2026-09-29-g3-pending-decisions.md` sets out,
+    for Rui's decision and adopting nothing, the proved-down interval at a
+    restart and the short-run sample count, N1 reporting, the timed families
+    (T3 open, T6's C12 conflict), and T4's replay versus redelivery
+    duplicates, with a draft candidate manifest. A compatibility-session
+    request is kept locally (`output_test/decisions/`); it authorises nothing.
+    The readiness map and PROGRESS record the changed facts only.
+- **Tests.** Regressions first, red on the unchanged code
+  (`output_test/runs/2026-09-29/HIST_2026-09-29-g3-instrumentation-red`):
+  - `test_experiments_run.py`, `test_experiments_itest_reconcile.py`: typed
+    failures in the harness's marker and in `mark`/`wait` (a failure then a
+    real marker, exhaustion, cancellation, no fabricated marker or deadline,
+    programming errors propagating); write and flush failures of both
+    streams, in the thread and on the entry poll, an unencodable value and a
+    closed file (the owner observes it, the run is invalid, nothing invented,
+    cleanup ran), and an unreachable controller still valid.
+  - `test_runbook_capture_wiring.py` (new), `test_runbook_itest_helpers.py`,
+    `test_proof_hooks.py`, `test_proof_driver.py`,
+    `test_proof_events_recorder.py`: the runbook's own `harness_cmd` and the
+    T3, T5, T7 and T9(b)/(c) lines executed under stubs - stale-log
+    exclusion, a recorder that does not start, a missing closing marker,
+    interruptions during and after the start, and each dependency's events
+    on its own container; the proof's capture unchanged.
+- **Review.** Each part was checked by an adversarial verifier before
+  integration; their findings (an unencodable write, an interruption during
+  the recorder's start, the order of the cleanup's refusals, T9's bound, and
+  factual errors in the decision page) were corrected with regressions where
+  they were behaviour. The one consolidated review of the integrated delta
+  (`4e3c18f..b925359`; three parts, each finding checked by an adversarial
+  verifier) confirmed three material defects, all corrected with regressions
+  that failed first: a sampler thread outliving its join could fail a write
+  after the validity was computed, so a run was sealed valid while its
+  manifest held the error; `nominal.sh`'s snapshot copy failed on the new
+  `.sut` directory, so every nominal run would have been invalid; and
+  `events_cleanup` took the fetch's stop record for proof that the capture
+  was kept, so a partial capture could be lost. Its minor findings were
+  corrected too: a failed partial copy now keeps what arrived, apart and
+  named as incomplete, and can be repeated; a cleanup that cannot reach the
+  guest says the unit may still run; test 9's client-id claim is marked
+  unverified; and the decision page quotes the plan's T3 clause. Two
+  comments of the pull request's own review were then corrected, each with a
+  regression that failed first: the recorder cleanup stopped a unit only in
+  the state `active`, so a unit in a state between (or unreadable) could be
+  left running while the cleanup reported success - every state but
+  `inactive` or `failed` is now stopped and the cleanup fails unless the unit
+  is shown stopped; and test 9(b)/(c) ran their probe even when their lower
+  bound was not read - they now STOP before any attempt. The Project
+  Manager's bounded review of the pull request then held it for two
+  unfinished parts of B, corrected with regressions that failed first: T6's
+  capture ended before its external drain - test 6 now hands the harness the
+  restart-evidence hooks the finite proof uses, so the drain, the post-drain
+  copy and the after snapshot run before the three bounded fetches and the
+  window covers them (a drain that gives up included); and three callers
+  dropped a capture or cleanup failure - `events_stop` answers 0, 1 (capture
+  not complete) or 3 (capture complete, cleanup failed: procedure
+  incomplete), `harness_cmd` answers 3 when its cleanup failed after the
+  harness ran, test 6 is ok only on 0, and each test 7 sub-check reads its
+  bounded controller and broker logs and is 0 only when the capture and the
+  reads succeeded beside its two `SHOWN` lines.
+- **Limits.** Everything in B is exercised with stubs only: what Docker 25.0.9
+  and Compose 2.26.0 do with these commands on the guest, the event sets of
+  T6's restart and T7's stops, and an interactive Ctrl-C are unverified.
+  `nominal.sh` now inherits the fetch-failure validity rule through
+  `harness_run`. T8 is not wired. The harness ends its drain hook after
+  1,800 s (`DRAIN_TIMEOUT_S`), so a `DRAIN_LIMIT_S` near that would turn T6's
+  give-up into an error (the runbook's 900 s is well below it).
+- **Decisions and next steps.** None made here. Rui's decisions on the page's
+  four items, the candidate lock, and the compatibility session's
+  authorisation come before any qualifying run; G3 stays paused.
+
+## Entry #C048 — Capture compatibility verified on the guest in a short window, without load or faults
+
+- **Date:** 2026-09-30. **Scope:** one engineering compatibility session,
+  `compat-capture-r01`, authorised by the student and registered by the
+  Project Manager on 2026-09-30, under revision 2 of the local request
+  (`output_test/decisions/2026-09-30_g3-capture-compatibility-session-request.md`).
+  No workload, fault, configuration change, image build or load; the tools a
+  clean clone of `676d4bd` (tree `d2ecde9`, the merge of PR #51), the
+  controller image the one built from `489bc9e`. G3 stays paused.
+- **Why.** The run-scoped capture of #C046 and #C047 had been exercised with
+  stubs only; whether the guest's Docker, Compose, systemd and BusyBox accept
+  its commands was open.
+- **What.** Host preparation (the helper regenerated and checked, the capture
+  tools against the request's hashes); session open; preflight (`pass`); one
+  engineering attempt; controlled close. In the attempt the recorder started
+  under the guest's systemd and BusyBox and was ready at the guest's T0; the
+  controller and broker logs were read bounded from that T0 (2 and 6 lines,
+  none outside the window or unstamped; the 11,888 and 1,524 lines before T0,
+  earlier sessions' and this session's own pre-window lines, excluded and
+  witnessed by count and hash); `events_stop` ran once and its
+  no-op exec, the only closing marker, is in the capture; the daemon and boot
+  facts agreed from start to stop; the capture was judged complete (R1–R6
+  held, R7 not required: no fault). The attempt finished `valid`, `pass`. The
+  close began 8 min 50 s after the open began (the 45-minute ceiling runs from
+  the open's start to the close's start) and exited 0, the session closed at
+  15:09:18Z (no OOM, G1 artefacts OK, no QEMU left).
+- **Evidence.** Local, under `output_test/runs/2026-09-30/`: the host
+  preparation, the session (`20260930T145950Z_guest-session_attempt07`), the
+  preflight (`20260930T150044Z_live-preflight_attempt08`), the engineering
+  attempt (`20260930T150647Z_capture-compatibility_attempt01`) and the
+  operator records; every seal verifies. The hand-off is
+  `output_test/decisions/2026-09-30_compat-capture-r01-handoff.md`.
+- **Incidents, host side.** The engineering driver's first launch was
+  mangled by Git Bash's path conversion and exited 127 before anything ran;
+  it was then launched once more with the conversion off, and that is the
+  only execution of the steps. Its first export was refused because the driver
+  had replaced the attempt's package identity; after the close the identity
+  was restored with a recorded note and the attempt exported. Neither touched
+  the guest or the result, and both are in the operator records.
+- **Limits.** One short window on one boot, without load or faults: nothing
+  about the T6 and T7 event sets (R7 not exercised), delivery or deadlines,
+  log volume under load, the harness path end to end, or T8. Not G3
+  readiness.
+- **Decisions and next steps.** None made here. The four decisions of the
+  pending-decisions page and any changes they require, then the candidate
+  lock and the battery's authorisation; G3 stays paused. The shared helpers
+  only were checked: no family's own procedure ran on the guest.
+
+## Entry #C049 — The student's G3 methodology decisions (proved-down interval, T1's harness run, N1 reporting, timed families, T4 per identity), adopted prospectively and implemented offline
+
+- **Date:** 2026-09-30. **Scope:** Rui's decision of 2026-09-30 on the four
+  items of the pending-decisions page
+  (`docs/governance/proposals/2026-09-29-g3-pending-decisions.md`): "As minhas
+  respostas são as mesmas dadas pelo Senior Project Manager" ("My answers are
+  the same as those given by the Senior Project Manager"), adopting, with
+  their conditions, the Project Manager's recommendations of the register
+  entry "2026-09-30 17:01 WEST — PR52 favourable; G3 recommendations remain
+  prospective" (`ChatGPT/PROJECT_MANAGEMENT_INSTRUCTION_REGISTER.md`, held
+  outside the repository); for the end of T3's collection he chose "Cópia
+  pós-drenagem" ("post-drain copy"). Prospective only. Offline only: the
+  harness, the reconcile helper, the runbook's test text and regression tests
+  on the host with stubs; no guest session, image build, load, candidate lock
+  or G3 run. The controller, the broker, the image (`489bc9e`), CONTRACTS
+  v1.2, `PROTOCOL_VERSION` and the finite proof (its evaluator and drivers,
+  E-12 and the N1 naming) are unchanged. Branch
+  `feat/g3-methodology-decisions`, started from `94a5741` (the head of
+  PR #52); commits `c737712` (the records); 1a `740e73d` (tests) to `2344d1a`; 2 `3f2b71c` (tests)
+  to `1e12e42`; 3, 4 and 1b `3566a00` (tests) to `fd67fd4`; integrated at `af2fd7b`;
+  the review corrections `37b357a` to `a2ebd71`, `1a49490` to `bc84b51` and
+  `44ba9fa`, merged at `2fa5ac5`.
+- **Why.** The four decisions stood before any qualifying G3 run (the
+  readiness map's decisions 1, 2, 3 and 5). Under the rules as they were,
+  every restart recorded so far left a 6–9 s resource gap that made T6's
+  harness run invalid; T1's 30 s smoke had no margin for the 30-instant rule;
+  an N1 identity read as an unexplained loss; whether T3 was timed was open,
+  and T6's Expected list and C12 disagreed; and one reconnection during T4's
+  replay could fail T4 with nothing applied twice.
+- **What.**
+  - *The record.* The pending-decisions page gains "The decision of
+    2026-09-30": the authority, the adopted rule of each decision, the
+    conventions pinned for 1a, where the adopted rule differs from the
+    proposal, what it does not change and what it authorises. Its status line
+    says adopted; its proposal text is kept as written, and its "Merging this
+    page adopts nothing" bullets are marked as the state before 2026-09-30.
+    The proposals index, the readiness map (T1, T3, T4 and T6, issues 2 to 4,
+    the decisions list; T6 moves from *Blocked* to "Pending, high risk of
+    failure"), PROGRESS, ADR 0011 (dated later notes only), the 2026-09-19
+    acceptance proposal (§1 answered, §2 superseded), its rows in the docs
+    and proposals indexes, R31 and C12 carry dated notes.
+  - *1a, the proved-down interval.* At a controller restart, the rows of
+    `egw-controller-1` missing between its captured `die` (D) and its next
+    `start` (S) are not a gap, up to the effective end E = min(S, D + 120 s).
+    The interval exists only when the restart ran with exit 0, the Docker
+    events capture is `complete`, the capture window holds exactly one `die`
+    and one `start` of that container with one container id, and the
+    `StartedAt` read (at or after S, its guest epoch taken before the
+    inspect) agrees with S to 1 s; anything else grants none. In whole
+    seconds: a row after sec(D) and before sec(S), or in sec(S) itself, is
+    rejected; the edge before (sec(D) minus the last row before it) and the
+    edge after (the first row after sec(S) minus sec(E)) keep the 5 s rule.
+    It applies only at the harness's run-time ingest, only
+    in a `controller_restart` run given the new option `--fetch-started-at-cmd`
+    (the guest read `tools/session/fetch_started_at.sh`, written to
+    `logs/sut/controller-started-at.txt`); the manifest records the outcomes
+    under `resources_proved_down`. Runbook test 6 passes the option, on
+    `controller_restart-r03` (the first `controller_restart` entry unused on
+    the evidence held; a used one is refused before anything starts);
+    `collect` and the finite proof do not (nor does `collect` qualify a late
+    resources file for a run whose restart lifecycle, the `die` and the
+    `start`, is recorded), and without the option every result is
+    byte-identical. No row is added, removed, zero-filled or
+    interpolated, and no delivery, recovery or C12 figure changes.
+  - *1b, T1's harness run.* Runbook test 1 names `nominal-r02`, a `nominal`
+    entry never used on the guest, under its own run identity, with its
+    duration and warm-up unchanged, instead of `smoke_sequence-r01`; an entry
+    already used is refused. It is judged by its artefact chain under the
+    unchanged ingest rule; it is not a passed smoke, a performance approval or
+    a successful nominal delivery, and it does not count towards C14.
+  - *2, N1 reported only.* `src/egw_experiments/n1_report.py` names an
+    identity `n1_applied_unconfirmed` only when its outcome lines are
+    `duplicate` only, the run records a source for it (the restart's captured
+    `die` or an A3 connection end on its device, one identity each), and its
+    device's Δ`accepted_count` surplus between the `before` and post-drain
+    `after` snapshots equals the identities named, with `last_seq` not below
+    their `seq`; per device, all or nothing; every other duplicate-only
+    identity is `duplicate_only_unexplained`. The columns are in
+    `processed/recovery_qualification.{csv,json}`; `itest_reconcile delta`
+    gains `--n1-report`, `--controller-log FILE` and `--restart-evidence
+    RUN_DIR`. A death explains an identity only when the run's `/metrics`
+    readings (`controller_metrics.csv`) place it first: the new process's
+    first reading earlier than the identity's first `duplicate` line, on the
+    one controller clock. The identity stays `lost`, the `delta` line stays
+    `MISMATCH`,
+    exit codes are unchanged, and without the options `delta`'s output is
+    byte-identical.
+  - *3, the timed families.* T1's three runs, T2, `itest-dup-02`, T5, T6 and
+    T8's post-reboot smoke must meet `lost = 0` and `late_confirmations = 0`
+    against the marker plus 60 s; a miss is a failure and a sizing finding.
+    T6's zero lost is C12's, read on its own `per_run.csv` row, beside its
+    recovery bound. T3 is not timed, but every valid identity of its run must
+    be `accepted` in the events copy fetched after its final drain, kept
+    write-once as `$P/$R.events.post-drain.jsonl` and checked by
+    `itest_reconcile acceptance`; a drain that gives up leaves T3 not
+    evaluated, and on a run id already used on the guest test 3 publishes
+    nothing (a STOP). The Expected lists of runbook tests 1, 3, 5, 6 and 8
+    say so.
+  - *4, T4 per identity.* `itest_reconcile replay-check` applies the
+    contract's same-process checks (the same `started_at`, `uptime_s`, the
+    cumulative counters and `mqtt_connection` not decreasing), then requires
+    every replayed identity to gain a `duplicate` line and no `accepted` line
+    and to hold at most one `accepted` line, `duplicate_replayed` equal to the
+    replayed count, and `duplicate_redelivery` within Δ`mqtt_connection`
+    ("consistent with the reconnection budget", a tolerance and not a proven
+    cause); beyond it T4 fails. The `after` reading must be quiet (CONTRACTS
+    §5), or every replayed identity with a line is NOT DEMONSTRATED; then,
+    with k reconnections between the two readings, a replayed identity counts
+    only with more than k added `duplicate` lines,
+    since up to k of them may be redeliveries of the first run; otherwise the
+    result is NOT DEMONSTRATED (exit 5), never a pass. `itest-dup-02` is part
+    of T4 and timed.
+    Runbook test 4 says so.
+  - *Unchanged.* No past run, verdict, sealed package or historical figure:
+    the proof runs r01–r03, `controller_restart-r01`/`-r02`,
+    `smoke_sequence-r01`/`-r02`, `nominal-r01` and the battery of 2026-09-18
+    keep their records, and the past restart runs stay invalid. No threshold,
+    deadline, rate, duration, load, coverage or minimum-count rule. CONTRACTS
+    v1.2 (§5's "until a separate decision" still holds: counting an N1
+    identity as delivered, which ADR 0011 reserves, is not taken).
+    `PROTOCOL_VERSION` is not bumped: `protocol.py` requires a bump only
+    after G4.
+- **Tests.** Regressions first, red on the unchanged code: each stream's tests-only
+  commit failed for the absent behaviour (1a: 90 failed at `740e73d`, the 7
+  passing being guards; 2: 69 failed and one module not importable at
+  `3f2b71c`; 3, 4 and 1b: 102 failed at `3566a00`), and so did the
+  corrections' (17 at `37b357a`; 63 at `1a49490`, the eight behaviour cases
+  and the pins of the changed lines). Two implementation commits (`b00cee1`,
+  `00ae268`) also edited a test their tests-only commit had added, as their
+  messages say; the edited tests fail on the tests-only trees for the same
+  absent-behaviour reason. Records:
+  `output_test/runs/2026-09-30/HIST_2026-09-30-g3-methodology-red-first` and
+  `HIST_2026-09-30-g3-methodology-review-corrections`. With the
+  change: the integrated selection of 17
+  modules, with the source identity recorded before it, gave 2,002 passed on
+  `af2fd7b` (`HIST_2026-09-30-g3-methodology-integrated-attempt01`) and, after
+  the review corrections, 2,027 passed on `2fa5ac5`, the code before the
+  bounded corrections F1-F3 (`HIST_2026-09-30-g3-methodology-integrated-attempt02`);
+  after them, 2,077 passed on `67516d5`, the final code, with the source identity
+  recorded first (`HIST_2026-10-01-pr53-f1-f3-integrated-attempt02`); the commit
+  after it changes this entry only.
+- **Review.** Two adversarial rounds per stream while it was
+  built, then one consolidated review of the integrated head `af2fd7b` in six
+  areas, each finding checked by a second reviewer who tried to refute it: 21
+  findings stood (10 minor and 11 wording; the two first rated material were
+  rated minor on reproduction) and 3 were refuted. All 21 were corrected, red
+  first where behaviour changed, and one bounded check per correction bundle
+  left nothing open. Among them: `collect` could re-judge, under the ordinary
+  rule, a file the run-time ingest had rejected under the interval (it now
+  keeps the run-time judgement); the `StartedAt` read took its guest epoch
+  after the inspect (now before it); test 6 named `controller_restart-r01`,
+  already used (now `-r03`, with a refusal guard); test 3 published on a run
+  id already used on the guest (now a STOP); the N1 report split lines at
+  Unicode separators and could leave a contested death to one device (now
+  newlines only, and contested). Two refuted points were applied all the same
+  for the runbook's own rules (Appendix B item 24; no publication on a used
+  run id). Record: `HIST_2026-09-30-g3-methodology-consolidated-review`.
+  The Project Manager's bounded review of 2026-10-01 found three more
+  defects, corrected red first here (F1-F3): `replay-check` could pass on a
+  first-run redelivery received after the `after` reading; the N1 report
+  could name an identity through a death that came after its duplicate; and
+  a late `collect` could qualify a file of a run whose restart lifecycle was
+  recorded. Red first: F1 14 failed at `412fd76` (the PM's trace exiting 0),
+  F2 32 at `bacbd3b`, F3 1 at `9663629`
+  (`output_test/runs/2026-10-01/HIST_2026-10-01-pr53-f1-f3-red-first`). One
+  bounded review of the integrated correction then found that `replay-check`
+  still took k after an `after` reading that was not quiet (a reconnection
+  counted just before it, its redelivery received after it); corrected the
+  same way, 7 failed at `2308577` (the race exiting 0 in all six variants),
+  fixed in `3e2bce0` (`HIST_2026-10-01-pr53-f1-f3-review`).
+- **Limits.** Everything is verified on the host with stubs and fixtures
+  only; nothing ran on the guest (the runbook's Appendix B, item 24, lists
+  what these decisions added). 1a: the `StartedAt` read, T6's `die` and
+  `start` events and the edge gaps under TCG are unverified; the guest
+  clock's 1–3 s backward steps are not absorbed; a restart whose S − D
+  exceeds about 124 s leaves the file rejected; adoption guarantees no valid
+  or passing T6. 2: a death serves only when the per-second readings place
+  the new process's first reading before the redelivery, which they may often
+  fail to show, leaving the identity unexplained; any N1 identity still fails
+  T6. 3: the timed families remain at risk
+  (`nominal-r01` confirmed 3,794 of 6,720 in time; T5 had 326 of 2,016 late;
+  T2 was in time by 3.1 s). 4: with more than one replayed identity, any
+  reconnection during the replay leaves T4 unpassed (not demonstrated, or
+  extras beyond the budget), and so does an `after` reading that is not
+  quiet; the tolerance can still pass an extra duplicate
+  that coincides with an unrelated reconnection. `itest-dup-02` and `itest-ditto-fault-01`
+  have never run.
+- **Decisions and next steps.** The student's decisions are recorded on the
+  pending-decisions page; nothing here accepts a gate or admits a claim, and
+  G3 stays paused and `Not decided`. No supervisor decision is recorded; D007
+  stays unsent, with its numbers unchanged. Next: the map's decision 4, the
+  candidate lock and the authorisation of the battery, each guest session
+  under its own authorisation.
+
+## Entry #C050 — The G3 qualifying battery, sessions S1 and S2: the records, the T8 procedure corrected, the T6 question set out; G3 not closed
+
+- **Date:** 2026-10-03. **Scope:** the two sessions of the G3 qualifying
+  battery on the frozen candidate — S1 on 2026-10-02 (rows T1–T5) and S2 on
+  2026-10-03 (T6, T7, T8; T9 not run) — under Rui's authorisation of
+  2026-10-02 and the decision packet of 2026-10-01, revision 2 (both held
+  locally under `output_test/decisions/`), and the offline block the
+  Project Manager's register entry "2026-10-03 15:50 WEST — S1/S2 results,
+  bounded remaining work; G3 not closed"
+  (`ChatGPT/PROJECT_MANAGEMENT_INSTRUCTION_REGISTER.md`, held outside the
+  repository) recommended and Rui relayed: consolidate the results, correct
+  only test 8's procedure, one page on T6, one focused pull request. Offline
+  only: no guest session, no QEMU, no build, no load. The candidate is
+  unchanged: tools `80e833f` (tree `dad725d`), the section 6.1 helpers
+  `e5eba37e…`, the controller image `9a293fe1…` from `489bc9e`, the guest
+  image of 2026-09-18 under QEMU 8.2.7 TCG, the launcher at `489bc9e`.
+  Nothing here changes a rule, a threshold, a deadline, the load, the
+  controller, the launcher, the image or the frozen helpers. Branches from
+  `80e833f`: the records (this entry, PROGRESS, the readiness map, the
+  results addendum and the evidence index), the test 8 procedure with its
+  regression tests, and the T6 page, integrated into one pull request.
+- **Why.** The battery is the first qualifying run of the nine families on
+  one unchanged candidate. Its records had to be consolidated with three
+  things kept apart per family — the validity of the evidence chain, the
+  functional outcome and timed delivery — before any decision is asked of
+  Rui; S2 ended on a halt whose cause was the procedure's own assumption,
+  not the SUT; and T6's invalidity raised a question about the adopted rule
+  that only a prospective decision can answer.
+- **What.**
+  - *S1, 2026-10-02* (15:01:30Z to 16:34:13Z, 1 h 33 min; no halt
+    condition; the recorded `compose stop -t 130` and the close driver each
+    ended 0; root file system `f59a60ff…` after it). T1's three smokes
+    `itest-smoke-01/02/03-q1`: 336 of 336 each, in time, every `delta` OK —
+    Pass. T1's harness run `nominal-r02`: valid and sealed (682 instants per
+    service, capture complete), its delivery reported only, 4,584 of 6,720 in
+    time (`lost` 2,136, 111 late) — Pass as an artefact chain, **not**
+    successful nominal delivery. T2 `itest-3dev-01-q1`: 672 of 672 in time,
+    three twins correct — Pass. T3 `itest-invalid-01-q1`: 67 of 67 invalid
+    rejected, none accepted; all 1,277 valid identities `accepted` in the
+    post-drain copy; not timed — Pass. T4 replay `itest-dup-01-q1`:
+    `replay-check` 0, 672 of 672 with a `duplicate` line, none accepted
+    again, the `after` reading quiet, k = 0 — Pass; T4 reset
+    `itest-dup-02-q1`, its first run ever: 672 of 672 in time, no duplicate
+    — Pass. T5 `itest-dropout-01-q1`: 2,016 of 2,016 in time, 3 deliberate
+    dropouts, 165 buffered, `double_accepted` 0, `delta` OK — Pass as sealed,
+    with two points: the bounded broker log holds 4 connections and **4**
+    disconnection lines (the three dropout cycles plus the simulator's
+    terminal `DISCONNECT`, which a bounded read taken after the run always
+    includes), where the Expected list, marked `UNVERIFIED`, says "N+1
+    connections and N disconnections" and the packet's §5 assigns such a
+    count to *inconclusive*; and one `check` warning on C10, a documented
+    layout mismatch (the reconciliation directory lacks the campaign-style
+    simulator manifest; the run's own manifest and stderr hold the 3/165
+    totals), preserved, with no campaign C10 acceptance claimed and the
+    frozen helper not changed.
+  - *S2, 2026-10-03* (13:22:49Z to 14:39:43Z, 1 h 17 min; opened on S1's
+    post-close root file system; **halt 5 of the packet's §4 at T8**, then
+    the controlled close, each stop ending 0, no OOM in either boot, root
+    file system `22e9da85…` after it). T6 `controller_restart-r03`:
+    **invalid instrumentation** under rule 1a, the inner run unsealed. The
+    rule's preconditions held on the guest for the first time (exit 0; a
+    complete capture with one `die` at `13:37:14.06Z` and one `start` at
+    `13:37:18.76Z` of `egw-controller-1`; `StartedAt` 0.06 s before the
+    start; edge gaps 3.0 s and 1.0 s), but the collector wrote two rows of
+    the controller stamped `13:37:17Z` and `13:37:18Z`, inside the interval
+    and in the start's own second, which the rule as written rejects
+    whatever their values. No row deleted, no validator relaxed, no attempt
+    relabelled. Recovery 4.75 s functional, 11.9 s endpoint. Delivery
+    reported only: 4,718 of 6,720 by the deadline in the initial events copy
+    (`lost` 2,002, 82 late); the post-drain copy holds all 6,720 uniquely
+    accepted, 2,002 beyond the deadline, none absent, none duplicate-only
+    (the Project Manager's independent accounting). T7 MongoDB
+    `itest-mongo-fault-01-q1` and T7 Ditto `itest-ditto-fault-01-q1` (its
+    first run ever): interruption and recovery shown, captures complete, 44
+    and 5 `failed` after 3 attempts, acceptance resumed, `delta` OK, N1 0/0,
+    no OOM at 768 MiB; not timed (reported `lost` 1,209 with 1,165 late, and
+    1,895 with 1,890 late) — Pass, both. T8 `itest-reboot-q1`:
+    **inconclusive, not demonstrated**. The guest rebooted inside the same
+    QEMU process (boot id `d22195a1…` → `76471e31…`; the previous boot
+    ended cleanly at `14:25:44Z`, the new one began at `14:26:15Z`; the
+    containers' start times reach `14:26:46Z`, health read later); runbook
+    line 1487 assumed a QEMU exit (`-no-reboot`) that `run-qemu-integrated.sh`
+    never produces, so the procedure waited 600 s for the exit and halted
+    without signalling QEMU; `REBOOT SHOWN`, twins `same`, the controller's
+    state and the fresh timed smoke were never evaluated. A procedure
+    defect, not proof that the Yocto reboot or the persistence failed;
+    nothing completes T8 retrospectively. T9: not run after the halt.
+  - *The records.* `docs/governance/g3-battery-2026-10-results.md`: the
+    candidate, both sessions, the twelve rows with validity, functional
+    outcome, timed delivery, class and package, the boundaries the Project
+    Manager states and the three outstanding decisions. The readiness map's
+    rows T1–T9 and its issues 2, 4, 5 and 6 carry dated "after the battery"
+    notes, its statuses unchanged, and its decisions list gains 6, 7 and 8.
+    `docs/evidence/g3-battery-2026-10/README.md` and `PACKAGES.sha256`
+    prepare the publication: the twenty packages with their file counts and
+    the SHA-256 of each `SHA256SUMS`, computed read-only from the local
+    originals, the secret review as recorded at export (seventeen export
+    manifests with `excluded: []`; the two operator-records packages' own
+    sweeps and sealing notes; the host-preparation package with no sweep of
+    its own), and the publication proposed as a separate step for Rui's
+    decision — the byte copies, about 49 MB, are not committed here. The
+    gate decision log is unchanged: G3 `Not decided`.
+  - *The twenty packages* (local, `output_test/runs/`; files = entries of
+    the package's `SHA256SUMS`). 2026-10-02:
+    `HIST_2026-10-02-g3-battery-host-preparation` 85,
+    `20261002T150133Z_guest-session_attempt08` 87,
+    `20261002T150214Z_live-preflight_attempt09` 42,
+    `20261002T150720Z_g2-gate-preconditions_attempt05` 26,
+    `20261002T150829Z_g3-qualification-t1-smokes_attempt01` 66,
+    `20261002T152710Z_g3-qualification-t1-harness_attempt01` 88,
+    `20261002T154427Z_g3-qualification-t2_attempt01` 41,
+    `20261002T155313Z_g3-qualification-t3_attempt01` 41,
+    `20261002T160154Z_g3-qualification-t4-replay_attempt01` 45,
+    `20261002T161432Z_g3-qualification-t4-reset_attempt01` 38,
+    `20261002T162159Z_g3-qualification-t5_attempt01` 41,
+    `HIST_2026-10-02-g3-battery-s1-operator-records` 51. 2026-10-03:
+    `20261003T132249Z_guest-session_attempt09` 89 (holds the read-only
+    post-reboot step), `20261003T132332Z_live-preflight_attempt10` 42,
+    `20261003T132836Z_g2-gate-preconditions_attempt06` 26,
+    `20261003T132936Z_g3-qualification-t6_attempt01` 95 (the unsealed
+    harness run inside), `20261003T135147Z_g3-qualification-t7-mongo_attempt01`
+    52, `20261003T140639Z_g3-qualification-t7-ditto_attempt01` 52,
+    `20261003T142310Z_g3-qualification-t8_attempt01` 32 (incomplete),
+    `HIST_2026-10-03-g3-battery-s2-operator-records` 81. 1,120 entries; every
+    seal verified read-only on 2026-10-03, by this block and, independently,
+    by the Project Manager. The two result notes:
+    `output_test/decisions/2026-10-02_g3-battery-s1-results.md` and
+    `2026-10-03_g3-battery-s2-results.md`.
+  - *Test 8's procedure, corrected* (runbook section 7, test 8 and its
+    Expected paragraph; not the 6.1 heredoc, which is unchanged): the
+    pre-reboot line also saves the running container ids and a pre-reboot
+    `/metrics` reading (whose `started_at` line e compares); a bounded wait (at
+    most 90 reads 10 s apart, each read bounded by `ConnectTimeout=10` and, after
+    the review of the pull request, by the host's `timeout 20`, so up to
+    about 45 min) for the guest to answer with a **different**
+    boot id of the kernel's form (36 characters of `[0-9a-f-]`), `REBOOT
+    SHOWN` only then, and on timeout a STOP that says whether the guest never
+    answered, kept answering the old id, answered and then fell silent, or
+    answered something that is not a boot id; the
+    comment now says that the launcher runs QEMU without `-no-reboot`, so
+    the guest reboots inside the same process, and that a QEMU exit is a
+    STOP here, the re-launch of 3.3 being a recorded operator decision,
+    never automatic; the unaided return judged before any `compose up` or
+    `start` — the six container ids saved before the reboot listed running
+    again by `docker ps --filter status=running` (a Restarting container is
+    left out; these lines start nothing, and a hand start from another shell
+    is not something the line can tell apart), `CONTAINERS RETURNED UNAIDED`,
+    else STOP — then, since the review of the pull request, line c judges the
+    `data/events` directory names and the mount source of `/var/lib/docker`
+    against what line a saved before the reboot (`PERSISTENCE SHOWN`, else a
+    STOP naming the one that did not hold), the remaining read-only
+    observations being a separate command whose status is printed, not
+    judged and bounded by a 60 s `timeout`, and every read after the reboot
+    bounded by `timeout 20`, its output counting only when the read ended
+    with exit status 0 (the Project Manager's follow-up on the same review
+    point: the status had been discarded, so an answer printed ahead of a
+    timeout or a failure could still satisfy a witness; such a read is now
+    no answer, and in line c a STOP naming both statuses) — then
+    the tunnel, readiness, the post-reboot snapshot and `same`, the
+    controller's new process shown by its `started_at`, and only then the
+    fresh timed smoke; test 9 is not started unless test 8 reached its smoke
+    line. The consolidated review of the integrated branch then tightened
+    the lines (the boot id's form, the status filter, the records worded as
+    what each line observes) with their regression cases red first. The step
+    files are `t8-a-reboot.sh` to `t8-f-smoke.sh`; the battery's row files
+    are re-extracted from this text at the next preparation, not here. The
+    T6 page runs to about 1,100 words, above its nominal 1,000, because its
+    quoted rows, the two rule texts and the regression cases are kept whole.
+  - *The T6 page* `docs/governance/proposals/2026-10-03-t6-sampling-versus-restart-events.md`,
+    PROPOSED and adopting nothing: from the exported bytes of
+    `controller_restart-r03` and the collector at `80e833f`, how a row is
+    stamped and what the cgroup of a restarting container shows between
+    Docker's `die` and `start`, the actual rows quoted; three prospective
+    options (two validator-only rules and a collection correction), with
+    exact wording, consequences and bounded regression cases, and a
+    recommendation (the first); the timely-delivery problem in
+    its own section, with what any runtime change would imply, and without
+    a load reduction, a deadline extension or a pilot-only reading of C12.
+- **Tests.** This records stream ran `python tools/ci/check_markdown_links.py`
+  (exit 0) and verified the twenty seals read-only (`sha256sum -c` in each
+  package: 20 of 20, 1,120 entries). The test 8 procedure's regression
+  tests, in `src/tests/test_runbook_itest_helpers.py`, cover the success
+  path (ids differ after a few polls, the same container set, `same`
+  identical, the smoke runs), the timeout path (ssh never answers: STOP, no
+  later line, no smoke), the unchanged-boot-id path (the old id throughout:
+  STOP "reboot not shown"), a recreated or missing container (STOP, no
+  smoke) and failed prerequisites never reaching the smoke, and, after the
+  review, the boot id's form, a non-id answer and a Restarting container;
+  they were committed red first (`6517c8a`: 18 failed on the runbook of
+  `80e833f`; `f45be9f`: 9 failed on the first rewrite) and green after each
+  change (`f1832a4`, `b56f5e1`: 340 passed in the two runbook modules). The
+  affected selection of five modules, with the source identity recorded
+  first, gave 1,035 passed on the integrated `fc194a7`
+  (`HIST_2026-10-03-post-battery-integrated-attempt01`) and 1,040 passed on
+  `0a48e4a` (`…-attempt02`) and, after the pull request's review points
+  (line c judges the directories and the mount source; every read after the
+  reboot bounded), 1,049 passed on `190ad8f` (`…-attempt03`); the
+  completion of the second point (a judged read counts only at exit status
+  0: twelve cases over the boot id, the container set, the event
+  directories and the mount source, each printing its answer and then ended
+  by the timeout, failing, or ending with 0 as the control; red first at
+  `72ed89f`, 10 failed; fix `cba4808`) gave 1,061 passed on `cba4808`, the
+  verified code head (`…-attempt04`);
+  the records of the block are in
+  `HIST_2026-10-03-post-battery-records`. No guest ran.
+- **Review.** The Project Manager's read-only review of the records of both
+  sessions (the register entry above): 1,120 matching entries in 20 local
+  packages; all 11 attempted qualifying rows name the official purpose,
+  `80e833f` and zero dirty lines; the assessment per family reproduced in
+  the results addendum; not a complete independent rerun of every
+  evaluator. The one consolidated review of the pull request is recorded
+  with it.
+- **Limits.** Everything observed is of an emulated guest on a shared host;
+  no timing is a native figure. The passes are each family's own criteria
+  on one run, not reproducibility, capacity or stability; the throughput
+  finding (every 300 s and 600 s row at 11.2 msg/s left a late backlog; the
+  30 s, 60 s, 120 s and 180 s rows were in time) is recorded, not explained.
+  The T6 accounting is observation on an invalid run, not a qualifying failure
+  verdict. The T8 observations after the reboot (directory counts, health
+  read later) do not complete T8. The corrected T8 procedure is verified
+  with stubs only: nothing ran on the guest, and a changed test procedure is
+  not an unchanged tool hash — the next session's preparation must show the
+  SUT image, containers and configuration unchanged. The evidence index
+  lists seals it does not copy; publication, with its byte-for-byte
+  comparison and secret sweep, is a separate step.
+- **Decisions and next steps.** None taken here: no family, gate or claim
+  is accepted, G3 stays `Not decided`, G4 and the campaign are not released,
+  no criterion is weakened for time and the 2026-10-20 target is not moved.
+  Rui's three decisions, set out in the results addendum and the readiness
+  map (6, 7, 8): T5's interpretation; T6's admissibility and its timed
+  criterion, two separate questions (the T6 page for the first; T6 not
+  automatically appended to the next session); and T8/T9's completion in a
+  separately authorised bounded session with fresh identities and the
+  procedural revision recorded. The evidence publication is proposed as its
+  own pull request on Rui's decision. No runtime is authorised by this
+  entry.
+
+## Entry #C051 — T8 and T9 completed on the unchanged candidate: both pass; the first opening halted at its preflight; G3 not closed
+
+- **Date:** 2026-10-05. **Scope:** session S3 of the G3 qualifying battery
+  (tests 8 and 9 only), its preparation and its two openings, under the
+  request of 2026-10-04 and its decision summary, Rui's authorisation of the
+  session, and, for the second opening, his authorisation of a prospective
+  exception for the preflight's `collector-duration` step (the records are
+  held locally under `output_test/decisions/`, dated 2026-10-04 and
+  2026-10-05), on the Project Manager's register entries of 2026-10-04,
+  21:49, and 2026-10-05, 12:09 and 13:42 WEST
+  (`ChatGPT/PROJECT_MANAGEMENT_INSTRUCTION_REGISTER.md`, held outside the
+  repository). The candidate is the battery's, unchanged (controller image
+  `9a293fe1…` from `489bc9e`, the pinned images, the deployment tree, the
+  guest image under QEMU 8.2.7 TCG); the procedure and tools are `8e49261`,
+  the merge of PR #54, with test 8 in its corrected form and every
+  identifier suffixed `-q2`. This entry records; it changes no file of the
+  candidate, no rule, threshold, deadline or load, and accepts no family,
+  gate or claim.
+- **Why.** T8 halted in S2 on a procedure that assumed a QEMU exit, and T9
+  was not run after that halt (#C050). The corrected procedure needed one
+  bounded session on the same candidate, with fresh identities and the
+  procedural revision recorded.
+- **What.**
+  - *Preparation* (sealed, `HIST_2026-10-05-g3-t8t9-host-preparation`):
+    the execution clone moved from `80e833f` to `8e49261`, clean; every
+    identity of the candidate compared with its recorded value, the
+    kernel, `qemuboot.conf`, the QEMU binary and the Yocto checkout added;
+    the step files of tests 8 and 9 re-extracted verbatim from the
+    `8e49261` runbook; the operator script for S3, checked once by two
+    readers before it touched the host (two material defects corrected: a
+    variable that could start a row after a recorded halt, and a tunnel
+    silently reopened after line d) and benched against stubs on the real
+    step files (38 scenarios).
+  - *First opening* (10:56–11:03Z): every identity matched and the guest
+    booted; the frozen preflight ended exit 3 on `collector-duration` alone
+    — its window is measured between the collector's UTC stamps (43 s)
+    against a 45 s duration the collector runs on `/proc/uptime`, and the
+    calibration lines record 38 s of UTC against 40.69 s of uptime: a
+    clock-basis mismatch, not a measured early stop. The session halted
+    before any row; nothing was repeated; controlled close. That preflight
+    stays failed and invalid; a dated note held locally corrects the first
+    explanation given for it.
+  - *Second opening* (11:44–12:13Z), after a minimal preparation (sealed,
+    `HIST_2026-10-05-g3-t8t9-host-preparation-attempt02`: the operator
+    copy with the post-close root file system value, a fresh state
+    directory and a read-only checker for the exception, with focused
+    benches): the preflight passed normally (44 s of 45 s), so the
+    exception was **not** used. **T8 pass**: the reboot inside the same
+    QEMU process and disks, the same six container objects running again
+    with nothing started by hand, the 35 event-directory names and
+    `/var/lib/docker` on `/dev/vdb` persisted, the three existing twins
+    identical, a new controller process; the post-reboot smoke 336 of 336,
+    `lost` 0, `late` 0, the latest acknowledgement 1.338 s before the
+    deadline. **T9 pass**: wrong CA, wrong password and plaintext refused,
+    the ACL probe `PASS` with the controller unchanged, the anonymous
+    client refused, the exposure observations recorded. Controlled close;
+    root file system `6fce1688…` after it.
+  - *Records:* rows 13 and 14 and the opening table in the
+    [results addendum](../governance/g3-battery-2026-10-results.md),
+    with the Project Manager's boundaries; dated notes on T8 and T9 in the
+    [G3 readiness map](../governance/g3-readiness-map-2026-09-29.md);
+    the eleven packages of 2026-10-05 indexed with their seals in
+    [`docs/evidence/g3-battery-2026-10/`](../evidence/g3-battery-2026-10/README.md)
+    (`PACKAGES.sha256` now 31 lines); a PROGRESS marker.
+- **Tests.** No code changed. Every seal of the eleven packages verified
+  read-only on 2026-10-05 (`sha256sum -c` in each: 11 of 11, 838 entries);
+  `PACKAGES.sha256` checked against them; `python
+  tools/ci/check_markdown_links.py` exit 0.
+- **Review.** The Project Manager's read-only review (register entry of
+  2026-10-05, 13:42 WEST): the 409 entries of the seven packages of the
+  second opening and its preparation verify; T8 and T9 favourable within
+  their tested scope; no reason to repeat them on this configuration.
+- **Limits.** Persistence was shown on event-directory names, not on every
+  file's bytes; the smoke's percentiles (p95 57.6 s, maximum 58.8 s) are
+  descriptive. T9 demonstrates the tested controls, not a security audit;
+  the root-login observation is one refused attempt, and the exposure is
+  the WSL/QEMU loopback as observed, not LAN reachability or a firewall.
+  The second opening's pass validates nothing of the first; the clock basis
+  of `collector-duration` stays to be corrected before any
+  resource-dependent run relies on it.
+- **Decisions and next steps.** None taken here. Seven families have
+  favourable technical evidence (T1–T4, T7–T9). T5 waits on Rui's
+  interpretation (the Project Manager recommends admitting three deliberate
+  outages plus the normal terminal teardown, keeping the 2,016 timely
+  messages and admitting no C10 claim). T6 stays an invalid qualifying run
+  with 2,002 confirmations beyond the deadline after the drain: a one-page
+  choice is prepared for Rui — valid new evidence under the current
+  criterion, or a prospective, explicit, scoped amendment before any
+  implementation or run — and no session, repeat or controller change
+  follows from this entry. G3 stays `Not decided`.
+
+## Entry #C052 — T5's interpretation admitted; test 6's criterion amended prospectively (option 2); G3 not closed
+
+- **Date:** 2026-10-05. **Scope:** the student's decisions of 2026-10-05
+  («Para o T5 seguimos a recomendação do Senior Project Manager, para o T6
+  seguimos com a opção 2») on the Project Manager's register entry of
+  2026-10-05, 13:42 WEST, and the one-page T6 choice of the same date (both
+  held locally, outside the repository). Documentation only: no code, data,
+  package, seal or earlier verdict changes; no session.
+- **Why.** After the T8/T9 completion (#C051) two of the nine families stood
+  on decisions: T5 on the reading of its disconnection count, and T6 on its
+  criterion. At 11.2 msg/s under TCG the lateness also occurred without a
+  restart (`nominal-r02`: 2,136 beyond the deadline;
+  `controller_restart-r03`: 2,002); these records do not isolate the
+  restart's own contribution. The controller's serial consumer served about
+  6–9 msg/s under ingress; no remedy within the current candidate is shown,
+  and any runtime change would make a new candidate needing a full
+  requalification.
+- **What.**
+  - *T5:* the reading "three deliberate fault disconnects, each followed by
+    a reconnect, plus the simulator's normal terminal teardown, reported
+    separately" is admitted; row 7 is a Pass as sealed, the 2,016 timely
+    messages kept, the `check` warning about C10 kept, no C10 claim
+    admitted.
+  - *T6, option 2:* for runs made after 2026-10-05, test 6 passes when the
+    controller is restarted once mid-run with recovery within 120 s, every
+    valid message is accepted exactly once in the post-drain copy (none
+    absent, none duplicate-only, `double_accepted` 0) and every `delta` line
+    reads OK; `lost` and `late_confirmations` against the marker plus 60 s
+    are reported as a sizing finding, not a pass condition. Written as dated
+    amendments in the runbook's "Timed families" paragraph and test 6's
+    Expected paragraph (the earlier text kept for earlier runs) and in plan
+    section 4.3's G3 paragraph; the
+    [decision record](../governance/g3-t5-t6-decisions-2026-10-05.md)
+    holds both decisions; notes in the results addendum, the readiness map,
+    the claim matrix's C12 row and PROGRESS.
+- **Tests.** One regression test pins the amended text
+  (`test_test_6_criterion_is_amended_prospectively_on_2026_10_05`), red
+  first on the earlier runbook; the two runbook modules pass after the
+  amendment; `python tools/ci/check_markdown_links.py` exit 0. After the
+  pull request's review: "accepted exactly once" is stated as judged per
+  identity, with that check named as a prerequisite before the next run
+  (`acceptance` finds absent identities only; `delta` compares twins with
+  accepted lines), and the readiness map's evidence column for T6 states
+  the amended criterion, the earlier one kept as dated history.
+- **Limits.** Every other timed family keeps `lost = 0` and
+  `late_confirmations = 0`. C12 cannot claim timely delivery at the nominal
+  rate under TCG; the campaign's C12 condition and its gate in `analyze.py`
+  are unchanged. `controller_restart-r03` stays invalid. Not decided: a
+  lower load, a longer deadline, C12 as pilot-only.
+- **Decisions and next steps.** Test 6 still needs, each as its own step: a
+  collection-validity rule (the T6 page's option A with the Project
+  Manager's F2 qualifications, after the student's explicit choice on
+  whether transition rows count for the 30-instant and coverage checks and
+  the aggregates); `collector-duration` judged on paired monotonic bounds;
+  a new `controller_restart` plan entry; then one separately authorised
+  session on the unchanged candidate. G3 stays `Not decided`.
+
+## Entry #C053 — Test 6's offline prerequisites: option A adopted and implemented, `collector-duration` on uptime bounds, a fresh plan entry, the exactly-once check
+
+- **Date:** 2026-10-05. **Scope:** the student's adoption of the T6 page's
+  option A with the Project Manager's conditions, and his authorisation of
+  one offline tooling pull request («Segue a opção A do Senior Project
+  Manager», on the register entry of 2026-10-05, 15:14 WEST; the record is
+  held locally under `output_test/decisions/`). Offline only: no guest, no
+  session, no build, no change to the system under test (controller,
+  simulator, schemas, contracts, compose, locks, image), no change of load,
+  rate, duration, deadline or threshold; `analyze.py` unchanged.
+- **Why.** Test 6 needs a valid new run under the criterion of #C052. Its
+  run r03 was invalid under rule 1a; its preflight check of the collector's
+  duration compared UTC stamps with a duration run on uptime (#C051); the
+  plan's three restart entries are used; and "accepted exactly once" had no
+  executable check.
+- **What.** Four streams, each red first, integrated by merge:
+  - *Option A, qualified* (`proved_down.py`, `resources.py`, `run.py`,
+    `cli.py`): with `run --restart-transition-rule 1a-option-a-2026-10-05`
+    (which requires `--fetch-started-at-cmd`), rows of the restarted
+    controller stamped in sec(D) < t ≤ min(sec(S), sec(E)), sec(S) > sec(D),
+    are admitted only on the same container's unambiguous disappeared →
+    appeared pair in the run's own lifecycle record; anything missing, wrong,
+    late, ambiguous or unreadable admits nothing; values never decide.
+    Admitted rows count, are covered and aggregated like any other row; they
+    are reported separately under `resources_transition_rows` with the rule's
+    name, the pair, the lifecycle file's sha256 and a note that they prove no
+    readiness and that the witness is the same instrument. Without the
+    option every run behaves as before. Test 6's harness line passes it. The
+    T6 page records option A as adopted with conditions, B and C not
+    adopted, and its four F2 qualifications fixed. Fixture: the real r03
+    rows, copied byte for byte (`src/tests/fixtures/t6_r03/`).
+  - *`collector-duration`* (`collect-resources.sh`, `collector_check.py`,
+    `collector_shortfall.py`): the collector writes `uptime_s=` and
+    `boot_id=` on its `start:` and `stop:` records; the duration is judged on
+    the uptime span between bounds of one boot, the tolerance unchanged, UTC
+    printed beside for diagnosis; missing, malformed, reversed or cross-boot
+    bounds fail closed. The collector's sha256 changes from `11444c0a…` to
+    `9e678b02…` (instrumentation); a guest still holding the old collector
+    fails the check closed until the preflight installs the new one.
+  - *A fresh plan entry* (`plan_gen.py`, `cli.py`): `controller_restart-r04`,
+    the frozen load (11.2 msg/s, 600 s, restart at 300 s), seed by the
+    plan's own rule; `python -m egw_experiments plan-supplement --plan <pilot
+    plan> --entry g3-t6` adds it in place, refusing a plan that is not
+    exactly the generated one or that holds a colliding id; r01–r03 and every
+    other entry byte-identical; `PROTOCOL_VERSION` and the 95 runs
+    unchanged. The runbook's test 6 names r04.
+  - *Exactly once* (`itest_reconcile.py`): `acceptance --exactly-once` also
+    fails an identity with more than one `accepted` line; test 6's block
+    runs it on the post-drain copy after `delta` (exit 1 not evaluated, exit
+    4 fails); the default mode and test 3's line are unchanged.
+- **Tests.** Red first in each stream (A 46 failed, B 37, C 41, D 35 on the
+  tests alone) and green after; the integrated affected selection, with the
+  source identity recorded first, is in `output_test` (named in the pull
+  request).
+- **Limits.** Nothing ran on the guest: the collector's new records, the
+  transition rule on a live restart and the exactly-once line on a real
+  post-drain copy are exercised on fixtures and stubs only (the
+  exactly-once check was also read-only over r03's real files: 6,720
+  accepted exactly once — not a test 6 result; r03 stays invalid).
+  `analyze.py` still judges the controller's own coverage on its
+  per-sample gaps, so an r03-like gap can leave that container's coverage
+  insufficient while the ingest accepts the file. The next preparation must
+  record the new tooling identity apart from the unchanged system under test:
+  the merged commit, the runbook's new sha256 (test 6's step files are
+  re-extracted from it; the section 6.1 helpers stay `e5eba37e…`, 545
+  lines), the collector's hash, `drivers_sha256`; the deployed tree differs
+  from the candidate's recorded one only by the collector (instrumentation);
+  the candidate stays the retained controller image `9a293fe1…` from
+  `489bc9e`, not a build of this head (`src/Dockerfile` copies
+  `egw_experiments/`, so a rebuild would differ). It must install the new
+  collector through the preflight and add r04 to the host's pilot plan. After
+  the consolidated review: an `appeared` in the second of the first
+  transition row is refused as inconsistent; `resources_transition_rows`
+  carries `resources_ingested`, and the console and the runbook's read-out
+  report it.
+- **Decisions and next steps.** One separately authorised bounded session
+  for test 6 on the unchanged candidate. G3 stays `Not decided`.
+
+## Entry #C054 — Test 6 passes under the amended criterion in session S4; the G3 evidence published and a closing proposal submitted; G3 not closed
+
+- **Date:** 2026-10-07. **Scope:** session S4 of the G3 qualifying battery
+  (test 6 only, plan entry `controller_restart-r04`, seed 1715385812) under
+  Rui's authorisation of 2026-10-07 («Autorizo a sessão S4 nos termos do
+  parecer do PM») of the request of 2026-10-05 with its preparation
+  supplement of 2026-10-07 (the records are published byte for byte in
+  [`docs/evidence/g3-battery-2026-10/records/`](../evidence/g3-battery-2026-10/records/)),
+  on the Project Manager's register entries
+  "2026-10-05 21:56 WEST — S4 preparation: one bounded emergency-procedure
+  correction" and "2026-10-07 14:19 WEST — S4 T6 passed; consolidate G3
+  evidence for decision" (the register is held outside the repository);
+  then the consolidation the second entry orders and Rui relayed: one
+  documentary and evidence pull request that proposes G3's closure, with
+  no new session, no change to the controller and no repeat of the
+  battery. The tools are `1fd9792`, the merge of PR #57; the candidate is
+  the battery's, unchanged (the controller image `9a293fe1…` from
+  `489bc9e`, the pinned images, the guest image under QEMU 8.2.7 TCG); the
+  one change on the guest is the collector the frozen preflight installs
+  (`11444c0a…` → `9e678b02…`, instrumentation). This entry records; it
+  changes no rule, threshold, deadline, load or file of the candidate, and
+  accepts no family, gate or claim.
+- **Why.** Test 6 was the one family without a valid qualifying run: r03
+  invalid under rule 1a (#C050), the criterion amended prospectively
+  (#C052) and the prerequisites built offline (#C053), so one bounded
+  session was needed. With its result every family has a recorded row, and
+  the Project Manager's order is to consolidate the evidence for Rui's
+  decision on G3.
+- **What.**
+  - *Preparation.* The sealed host preparation of 2026-10-05,
+    `HIST_2026-10-05-g3-t6-host-preparation` (268 entries, `34715555…`):
+    the clean clone at `1fd9792`, the retained controller image, the
+    helpers `e5eba37e…`, the new collector `9e678b02…`, drivers
+    `2c209b09…`, and `controller_restart-r04` added to the host's pilot plan
+    at order 96, the 95 earlier entries preserved. Its supplement of
+    2026-10-07, `HIST_2026-10-07-g3-t6-preparation-supplement` (29 entries,
+    `74dbe1a9…`), made the one correction the Project Manager found: the
+    emergency command omitted `events_capture.sh`'s optional `KEEP_DIR`, so
+    it could stop the recorder and return 0 without preserving its four
+    files. A new operator script, `ops/g3_recorder_cleanup.sh`
+    (`71ff2ceb…`), runs after `term t6` or `T6=incomplete`, and always
+    before `close`, the existing `events_capture.sh cleanup
+    controller_restart-r04 KEEP_DIR`, unchanged, with `KEEP_DIR` inside the
+    session's package (`recovery/events-partial-controller_restart-r04`):
+    each try bounded by `timeout 120`, at most three, `close` only after its
+    `OK:` line and otherwise `HALT:`, with no close, no forced power-off and
+    no signal to QEMU. It was verified offline on four bench paths (kept,
+    retried, hung, halted), the steps script `g3_battery.sh` (`7a63b361…`)
+    unchanged. **It was not used in S4**: no `term`, no `T6=incomplete`, and
+    the gate found no recorder or collector unit active; it stays tested
+    offline only.
+  - *S4, 2026-10-07* (open 12:03:48–12:10:52Z; the row 12:11:14–12:32:30Z,
+    1,239 s on the host's uptime clock, the ceiling's basis, against 47 min; classified 12:33:23Z; close
+    12:34:01–12:35:30Z). Every identity equal at the open (clone `1fd9792`,
+    runbook `31716593…`, drivers `2c209b09…`, root file system
+    `6fce1688…`). The preflight passed with the new collector installed (the
+    previous one kept on the guest), the deployed tree equal to the clone
+    but `README.md`, and `collector-duration` 45.54 s on the guest's
+    monotonic clock for the declared 45 s (its UTC window, 48 s, reported
+    apart); the gate passed (six services healthy, the running images equal
+    to the record). The close: `stop -t 130` exit 0, no OOM, QEMU exit 0
+    with no process left, close driver exit 0; root file system `1605905b…`
+    after it.
+  - *Test 6, `controller_restart-r04` — Pass under the criterion amended on
+    2026-10-05* (row 15 of the results addendum; package
+    `20261007T121121Z_g3-qualification-t6_attempt02`, 97 entries, the inner
+    run sealed with 46). `T6=ok`: harness exit 0 with the recorder's cleanup
+    done, drain `quiet`. One restart at +300 s, returncode 0; the capture
+    shows one `die` and one `start` of `egw-controller-1`; the gate after
+    reads `EXPECTED-RESTART`, the same container, restart count 0, not
+    OOM-killed. `restart_metrics_endpoint_recovery_s` 12.134 s, within
+    120 s. Every `delta` line OK (600, 120 and 6,000 accepted); N1 report
+    0/0. `acceptance --exactly-once` exit 0: 6,720 valid messages accepted
+    exactly once in `events.post-drain.jsonl`, 0 more than once, 0 never;
+    `double_accepted` 0. The configuration identity equal to the packet.
+    Reported beside it: functional recovery 20.04 s; the transition rule
+    `1a-option-a-2026-10-05` admitted 2 rows (12:19:26Z, 12:19:27Z), none
+    rejected. This is the first run on the guest of the lines merged on
+    2026-10-05 (the transition rule on a live restart, the collector's
+    uptime bounds, `--exactly-once` on a real post-drain copy, `delta`'s N1
+    options, `fetch_started_at.sh`). `controller_restart-r03` stays invalid
+    and is not re-judged.
+  - *The delay numbers, explained.* Against the controller marker plus
+    60 s, r04 reports `lost` 2,153 and `late_confirmations` 67, a sizing
+    finding that decides nothing. Both come from the timed copy
+    (`events.jsonl`, fetched after the confirmation window): `lost` is the
+    valid messages sent less those confirmed by the deadline in it,
+    6,720 − 4,567 = 2,153; `late_confirmations` counts its accepted lines
+    acknowledged after the deadline, 67 of its 4,634. `analyze.py` never
+    counts a late line as confirmed, so the 67 are among the 2,153 and are
+    never added to them; the other 2,086 were accepted after the timed copy
+    was taken, during the drain (the timed copy is a byte prefix of the
+    post-drain copy). None of the 2,153 is a permanent loss: all 6,720 were
+    accepted exactly once by the end of the drain. Functional recovery was
+    demonstrated in this run; timely delivery at the nominal load
+    (11.2 msg/s, deadline = controller marker + 60 s) was not. The
+    analyser's global line `restart_recovery_observed_every_run: FAILED -
+    1/4` (r01–r03 not evidenced) is kept unchanged: the scoped judgement of
+    test 6 neither accepts the campaign nor requalifies an earlier run.
+  - *The evidence published* in
+    [`docs/evidence/g3-battery-2026-10/`](../evidence/g3-battery-2026-10/README.md):
+    byte copies of 38 packages under `<UTC date>/<package>/` — the 31
+    indexed in #C050 and #C051 and the seven of test 6 (the host preparation
+    and its supplement, S4's guest session, preflight and gate, the t6
+    attempt02 and the S4 operator records). Each package's own `SHA256SUMS`
+    was verified in place and again in the copy, and each copy compared file
+    by file with its original; `PACKAGES.sha256` grows from 31 to 38 lines,
+    the 31 earlier lines kept byte for byte, the file sorted by path; a
+    secret sweep of the copies (the values of the execution host's four
+    secret variables, never printed, and PEM private-key headers) found
+    nothing; 2,525 sealed entries, 2,563 files with their 38 seals,
+    75,731,082 bytes. Beside them, under `records/`, byte copies of the 22
+    local notes of the battery (the packet, the authorisations, the
+    requests, the result notes, the decisions on T5 and T6, S4's supplement
+    and a dated correction of one register date). The README is rewritten as
+    the capsule's index; an outer seal, `SHA256SUMS`, covers every file of
+    the directory but itself (2,587 entries; sha256
+    `4517e91e36dbe03963a25474c47af5c05510ba2a221f4d0ef5fc41bb59fb00f9`). Three `.out` files of the T9 package, which the
+    repository's `*.out` ignore rule had held back, were added explicitly,
+    and every seal was verified again from a tree extracted from the
+    commit. `.gitattributes`
+    keeps the capsule's bytes from text conversion, and the Markdown link
+    checker skips the files a sealed package lists (captured bytes, vouched
+    for by their seal). The originals stay in `output_test`.
+  - *The closing proposal*,
+    [`docs/governance/proposals/2026-10-07-g3-closing-proposal.md`](../governance/proposals/2026-10-07-g3-closing-proposal.md),
+    proposes G3's closure clause by clause — T1–T9 and their sub-checks,
+    the continuity of the image and configuration, the contracts frozen,
+    the P0 defects and the limitations — and keeps the tools that changed
+    between sessions (`80e833f`, `8e49261`, `1fd9792`: the T8 procedure,
+    test 6's prerequisites and the authorised collector replacement) apart
+    from the system under test. It decides nothing.
+  - *The records.* Row 15, the S4 section and the delay paragraph in the
+    [results addendum](../governance/g3-battery-2026-10-results.md); a
+    marker, the T6 note, the r04 line of issue 4 and decision 7 marked done
+    in the [G3 readiness map](../governance/g3-readiness-map-2026-09-29.md);
+    a PROGRESS marker. The gate decision log is unchanged: G3
+    `Not decided`.
+- **Tests.** No file of the system under test or of the session tools
+  changed. The Project Manager recomputed the 345 checksum entries of the
+  seven seals of S4 and its supplement (the session, preflight, gate, t6
+  and operator-records packages, the nested r04 seal and the supplement)
+  with no failure: 299 outer entries plus the 46 of the nested seal, not
+  345 unique files. The publication verified the 38 seals in place and in
+  the copies and compared every copied tree with its original;
+  `PACKAGES.sha256` verifies against the copies. The link check
+  (`python tools/ci/check_markdown_links.py`) and the CI of the pull
+  request are recorded there.
+- **Review.** The Project Manager's read-only review of S4 (the register
+  entry of 2026-10-07, 14:19 WEST): the manifest valid with no invalidity
+  reason, the inner 46-file run sealed, the drain quiet, the harness and
+  the exactly-once check exit 0; an independent join by run and message
+  identity found 6,720 distinct sent and 6,720 distinct accepted after the
+  drain, with no missing, repeated or extra identity; the three twins agree
+  (600, 120, 6,000), N1 0/0; the endpoint recovery recomputed to 12.134 s
+  and the functional one to 20.04 s; the delay populations as above. The
+  one final consistency review of the pull request is recorded with it.
+- **Limits.** Everything observed is of an emulated guest on a shared host;
+  no timing is a native figure. "Exactly once" is one accepted result per
+  valid sent identity of this run, not a general MQTT exactly-once
+  guarantee; the N1 options exercised with N1 = 0 do not prove every N1
+  branch; no OOM in this session is not prolonged stability. The battery
+  was not one continuous identical-tool execution: S1 and S2 ran the tools
+  of `80e833f`, S3 those of `8e49261`, S4 those of `1fd9792` with the
+  collector replaced at its open, and the favourable rows ran T1–T5 (S1),
+  T7 (S2), T8–T9 (S3) and T6 (S4), not T1–T9 in one pass. Every invalid,
+  incomplete and halted attempt is kept as recorded (row 8 invalid, row 11
+  inconclusive at the halt, the first S3 preflight invalid). No C10 or C12
+  admission, no native-performance, capacity or prolonged-stability claim.
+- **Decisions and next steps.** None taken here. All nine families now
+  have favourable technical evidence in their own adopted criteria; full
+  gate admission remains Rui's dated decision on the closing proposal,
+  after the review of this consolidation. G3 stays `Not decided`. The G4
+  pilot needs its own preparation and authorisation; no `exp-v1` tag or
+  campaign is authorised, and the 2026-10-20 target and the 2026-10-31
+  latest date are not changed by this result.
+
+## Entry #C055 — G3 accepted by the student as the functional P0 freeze on the emulated candidate
+
+- **Date:** 2026-10-07. **Scope:** the student's G3 decision, transcribed;
+  no session, no change to the system under test or the tools, no repeat.
+- **Why.** Pull request #58 published the battery's evidence and the closing
+  proposal (#C054). The Project Manager's opinion registered as "2026-10-07
+  16:37 WEST — PR58: favourable merge and bounded G3 closure opinion"
+  verified the publication from the committed objects (the 2,563 package
+  files and the 22 records against their originals, the outer seal's 2,587
+  entries, the 38 package seals and the 31 earlier `PACKAGES.sha256` lines
+  unchanged), accepted the narrow link-checker adaptation, found no material
+  defect and recommended the closure with four qualifications. Rui merged
+  #58 as `65e780e`; its tree, `c2f7c22`, is the reviewed head's (`1df9b46`),
+  verified before this entry.
+- **What.** The student's approval of 2026-10-07, in Portuguese: «Aprovo o
+  fecho do G3 — congelamento funcional P0 — no candidato ARM64 emulado
+  documentado no PR #58, com as qualificações do parecer do PM. Aceito a
+  execução autorizada em S1–S4 e a emenda prospetiva do T6, preservando os
+  resultados históricos e as limitações declaradas. Esta decisão não admite
+  claims de desempenho, capacidade ou estabilidade, nem autoriza o piloto G4
+  ou a campanha.» Transcribed, with a translation, the four qualifications,
+  the evidence and the exclusions, into the decision record
+  [`docs/governance/decisions/2026-10-07-g3-closure.md`](../governance/decisions/2026-10-07-g3-closure.md);
+  the G3 row of the [gate-decision log](../governance/gate_decision_log.md)
+  is `Accepted`, 2026-10-07, the student, with the row it replaces kept
+  verbatim under "Superseded row states"; README, PROGRESS, `docs/README.md`,
+  the proposals index, the closing proposal (a dated status marker; its
+  text kept), the readiness map, the results addendum and the backlog's G3
+  heading carry the decision as dated markers, and the PROGRESS cells the
+  accepted scope touches are updated with it.
+- **The four qualifications.** (1) A functional P0 freeze on the documented
+  ARM64 QEMU/TCG candidate, not native performance or a complete
+  experimental campaign. (2) The standing results span the authorised
+  sessions S1–S4, with the test 8 procedure repaired, test 6's
+  instrumentation changed and later completions, on the same system under
+  test: a disclosed
+  sequence, accepted explicitly, not one pass of T1–T9 in order with
+  identical tools. (3) Test 6 passes under the criterion adopted
+  prospectively on 2026-10-05; its 6,720 eventual exactly-once acceptances
+  do not establish timely delivery at 11.2 msg/s (2,153 after the deadline,
+  the initial 67 included, none permanently lost); the historical invalid
+  and incomplete outcomes and the global failed campaign checks stay
+  unchanged. (4) No open P0 defect was identified by the bounded review; the
+  historical open risk rows and the deferred `ditto-things` footprint
+  measurement remain disclosed, the no-OOM evidence is limited to these
+  sessions, and tests 7, 8 and 9 keep their fault, persistence and
+  tested-control limits.
+- **Limits.** The decision is the student's own; the opinion, the merge, the
+  capsule and the green checks are not it, and no supervisor approval is
+  asserted. It admits no claim (C10 and C12 included) and no performance,
+  capacity, stability, native or security-audit conclusion; it does not
+  reopen the decisions of 2026-09-30 and 2026-10-05; the declared
+  limitations are carried as disclosed limitations, neither waived nor
+  marked solved.
+- **Decisions and next steps.** G3 is accepted; G4 to G7 stay
+  `Not decided`. Next, a separate short request for the G4 pilot and its
+  protocol (scope, observations sought, durations and stop limits, the D007
+  decisions, output paths). Neither this decision nor that preparation
+  authorises the pilot's execution, an `exp-v1` tag, the campaign or a
+  reduction of the 95-attempt target; no schedule date changes.
+
+## Entry #C056 — G4 pilot prerequisites built offline: the generator check, the core provenance, the pilot plan and a proposed operational contract
+
+- **Date:** 2026-10-07. **Scope:** one offline tooling block; no session, no
+  guest, no build, no change to the system under test, no `exp-v1`, no
+  campaign, no reduction of the 95-attempt target. G4 stays `Not decided`.
+- **Authority.** The Project Manager's opinion registered as "2026-10-07 20:11
+  WEST — G4 request: consolidate minimum offline work, not runtime approval"
+  recommended one block (plans and isolation, P5, core P6, an operational
+  contract) in one pull request. The student's authorisation of 2026-10-07,
+  in Portuguese: «Autorizo o bloco offline delimitado pelo PM, incluindo a
+  preparação dos planos e procedimentos e as ferramentas mínimas P5/P6, num
+  único PR. As tolerâncias e os limites operacionais devem ser apresentados
+  antes da autorização de execução. Não autorizo sessões, build, alterações
+  ao sistema sob teste, exp-v1, campanha ou redução das 95 tentativas.»
+- **Generator check (P5).** `python -m egw_experiments generator-check`
+  rebuilds each message's scheduled instant from the simulator's own
+  schedule and judges the client's publish-call cadence: relative lateness,
+  overruns and catch-up bursts, publish gaps and the span. It detects a stall
+  followed by catch-up that leaves the count, the span and the mean rate
+  unchanged. PUBACK observations (a null is not loss) and the controller's
+  acceptance on the guest clock are reported apart and never enter the
+  verdict. With `--run-dir`, the run's seal must verify. No tolerance is
+  built in, and only an approved profile can certify. Profile A (no overrun;
+  20 ms relative lateness and span deviation) is
+  `experiments/g4-pilot/generator_tolerances.proposed.json`, `status`
+  proposed, not adopted.
+- **Core provenance (P6).**
+  - The mode and its record: `--execution-mode` on `run` and `campaign`, with
+    no default and no environment fallback. An unset mode gives a sealed,
+    invalid run, and an unknown token is refused before anything is written.
+  - The harness reads `hypervisor_environment.json` from `/proc` on the host
+    at the run's start and end. It records the exact QEMU command line, TCG
+    without KVM, co-location with the load generator and the forward of the
+    broker port. The load-generator record gains the simulator command
+    lines, with the password redacted.
+  - The manifest is version 1.5, with `image_identity` and a `provenance`
+    record. Its checks add validity reasons with no allow flag. G5, the order
+    of the guest capture against the QEMU start, is advisory, because the
+    WSL wall clock drifts.
+  - A declared native mode is always invalid, with its contradictions named;
+    this is the wrong-provenance regression.
+  - Old runs are untouched: `collect` re-checks only manifests that carry
+    the record, and adds nothing to the others.
+  - The analysis classifies every run and groups by mode. Every aggregator,
+    the recovery layer included, refuses mixed modes, and runs without the
+    record form their own `unrecorded` group. Every table and figure carries
+    the mode, the figures in their name, title, footer and metadata.
+  - The guest capture script, the controller and the simulator are
+    unchanged. There is no `--pilot` refusal and no claims suppression for
+    emulated runs.
+- **Pilot plan (P1/P7).** `tools/session/g4_pilot_plan.py` (`write`,
+  `check`) builds `experiments/g4-pilot/g4_pilot_plan.json` (sha256
+  `dae0889b…`): five fresh entries `g4pilot-s1…-a01` to `g4pilot-s4…-a01`
+  (120 s nominal; 600 s nominal after 120 s; 300 s at 10 and at 50 msg/s;
+  3,600 s soak). Every field carries its source, and every departure from
+  the frozen conditions is declared. Seeds and devices are checked against
+  the G3/campaign plan, the proof and the test seeds. No campaign entry is
+  used. The master seed 20261007 and stage 1's zero warm-up are working
+  choices for the student.
+- **Operational contract (proposal).** It is
+  `experiments/g4-pilot/README.md`, section "Operational contract (proposal,
+  not adopted)":
+  - per-row maxima with every wait included;
+  - a 2,100 s reserve for evidence recovery and the controlled close;
+  - session budgets on `/proc/uptime`;
+  - stop-and-ask on overrun, with QEMU never killed;
+  - host and guest disk floors with their bases;
+  - partial-export retention;
+  - the expected rootfs `1605905b…` of the last verified close.
+- **Records.** The runbook's `harness_cmd` and the finite proof's harness
+  arguments pass `--execution-mode tcg-emulated`. Dated status notes are
+  added to runbook sections 8 and 9.
+- **Verification.** Each stream was written with its tests failing first.
+  One consolidated review covered six dimensions and verified each finding
+  adversarially. It confirmed 37 findings (2 material, 30 minor, 5 wording),
+  and all were applied, again with the tests first. The integrated
+  selection ran the whole suite once on the clean head `39c5805` (tree
+  `cb8905a`; WSL2, Python 3.12.3): 3,921 passed, 12 skipped, none failed.
+  Eleven of the skips are Windows-only tests; the twelfth is the citation
+  test, which needs the git history that CI checks out. The evidence is
+  `output_test/runs/2026-10-07/HIST_2026-10-07-g4-tooling-integrated-attempt01/`.
+  After that head come LOG and PROGRESS, and one review point on the pull
+  request: H4 passed a record that said the load generator was not
+  co-located. It now requires the flag to be true and the boot ids equal.
+  That fix was made red first, the four affected modules were re-run
+  (663 passed), and CI runs the whole suite on the final head.
+- **Next.** The student decides the tolerance profile, the budgets and
+  floors, the master seed and the stage 1 warm-up. The step files are then
+  sealed, and a one-page session request follows. Each session needs its
+  own authorisation and attendance.
+
+## Entry #C057 — PR #60's bounded corrections F1-F5: the generator check reconciles the requested load and the ACK order, the provenance check matches the destination, the step-file draft preserves evidence and keeps its budget
+
+- **Date:** 2026-10-08. **Scope:** one bounded correction round on pull
+  request #60. No new feature, no session, no guest, no build, and no change
+  to the controller, the image, the simulator, a G3 verdict, a campaign
+  criterion or the retry rules. G4 stays `Not decided`.
+- **Authority.** The Project Manager's opinion registered as "2026-10-08
+  01:53 WEST — PR60 bounded review and pilot choices", relayed by the student,
+  found three false-positive evidence checks in the pull request (F1-F3),
+  which block its favourable merge recommendation, and two defects in the
+  step-file draft (F4-F5), which block the scripts' use.
+- **F1.** `generator-check` reconciles scenario, seed, aggregate rate and
+  duration between the harness manifest and the simulator manifest (the
+  warm-up's duration for `--warmup`). Any contradiction is `NOT_SHOWN`. A
+  field that is not recorded never certifies. A simulator folder inside a
+  harness run cannot bypass the reconciliation.
+- **F2.** An ACK stamp earlier than its own publish, or later than the next
+  publish of this sequential writer, is an input defect (`NOT_SHOWN`). A
+  null ACK stays an absent observation, not loss.
+- **F3.** H5 and N1 match the generator's destination address and family to
+  the QEMU forward: an exact bind takes only its own address, an IPv4
+  wildcard takes IPv4 loopback addresses, and a host name cannot be matched.
+  QEMU 8.2.7's `hostfwd` cannot express an IPv6 bind. The `--broker` default
+  `localhost` is unchanged; a `tcg-emulated` run passes the address.
+- **Profile A wording.** The proposal now reads zero relative overruns,
+  relative lateness of at most 20 ms, and a first-to-last span deviation of
+  at most 20 ms, all relative to the inferred origin. It does not mean zero
+  late publish calls or deliveries. The rationale about 1 Hz samples is
+  removed. The numbers and the `proposed` status are unchanged. Entry
+  #C056's shorter description ("no overrun") is read with this
+  qualification.
+- **F4, F5 (step-file draft v2).**
+  - F4: the recovery before close is decided by demonstrated preservation of
+    the artefacts, whatever the harness answered. A partial Docker-events
+    capture never counts as preserved. What the guest no longer holds is
+    judged against the host's own records, so being absent now is not the
+    same as never made. A failure to preserve is stop-and-ask, never a
+    forced close.
+  - F5: the classification is bounded by its 300 s term and by what is left
+    of `R_max` and of `B - reserve`. The time is read again before the
+    export, and expiry is stop-and-ask with no export dispatched.
+  - The sealed draft of 2026-10-07 is unchanged. The corrected draft is a
+    new sealed package.
+- **Interruption.** The round started at 00:56Z, was stopped at about 01:15Z
+  when the computer had to be switched off, and resumed at 11:02Z. The saved
+  state is `output_test/runs/2026-10-08/HIST_2026-10-08-g4-pr60-round-interrupted/`.
+- **Verification.**
+  - Every counterexample was shown red, then green; the profile wording, not
+    being a counterexample, has no red record.
+  - One bounded adversarial delta check per point closed F1, F2, F3, F5 and
+    the wording. It left F4 open on a material point: the partial capture
+    was taken as preserved.
+  - The residuals were applied, and F4 needed two more passes, the second
+    on absence judged as never made. The last re-check closed F4, leaving
+    only conservative stop-and-ask cases and wording.
+  - The whole suite ran once on the merged code head `643591c` (tree
+    `1864756`): 4,044 passed, 12 skipped, none failed. Eleven of the skips
+    are Windows-only and the twelfth needs the git history CI has. The
+    evidence is
+    `output_test/runs/2026-10-08/HIST_2026-10-08-g4-pr60-corrections-integrated-attempt01/`.
+  - The only later commit is this LOG entry. CI runs on the final head.
+- **Records.** The corrected step-file draft is
+  `HIST_2026-10-08-g4-pilot-step-files-draft-v2` (seal `803fd408…`; whole
+  bench 45 of 45 scenarios, 844 checks). The round's records are
+  `HIST_2026-10-08-g4-pr60-corrections-records` (seal `4b39f0e7…`). The
+  proposed profile file is now `92fe9adb…`.
+- **Not adopted.** The student has not yet decided on the pilot choices
+  (profile A, budgets and reserve, floors, master seed, stage 1's zero
+  warm-up) or on the transient exposure of the broker password on the
+  harness's command line. No host preparation or session is authorised.
+
+## Entry #C058 — A run of withheld samples still open at the collector's stop: the collector's own measurement admitted prospectively, by one rule for both halves
+
+- **Date:** 2026-10-08. **Scope:** one bounded rule change in the evidence
+  checks, its regressions and this record. No change to the controller, the
+  collector, the image, the simulator, the load, the limits, the helper, a G3
+  verdict or a campaign criterion. G4 stays `Not decided`.
+- **The case.** G4 session B's open halted on 2026-10-08: its preflight's 45 s
+  resource capture accepted its last sample at guest uptime 426.87 s, the next
+  sample was stamped with the same wall-clock second and withheld, and the
+  capture then reached its duration and stopped. The collector measured that
+  run itself, on the guest's monotonic clock, and wrote it between its
+  inventory and stop records ("1.19 s of elapsed time since it (uptime 426.87 s
+  to 428.06 s)"). Neither `tools/session/collector_check.py` nor
+  `inspect_collector_outputs` read that line: both refused any
+  `withheld_open_at_stop` above zero as time accounted for nowhere. Equal
+  stamps show a repeated second or a backward step; the records do not say
+  which.
+- **Authority.** The Project Manager's opinions registered as "2026-10-08
+  20:23 WEST" (a bounded offline reproduction and the smallest remedy) and
+  "2026-10-08 21:52 WEST" (favourable to the final rule; prospective adoption,
+  one bounded PR), and the student's approval of 2026-10-08 ("Autorizo as
+  respostas do PM": the rule adopted prospectively, this PR authorised).
+- **The rule.** `judge_open_run_at_stop` in `src/egw_experiments/run.py`,
+  called by both halves with the same text, one observation wording
+  (`open_run_observation`). An open run is admitted as elapsed time WITHOUT
+  recorded readings, never as samples, only when: the closing record does not
+  contradict itself (`withheld_samples` readable and not below the open count);
+  no line says the time is unknown; exactly one line in the collector's
+  grammar measures it, with a valid UTC stamp inside the collector's window,
+  between the inventory and the stop records; it counts what the closing record
+  counts; its endpoints are in order and its figure is their difference in
+  whole centiseconds; the endpoints lie inside the start and stop records'
+  `uptime_s` bounds of one boot; and the last accepted sample is at most
+  `MAX_SAMPLE_GAP_S` (5 s) before the stop record's `uptime_s`. Otherwise it is
+  a problem, as before, with the reason. No row, sample or instant is made;
+  the minimum of samples, the coverage, the 5 s gap and the duration checks are
+  unchanged. This changes evidence admissibility in both the preflight and the
+  timed runs.
+- **Not retroactive.** Records made before this rule stay judged by the rule
+  they ran with: session B's first preflight
+  (`20261008T190655Z_live-preflight_attempt15`) stays invalid. The offline
+  replay below is a comparison, not a new verdict.
+- **Evidence** (`output_test/runs/2026-10-08/HIST_2026-10-08-g4-collector-open-run-proposal`,
+  `SHA256SUMS` `936161de…`; the final diff `0661da72…` is this PR's code and
+  tests, plus one change from the pull request's review: every number of the
+  collector's line and of the records' `uptime_s` is bounded to nine whole
+  digits, so an oversized field is refused instead of raising in `int()`). The final new tests: 33 of 37 fail on the unchanged code at
+  `5108f44` (session B's case refused in both halves), 37 of 37 pass with the
+  rule. The six related test files in full: 1,088 passed, 55 skipped and one
+  failed (`test_session_drivers.py::test_session_open_leaves_the_session_open`);
+  that test later passed alone on both trees and its whole module reran
+  329 of 329. The original selection is therefore not reported as green, and
+  no cause is claimed for the failure. Replay of the 25 distinct preserved
+  collector captures (14 preflights, 11 timed runs) by the old and the new
+  rule: only session B's preflight changes; nothing accepted before is
+  refused. One consolidated adversarial review of the first version found one
+  major and seven minor points; all are fixed here.
+- **Identities.** Change: the tools commit and tree, the drivers' sha256
+  (`tools/session/collector_check.py`) and the runbook's sha256 (one
+  sentence). Unchanged: the collector `9e678b02…`, the helper `aeef43d8…`, the
+  image, the controller, the plan and the pilot's limits and tolerances.
+- **Next, each on its own authority.** After this PR's merge, the identified
+  preparation of `B-open-attempt02` in a new state root (`EGW_G4_STATE`),
+  preserving the first B, inheriting the closed A with provenance and binding
+  the new identities and the root file system `3367c3af…`; a new session needs
+  the student's separate approval and presence.
+
+## Entry #C059 — Comparison environments for the Yocto image and Debian 13 under one QEMU/TCG profile: lifecycle under Terraform, scripts and offline tests; no measurement
+
+- **Date:** 2026-10-18. **Scope:** comparison environments tooling (Yocto vs
+  Debian 13) — Terraform lifecycle, scripts, tests; no measurement. No change
+  to the controller, the image, the collector, the harness, the session
+  drivers, the plan or any pilot record; G4 stays `Not decided`.
+- **Authority.** The Project Manager's order as relayed by the student on
+  2026-10-18: implementation and offline tests in this block; one validation
+  boot per scenario (the Debian provisioning boot declared separately) to
+  follow under its own authorisation; no benchmark, no build, no controller
+  change.
+- **What was built** (`tools/compare/`, documented in its `README.md`): a
+  scenario contract (`scenarios/yocto.env`, `scenarios/debian13.env`) and a
+  shared library (`lib.sh`); the lifecycle CLI `compare_env.sh`
+  (`prepare | start | status | stop | destroy | manifest | disks`) with immutable,
+  checksummed base copies, qcow2 overlays on them, a fresh 32 GiB `egw-data`
+  disk per scenario, a manifest of every identity, daemonised QEMU with a pid
+  file, serial console to a file, a monitor socket and `-no-reboot`; the
+  Terraform module (`terraform/`, pinned to 1.16.6 with `hashicorp/local`
+  2.9.1 and `hashicorp/external` 2.4.2, one workspace per scenario, state
+  under `~/egw-compare/tfstate`) and its wrapper `tf.sh`; the Debian base
+  preparation (`debian/extract_boot.sh`: kernel, initrd and root UUID out of
+  the image without root; `debian/render_seed.py`: a NoCloud seed that carries
+  the image's eight configuration files byte for byte and the public key only;
+  `debian/firstboot_check.py`: the first boot counts only when cloud-init's
+  completion precedes the power-down and no key material reached the
+  console); `provision_stack.sh` (the runbook's 5.1–5.6 over ssh, idempotent,
+  pinned digests and the controller identity verified on the guest);
+  `functional_check.sh` (one synthetic event from one simulated device to its
+  twin); `validate.sh` (the authorised sequence, each phase recorded, the close
+  attempted after any failure, never a kill); `PROTOCOL.md`, a comparative
+  protocol **proposed for later approval**, not executed. Every download — the
+  Terraform archive, the two providers, the Debian image — is gated
+  (`EGW_COMPARE_ALLOW_DOWNLOAD=1` for the image) and waits for authorisation.
+- **Backend decision.** The libvirt provider was not viable without a
+  significant host migration: the WSL host runs no `libvirtd`, the QEMU in use
+  is poky's native 8.2.7 from the build sysroot, and the project's drivers own
+  the process, the slirp `hostfwd` and the direct kernel boot. Terraform is
+  therefore a thin layer — the built-in `terraform_data` with `local-exec`
+  over `compare_env.sh`, the `local` and `external` providers — that records
+  the desired state, while the live state is read by `compare_env.sh status`
+  (an `external` data source and a `check` block that warns on disagreement),
+  never inferred. A second `apply` runs nothing; `stop` preserves disks and
+  results; `destroy` removes only work disks and state after a controlled
+  stop; a stop that fails exits 5 and kills nothing.
+- **Boot-method decision.** Direct kernel boot (`-kernel`/`-append`) for both
+  scenarios, with each guest's own kernel: the Yocto `Image` as the pilot
+  booted it, Debian's `vmlinuz` and `initrd.img` extracted from the image.
+  Debian's native UEFI + GRUB path is not exercised and is recorded as a
+  difference, with the others (kernel, init, userland, engine versions, root
+  disk layout, cloud-init, timers) in the README's table and in the manifests.
+- **Equal profile.** The recorded pilot machine of 2026-10-09 for both:
+  `-machine virt -cpu cortex-a76 -smp 4 -m 8192`, TCG, the same QEMU binary
+  and sha256, MAC `52:54:00:12:35:02`, `hostfwd` 2222 and 8883 on the loopback,
+  virtio-rng, two virtio-blk disks, virtio-gpu, `mem=8192M`; one guest at a
+  time, refusing to start while a pilot session is open, another QEMU runs or
+  the ports are busy. The Yocto base is the deploy `rootfs.ext4` as it is on
+  disk today, after the pilot sessions booted it read-write; a pristine
+  rebuild is a Yocto build and is not authorised.
+- **Tests.** Offline, in the bench style of the session drivers: stub
+  binaries first on a temporary `PATH`, the CLI run as Terraform runs it, the
+  seed renderer and the first-boot judge on fixtures; the shellcheck and
+  Terraform format/validate checks skip where the tools are absent. They show
+  the scripts' contract, not a guest.
+- **Pending, each on its own authority.** The downloads' authorisation; the
+  provider lock file `terraform/.terraform.lock.hcl` (generated by
+  `providers lock` once `init` has run); the real validation of each scenario
+  (README section 9, "to be recorded"); the protocol's approval before any
+  comparison measurement.
+- **Unchanged.** The pilot evidence and its packages, the controller image and
+  its identity, the collector, the harness, the session drivers and the Yocto
+  image artefacts; nothing here is a comparison result.
+- **Validation outcomes (2026-10-18, after the downloads were authorised; one
+  boot per scenario).** Terraform 1.16.6 installed with its published SHA256
+  verified; providers locked. `debian13`: the provisioning first boot ended with
+  a clean power-down (cloud-init finished; packages from the archive; one
+  harmless warning for the empty `vendor-data`) and `prepared.qcow2`
+  (sha256 `4b8a0fb6…`) was written; the validation then **passed every phase**
+  — boot (ssh in 50 s), configuration (6.12.113 cloud kernel, 356 packages,
+  Docker 26.1.5, Compose 2.26.1, data disk on `/dev/vdb`), stack (444 s to
+  provision; six healthy at +211 s and `/ready` at +222 s from `up -d`), one
+  event to its twin (accepted in 15.9 s, `last_run_id` matches), controlled
+  close (54 s, QEMU ended), 32 files sealed. `yocto`: boot (ssh in ~30 s,
+  running, no failed unit), configuration and controlled close **passed**; the
+  stack phase did **not run** because the provisioning pre-check read an empty
+  label through `findmnt -no LABEL` on the BusyBox guest and stopped before
+  touching the stack — a tooling defect, corrected afterwards (`lsblk`/`blkid`
+  fallbacks and a source-device check, with tests). Two operator lessons are
+  recorded with the fixes: a driver launched from a `wsl.exe` session dies with
+  it (drivers are now started with `setsid nohup`), and `validate.sh --resume`
+  continues on a guest already running rather than booting again. Records:
+  `tools/compare/README.md` section 9 and the `output_test` package named
+  there.
+- **Simplified order and the final validation (2026-10-18, later the same
+  day).** The Project Manager replaced the planned demonstration menu with
+  two commands per scenario and authorised one validation of each by those
+  commands, the pending Yocto attempt included. `tf.sh <scenario> apply` now
+  runs `up.sh` behind the power resource — start, ssh within 450 s, the
+  idempotent provisioning, six healthy services and `/ready`, then
+  `ENVIRONMENT READY` with the guest left running — with no confirmation
+  prompt; `stop` is unchanged; a repeated `apply` changes nothing; a failed
+  one leaves the guest for inspection. Both scenarios then **passed every
+  phase by the final commands**: `yocto` ready 383 s after launch (ssh 22 s,
+  images 101 s, `up -d` 153 s, six healthy at +187 s, `/ready` at +195 s),
+  the second provisioning run skipped everything by marker, one event
+  accepted in 15.8 s with the twin updated, closed in 48 s; `debian13` ready
+  376 s after launch (ssh 46 s, tree and the five images already on this data disk from the afternoon run (skipped by marker), controller image present; `up -d` 194 s, six healthy at +238 s, `/ready` 503 at +250 s then 200 at +270 s), one event accepted
+  in 25.13 s, closed in 51 s. The order's completion criterion —
+  one distribution up with a working stack and down again with two
+  commands, no manual step between — holds for both, once each; nothing was
+  measured and nothing repeated. Records: README section 9; the decision
+  note and the sealed package in `output_test` (outside the repository).
+
+## Entry #C060 — Minimal comparison Yocto image vs Debian 13: six measured executions under one QEMU/TCG profile (series a02); exploratory results
+
+- **Date:** 2026-10-18/19. **Scope:** the comparison measurements ordered after
+  PR #62 (three pairs, six executions, every metric in each) and the minimal
+  instrumentation they needed. No change to the controller, the analyser, the
+  image, the collector, the bases or the pilot records; G4 stays `Not decided`.
+- **Authority.** The Project Manager's order "comparação mínima" and his two
+  closing orders (the review batch on `74cb1b4`; the two calculation rules);
+  the student's authorisation of the six executions and his "depois disto
+  corrigido podes repetir automaticamente".
+- **What was built** (`tools/compare/`, README section 10): `measure_base.sh`
+  (the measured base of a scenario: fresh disks, the stack installed by
+  `tf.sh apply`, closed by `stop`, both disks copied with sha256);
+  `measure_run.sh` (one execution: disks restored from the base and verified,
+  `apply`, the functional event, 120 s at rest with the whole-guest memory at
+  1 Hz, `df -P -k`, the SUT record, the harness run of the plan entry with the
+  collector, the runbook drain helper through `drain_hook.sh`, the post-drain
+  events, the reconciliation of every identity, final state, `stop`;
+  `timeline.json` on one host clock, sealed after the log is closed);
+  `measure_series.sh` (the entries in order, one guest at a time, then the
+  analysis and the summary); `measure_plan.py` (six nominal entries, one seed
+  per pair, `--id-suffix`, `--supersedes`); `guest_meminfo_sampler.sh`
+  (`MemTotal − MemAvailable` and `/proc/uptime` per line, BusyBox-safe);
+  `measure_summary.py` (per-run rows, median and min–max per scenario, the
+  notes). The lifecycle scripts record the host-monotonic instants of the QEMU
+  exec, the first ssh answer, six healthy, `/ready` 200 and the confirmed twin.
+- **Two calculation rules**, after the first execution showed the host wall
+  clock stepping back inside the run (15.7–22.0 s in every window): the load
+  window lives on monotonic clocks only — its duration from the harness
+  manifest's monotonic instants, its position on the guest from the controller
+  marker polled at the run end, cross-checked against at least 100 host–guest
+  event pairs within 1 s; without that correspondence the window and every
+  dependent metric are unavailable with the reason. Rates are estimates between
+  two boundary samples of the controller metrics, each within 5 s of its bound,
+  with the span and the gaps reported.
+- **Executions.** Plan `plan-a02.json` (sha256 `94fc9691…`, superseding the
+  first plan), ids `cmp-p<k>-<scenario>-a02`, seeds 2026101801/02/03. Six valid
+  runs (harness exit 0, drain quiet, controlled stop, sealed). Median of three,
+  Yocto vs Debian 13: boot to ssh 15.8 s vs 46.3 s; stack ready 241.3 s vs
+  322.3 s; gateway functional 258.8 s vs 341.9 s; guest memory at rest 1 893.6
+  vs 2 292.3 MiB and inside the 600 s window 1 922.7 vs 2 304.3 MiB (max 2 089.9
+  vs 2 501.1); root filesystem 489 vs 1 458 MiB, `/var/lib/docker` 2 023 MiB in
+  both; observed acceptance rate between boundary samples 7.76 vs 4.95 msg/s
+  (1.57×) under the synthetic load of 11.20 msg/s published; confirmed by the
+  end-of-load marker + 60 s (the harness's observation limit) 4 426 vs 2 394
+  of 6 720 (1.85×; 65.9 % vs 35.6 %), the rest confirmed during the drain in
+  the five executions whose post-drain log was verified (reconciliation Yocto
+  n = 2, Debian n = 3; cmp-p1-yocto-a02 claims nothing); controller latency
+  p50 220.1 s vs 350.6 s (p95 264.4 vs 441.8 s) over those confirmations only;
+  drain 344.0 s vs 668.3 s. Conclusion: in the emulated conditions tried, the
+  Yocto configuration showed shorter start-up times, lower memory and disk use
+  and a higher observed acceptance rate than the Debian 13 configuration.
+  Exploratory: n = 3, TCG on a shared x86-64 host, one profile, one load,
+  whole configurations with different kernels and runtimes; no significance,
+  no maximum capacity, nothing about physical ARM, no isolated effect of the
+  distribution.
+- **Framing (the Project Manager's order of 2026-10-19, applied in one pass
+  to the summary generator's labels and notes, the tables, the README, the
+  results note and the PR description).** The 11.2 msg/s is presented only as
+  the synthetic load used in the executions, inherited from the experimental
+  scenario and kept in the method for reproducibility; it is not a requirement
+  of the supervisor, a required capacity, a performance reference or a pass
+  threshold, and no msg/s target or pass criterion is introduced. Queue growth
+  and confirmations after the observation limit are observed behaviour, not
+  failures. The limit is written as the end-of-load marker + 60 s, never a
+  60 s delivery of each message; latency percentiles cover only the
+  confirmations within it; the ratios 1.57× (observed rate) and 1.85×
+  (confirmations within the limit) are kept apart; the time alignment
+  uncertainty (marker lag, pairing discrepancy, probe and sampler cadences) is
+  stated. The corrected summary is a new derivative with provenance; raw
+  records, original seals, controller, analyser, load and earlier summaries
+  are unchanged.
+- **Instrumentation record.** The first attempt (`cmp-p1-yocto`) was invalid
+  by instrumentation (overlay not named `.rootfs` → harness identity check;
+  the runbook helper needed the environment exported → drain never polled;
+  the live events file) and is kept as evidence outside the statistics; the
+  review batch (`74cb1b4`) fixed the permissions of the work copies, the
+  fetches with explicit statuses, the drain environment, the seal after the
+  log, and surfaced two more defects through an integrated offline path.
+  Series a02 stopped twice on instrumentation (BusyBox `head -c`, fixed by
+  `dd`; the driver inheriting the loop's stdin) and was continued from the
+  next planned entry each time; the summary gained `--plan`. Nothing was
+  repeated or replaced.
+- **Records.** `docs/evidence/compare-a02/` (table, CSV, JSON, plan); the
+  sealed package `output_test/runs/2026-10-19/HIST_2026-10-19-compare-measurements-a02`
+  (583 files, `SHA256SUMS` `87d7ada7…`) and the decision note
+  `output_test/decisions/2026-10-19_compare-measurements-a02.md`, outside the
+  repository.
+
+---
+
+## Entry #C061 — A third comparison scenario, `yoctowrynose`, boots the yoctoWrynose UEFI image for the demonstration
+
+- **Date:** 2026-10-20. **Scope:** `tools/compare/` only: a third scenario next to the measured pair. No change to the
+  `yocto` or `debian13` scenarios, the controller, the analyser, the harness, the pilot records or series a02; G4
+  stays `Not decided`.
+- **Authority.** The student's request of 2026-10-20 for a third option, beside `yocto` and `debian13`, that runs
+  the whole demonstration in the same way (bring-up, simulator with one and three wearables, observers, controlled
+  close) for the final video, and his order to push the branch and open the pull request.
+- **The image.** yoctoWrynose: Yocto Project 6.0.3 "Wrynose", MACHINE `genericarm64`, one GPT disk in qcow2 booted
+  by edk2 firmware, systemd-boot, kernel 6.18.39 and an initramfs; Docker Engine 29.3.0 and Compose 5.1.0 on BusyBox
+  1.37.0. It was built outside this repository; its kas manifest and layer travel inside the sealed image package.
+- **What changed.** A base kind `uefi-disk` in `compare_env.sh` (base copies of disk, firmware code and
+  variable-store template after the package's own `SHA256SUMS`; a writable store per scenario; two pflash drives and
+  no `-kernel`/`-append`; the firmware hash in the manifest), the scenario file and its Terraform variables, the name
+  in `lib.sh`, three offline tests and README section 11.
+- **Verification.** Offline: the comparison tests pass, and the `yocto` and `debian13` QEMU command lines are
+  identical before and after the change. Live, after a WSL restart, each of the three scenarios was brought up with
+  `tf.sh apply`, run through the demonstration scripts with one and three simulated wearables and closed with
+  `stop`: every step exited 0, 60 of 60 and 135 of 135 messages were confirmed in the twins, and no QEMU process was
+  left. For `yoctowrynose`, ssh answered after 62 s and the environment was ready after 384 s with the comparison's
+  QEMU 8.2.7.
+- **Limits.** Demonstration and functional use only. A measured `yoctowrynose` run would be invalid under the
+  harness identity check I1, which needs a kernel passed by QEMU, and the measurement plan and summary know the
+  measured pair only; its boot times include firmware and initramfs and are not comparable with series a02.
+
+---
+
+## Entry #C062 — The repository reorganised for assessment: a short front page, five guides and the demonstration wrappers
+
+- **Date:** 2026-10-26. **Scope:** documentation, navigation and the demonstration wrappers only. No change to the
+  controller, simulator, harness, deployment, Yocto layer, schemas, comparison or session tooling, CI, evidence
+  capsules, governance records or ADRs; no guest was started, no image built and nothing measured.
+- **Authority.** The student's work order of 2026-10-26: organise the repository so that supervisors and examiners
+  can see what was built, how the architecture works, how to run the demonstration, where the results and evidence
+  are, and what is not implemented, in one pull request to `dev`.
+- **What changed.** `README.md` is now a short presentation (contribution, architecture diagram, implemented
+  features, the scope actually evaluated, three paths, limitations); the previous front page is kept verbatim in
+  `docs/history/README-before-2026-10-26.md`. Five guides: `docs/architecture.md`, `docs/demo.md`,
+  `docs/results.md`, `docs/reproduce.md` and `docs/history/README.md`. The demonstration wrappers that existed only
+  on the student's WSL host are in `tools/demo/`, with configurable paths, no secrets and an offline check. Stale
+  statements were corrected in `docs/README.md`, `src/README.md`, `thesis/README.md` (the September LaTeX
+  conversion is a historical version), `experiments/README.md`, `diagrams/README.md` and `tools/compare/README.md`.
+- **Verification.** Offline only: the Markdown link check, the evidence verifier (73 seals), the JSON check, the
+  thesis-tool tests, `bash -n` and ShellCheck (`--severity=error`) on the new scripts and
+  `tools/demo/tests/offline_check.sh`; `git diff` against `eaeb35f` is empty for every protected path.
+- **Limits.** The demonstration commands were documented from the scripts and earlier runs (Entry #C061), not
+  re-run for this change. Some inputs stay local only (base images, `.env`, keys, the `output_test` packages);
+  `docs/reproduce.md` lists them.
+
+---
+
+## Entry #C063 — The front page and the guides rewritten for readers who do not know the development process
+
+- **Date:** 2026-10-26. **Scope:** `README.md`, the presentation guides (`docs/demo.md`, `docs/architecture.md`,
+  `docs/results.md`, `docs/reproduce.md`, the top of `docs/README.md`, `tools/demo/README.md`), two dangling
+  cross-references (`src/README.md`, `tools/compare/README.md`) and the terminal numbers in the header comments of
+  four `tools/demo` scripts. No change to the system, images, criteria, results or evidence; no guest, simulation
+  or measurement.
+- **Authority.** The student's correction order of 2026-10-26, which replaces the earlier guidance on history and
+  rules in the front page: plain English, no internal codes, gates, numbered sessions, decisions or approval dates
+  in the README and the presentation guides; the README in a fixed order (overview, how it works, before you start,
+  the menu, the manual commands, what was implemented and evaluated, results and limitations, code and
+  documentation), with the demonstration commands in the README itself.
+- **What changed.** The README shows the menu (`tools/demo/demo.sh`) and the independent commands, each checked
+  against the scripts, and a table of what each terminal shows. The guides are about a third shorter; they keep
+  software versions, reproduction parameters and every negative or qualified result, and keep internal names only
+  in file paths. The original records keep their identifiers and dates.
+- **Verification.** Offline only: the Markdown link check (158 files), the evidence verifier (73 seals),
+  `tools/demo/tests/offline_check.sh` (94 passed) and a scan of the README and guides for internal codes;
+  `git diff` against `c1d46ab` is empty for every protected path.
+
+---
+
+## Entry #C064 — Another PC prepared for the demonstration with one script and a kit
+
+- **Date:** 2026-10-26. **Scope:** the new `tools/setup/` (`prepare_demo_host.sh`, `make_demo_kit.sh`, their
+  offline check and guide); `tools/demo/observe/mqtt.sh` and `tools/demo/tests/offline_check.sh`; links in
+  `README.md`, `docs/demo.md` and `tools/demo/README.md`. No change to the system, images, criteria, results or
+  evidence.
+- **Authority.** The student's request of 2026-10-26: give the image to another person as a ZIP with a script
+  that does the one-time preparation, so that only a WSL terminal is needed; test it, then implement it and update
+  the documentation.
+- **What changed.** `make_demo_kit.sh` builds the kit (the sanitised Yocto package and the controller archive,
+  with `SHA256SUMS`) after a secret scan; the kit holds no password and not the sealed image of the measurements.
+  `prepare_demo_host.sh` prepares a WSL2 Ubuntu 24.04 in eleven idempotent steps: packages, Terraform, the kit,
+  the test key, a passwords file with new random values, the virtual environment, a settings file read by login
+  shells, `terraform init` and the Debian 13 first boot. It refuses a WSL that already holds its own comparison
+  set-up.
+- **Tested end to end** in a new Ubuntu 24.04 WSL distribution: the preparation (8.5 minutes), both scenarios
+  started, a three-wearable demonstration on each (135 messages sent and 135 seen at the broker, three twins
+  updated), the menu, both power-offs and a second run of the script (nothing changed). Results in
+  `tools/setup/README.md`. The test found three defects, each fixed with an offline test: `sudo -v` waited for a
+  password that a password-free `sudo` never asks for, so the apt step hung; a false warning about the virtio
+  network ROM, which Ubuntu 24.04 installs in `/usr/lib/ipxe/qemu`; and Ctrl+C on the MQTT observer left its
+  `mosquitto_sub` running inside the broker container until power-off, because Docker does not end a process
+  started by `docker compose exec` when its client goes away. The observer now ends its own subscriber, matched
+  by a client id unique to each run.
+- **Independent review.** Four reviewers and an adversarial verifier for each kept 13 findings, all fixed with a
+  test that failed first. The kit's secret scan no longer reads a compressed ext4 image as an empty archive,
+  finds disk images by their content rather than their name, refuses a qcow2 with snapshots or a backing file,
+  matches an assignment that follows a NUL byte, and refuses anything after the test key in its file. The
+  rebuilt kit is byte-identical to the one tested. The preparation now warns below 11 GiB (12 GiB contradicted
+  its own `.wslconfig` advice), waits for the package-lists lock, refuses a Yocto base copy from another kit and
+  checks the profile's lock before the Debian download. The MQTT observer also ends at once on `kill <pid>`.
+  After the fixes, the script was run again and the Yocto gateway was started and stopped again on the same
+  distribution, with the MQTT observer ended both ways and nothing left behind. The automated review of the
+  pull request found two more, fixed the same way: the scan now opens what decompression yields and refuses
+  anything packed deeper than six levels, and step 4 compares the base copy's kernel as well as its root file
+  system. The kit rebuilt with the final scan is still byte-identical.
+- **Verification.** `tools/setup/tests/offline_check.sh` (457 passed), `tools/demo/tests/offline_check.sh`
+  (101 passed), the Markdown link check (159 files), the evidence verifier (73 seals). Not tested: a 16 GB PC
+  with the `.wslconfig` limit, and a `sudo` that asks for a password.
+
+---
+
+## Entry #C065 — The repository organised for the assessment version on main
+
+- **Date:** 2026-10-27. **Scope:** internal records moved into `docs/history/` (`LOG.md`, `PROGRESS.md`, `ai/`,
+  `docs/reviews/`, `docs/g0/`, the claim–evidence matrix, two set-up records, the paper assembly prompt and the
+  two-layer drawing), with every affected link rewritten; the front page in six sections; the guides, tool READMEs,
+  indexes and the labels of historical and deferred folders. No change to code, scripts, the system, images,
+  criteria, results or evidence; no guest, build or measurement.
+- **Authority.** The student's order of 2026-10-27 to prepare the version for the supervisors and examiners on
+  main: one organisation pull request to dev, then a promotion pull request from dev to main with no new content.
+- **Kept in place.** `docs/governance/` (three files are link targets of sealed capsule READMEs and the plan is read
+  by a test), `docs/adr/`, `thesis/` (built by a required check and linked from a sealed README),
+  `tools/session/`, `tools/probe/` and the runbooks read by tests. They leave the main navigation or carry a reading
+  note instead. `thesis/` is labelled as the historical LaTeX conversion of 17 September 2026; the check is still
+  named `thesis build`, and only its step and artifact names changed.
+- **Dated citations.** Citations pinned to a commit (for example `PROGRESS.md:509` in ADR 0011, or the plan
+  citations in `experiments/g4-pilot/`) keep the path the file had at that commit. Sealed evidence is unchanged and
+  still names the old paths in its text; `docs/history/README.md` maps earlier paths to current ones.
+- **Verification.** Offline only: Markdown links, the evidence seals, JSON and YAML parsing, the `thesis/tools`
+  tests, the offline checks of `tools/setup` and `tools/demo`, and the Python test suite; one consolidated review
+  of accuracy, order compliance, preservation and navigation, with each finding verified.

@@ -1,0 +1,7 @@
+# Terraform working files never enter the repository; state lives under $EGW_COMPARE_ROOT/tfstate.
+.terraform/
+terraform.tfstate.d/
+*.tfstate
+*.tfstate.*
+crash.log
+*.tfplan

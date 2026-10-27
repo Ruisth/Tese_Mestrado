@@ -1,0 +1,99 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+  it differs from the final bytes (g3_battery.sh, sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-04T22:35:06Z scenario s5a; host uptime 5886.02 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh 6f21cb60b0608317, bs3_setup.sh 77afc694db979576, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED: the stub guest lists five running containers, not six: line a prints its STOP: (the helper's line, at the start of a line) and sends no reboot command; HALT, no wait, no later step; 'row t9' refused. The file of step a holds the text 'STOP:' in its last comment line, which 'set -v' echoes: only a line that STARTS with STOP: counts.
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-04T22:35:08Z up=5888 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+## 2026-10-04T22:35:08Z up=5888 candidate identities
+## 2026-10-04T22:35:08Z up=5888 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-04T22:35:08Z up=5888 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T22:35:08Z up=5888 guest root file system before the boot
+## 2026-10-04T22:35:08Z up=5888 keepalive
+## 2026-10-04T22:35:09Z up=5889 UP0=5888 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-04T22:35:09Z up=5889 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/state/S3-guest_session_open.console.txt)
+## 2026-10-04T22:35:09Z up=5889 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-04T22:35:10Z up=5890 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/state/S3-gate_health.console.txt)
+TUNNEL UP
+## 2026-10-04T22:35:11Z up=5891 run ids of S3 unused on the guest (read-only listing)
+## 2026-10-04T22:35:11Z up=5891 session S3 is open: <bench>/egw-exec/attempts/20261004T223509Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S3
+CHECK ok: the session is open
+--- the fake process that stands for QEMU after the open: pid 174499 alive, start tick 588919
+
+=== g3_battery.sh row t8
+-> exit 1
+## 2026-10-04T22:35:11Z up=5891 row t8 (session S3): steps script sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T22:35:12Z up=5892 row t8: the running images recorded by the gate driver at open, against S2's record
+gate record: <bench>/egw-exec/attempts/20261004T223510Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-04T22:35:12Z up=5892 row t8: attempt <bench>/egw-exec/attempts/20261004T223512Z_g3-qualification-t8_attempt02 (ceiling 135 min, counted from the row's start at up=5891 and shared by everything the row does: the operator enforces it with 'term t8')
+## 2026-10-04T22:35:13Z up=5893 row t8: the gate's read before the row
+## 2026-10-04T22:35:13Z up=5893 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+QEMU PROCESS: pid=174499 start=588919 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 14 arguments of pid 174499
+## 2026-10-04T22:35:13Z up=5893 row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+drained: queue_depth 0 and identical counters on 2 consecutive readings over 0 s (0 0 0 true 2026-09-18T10:00:00Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 5893.74 s, end 5893.75 s, 
+STOP: test 8: no pre-reboot /metrics reading or twin snapshot, no boot id of the kernel file's form (36 characters of 0-9, a-f and '-'), not six running containers (docker ps -q --no-trunc --filter status=running), no event directory listed under /opt/egw/deployment/data/events, or no mount source for /var/lib/docker (findmnt -no SOURCE: the data disk of 3.2) - the guest was NOT rebooted
+## 2026-10-04T22:35:14Z up=5893 row t8: step t8-a-reboot ended; hx status 1 (the status of its last line; never a verdict)
+HALT: row t8: step a printed STOP: (no pre-reboot /metrics reading or snapshot, no boot id, not six running containers, no event directory or no mount source) - the guest was NOT rebooted, and nothing further of T8 was run
+## 2026-10-04T22:35:14Z up=5893 row t8: the gate after the row
+TUNNEL CHECK: the master answers on <bench>/home/egw-tcg/tunnel.ctl
+## 2026-10-04T22:35:14Z up=5894 GATE t8: pass (guest state recorded and NOT compared across the reboot, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-04T22:35:14Z up=5894 row t8 ended after 3 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+  <bench>/egw-exec/attempts/20261004T223512Z_g3-qualification-t8_attempt02/console/003-t8-a-reboot.stdout.txt:7:STOP: test 8: no pre-reboot /metrics reading or twin snapshot, no boot id of the kernel file's form (36 characters of 0-9, a-f and '-'), not six running containers (docker ps -q --no-trunc --filter status=running), no event directory listed under /opt/egw/deployment/data/event
+HALT recorded for session S3: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+CHECK ok: exit status 1: row t8 (a halt)
+CHECK ok: the halt of row t8
+recorded steps of row t8, in order: guest-state-before t8-qemu-before t8-a-reboot guest-state-after gate-healthy gate-units gate-tunnel-check
+CHECK ok: the steps of row t8 are the expected ones
+CHECK ok: the fake QEMU process after the row: pid 174499 alive, start tick 588919
+CHECK ok: commands that start, restart or bring up anything, sent to the stub guest (the test module's own pattern): 0
+CHECK ok: pkill or killall calls: 0
+CHECK ok: step a's own STOP: line
+CHECK ok: lines of step a's console that hold STOP: anywhere / at the start of a line: 2 / 1
+CHECK ok: reboot commands sent to the stub guest: 0
+
+=== g3_battery.sh classify t8 failed not-applicable not-run bench: scenario s5a bench: none
+-> exit 1
+## 2026-10-04T22:35:14Z up=5894 classify t8: not started (failed, not-applicable/not-run)
+row t8: classified 'not started'; driver code 2; export: verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 1 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this package -> <bench>/out/runs/2026-10-04/20261004T223512Z_g3-qualification-t8_attempt02
+HALT: row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-04T22:35:14Z up=5894 row t9 (session S3): steps script sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+REFUSED: NOT STARTED: session S3 has a recorded halt (up=5894 row=t8 row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval). A halt cancels further progress until Rui directs otherwise; with his explicit go, set EGW_G3_RUI_GO to his words (they are recorded)
+CHECK ok: exit status 2: row t9 after the halt of row t8 (refused: nothing was started)
+CHECK ok: row t9 is refused because of the recorded halt
+CHECK ok: attempts of row t9 created: 0
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-04T22:35:15Z up=5895 close S3: <bench>/egw-exec/attempts/20261004T223509Z_guest-session_attempt01
+## 2026-10-04T22:35:15Z up=5895 no recorder or collector unit active (read-only)
+## 2026-10-04T22:35:15Z up=5895 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-04T22:35:15Z up=5895 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/state/S3-guest_session_close.console.txt)
+## 2026-10-04T22:35:15Z up=5895 session S3 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+CHECK ok: the session is closed
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-04T22:35:16Z SCENARIO s5a: PASS (17 checks)

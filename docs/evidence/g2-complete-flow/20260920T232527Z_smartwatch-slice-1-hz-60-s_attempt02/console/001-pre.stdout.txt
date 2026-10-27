@@ -1,0 +1,18 @@
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 2026-09-20T23:21:31.554Z 0 0 0 0 0) - an observation, not proof that processing has finished
+{
+  "label": "before",
+  "seed": 20260921,
+  "devices": {
+    "62da1188-4cd1-434b-a9c7-236a8c211f84": {
+      "device_type": "smartwatch",
+      "exists": false,
+      "ingestion": {
+        "last_run_id": null,
+        "last_seq": null,
+        "last_message_id": null,
+        "last_ts": null,
+        "accepted_count": null
+      }
+    }
+  }
+}

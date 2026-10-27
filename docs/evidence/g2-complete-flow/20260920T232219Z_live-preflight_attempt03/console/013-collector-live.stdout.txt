@@ -1,0 +1,11 @@
+inactive
+Sep 20 23:23:27 egw-qemu-integrated systemd[1]: Started /usr/bin/sh /opt/egw/deployment/scripts/collect-resources.sh /tmp/resources-preflight-20260920T232219Z.csv --duration 45 --expect-services egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1.
+Sep 20 23:23:27 egw-qemu-integrated sh[3608]: collecting container resources into /tmp/resources-preflight-20260920T232219Z.csv (source: auto, one sample every 1s, duration: 45s, 0 = until SIGTERM)
+Sep 20 23:23:27 egw-qemu-integrated sh[3608]: pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; diagnostics: /tmp/resources-preflight-20260920T232219Z.csv.diagnostics.log; lifecycle: /tmp/resources-preflight-20260920T232219Z.csv.lifecycle.csv
+Sep 20 23:23:27 egw-qemu-integrated sh[3608]: sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+Sep 20 23:24:12 egw-qemu-integrated sh[3608]: collector stopped after 46 samples (forward UTC gaps: 0 s; withheld: 0 sample(s), with 0.00 s of elapsed time without an accepted sample beyond one interval and the UTC gaps, 0 run(s) of them unmeasured and 0 still withheld at stop; 5 diagnostic line(s) in /tmp/resources-preflight-20260920T232219Z.csv.diagnostics.log); output: /tmp/resources-preflight-20260920T232219Z.csv
+Sep 20 23:24:12 egw-qemu-integrated systemd[1]: egw-resources-preflight-20260920T232219Z.service: Deactivated successfully.
+Sep 20 23:24:12 egw-qemu-integrated systemd[1]: egw-resources-preflight-20260920T232219Z.service: Consumed 5.566s CPU time.
+-rw-r--r--    1 root     root         21582 Sep 20 23:24 /tmp/resources-preflight-20260920T232219Z.csv
+-rw-r--r--    1 root     root          1089 Sep 20 23:24 /tmp/resources-preflight-20260920T232219Z.csv.diagnostics.log
+-rw-r--r--    1 root     root           708 Sep 20 23:23 /tmp/resources-preflight-20260920T232219Z.csv.lifecycle.csv

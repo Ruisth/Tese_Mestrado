@@ -1,0 +1,207 @@
+{
+  "capture_failures": [],
+  "capture_reconciliation": "",
+  "console_extra_files": [],
+  "copy_verification": "verified",
+  "destination": {
+    "package": "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T132836Z_g2-gate-preconditions_attempt06",
+    "windows_path": "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\output_test\\runs\\2026-10-03\\20261003T132836Z_g2-gate-preconditions_attempt06"
+  },
+  "excluded": [],
+  "expected_artefacts_missing": [],
+  "exported_utc": "2026-10-03T13:29:03.893143Z",
+  "failed_copies": [],
+  "files": [
+    {
+      "package_path": "attempt.json",
+      "sha256": "f8796b8e8d8b76bde6152c012fa606be4b6098df17c3331bc55df4f98b379a03",
+      "size": 1969,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/attempt.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "commands.jsonl",
+      "sha256": "3f1f06744f337e57c080eda6f043500fe3d1ec613910f8b7ac9188e9c3872633",
+      "size": 20008,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/commands.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-services-healthy.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/001-services-healthy.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-services-healthy.stdout.txt",
+      "sha256": "ee613973740b92aed0b9f66df620019f99e6581da47fcbb8d9ceedbf251e5646",
+      "size": 348,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/001-services-healthy.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-controller-endpoints.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/002-controller-endpoints.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-controller-endpoints.stdout.txt",
+      "sha256": "2665053d3a5956772458e00017b0509d8d4caf840ad8c88b66c6ef64ff8b8e5b",
+      "size": 516,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/002-controller-endpoints.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-endpoints-verdict.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/003-endpoints-verdict.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-endpoints-verdict.stdout.txt",
+      "sha256": "8a08e6aae622915f546670abc314648daccf217fafca0b341e810001a87c5b08",
+      "size": 216,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/003-endpoints-verdict.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-counters-verdict.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/004-counters-verdict.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-counters-verdict.stdout.txt",
+      "sha256": "fe1bb95cdca99c1e4163dc57872abf9c0e1b6c5dd3a66ea9acf298aebd6b300b",
+      "size": 275,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/004-counters-verdict.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-container-identities.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/005-container-identities.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-container-identities.stdout.txt",
+      "sha256": "60f7e99b604bc78a7e176cae7dcefef2ffb2ba549e33cdbf05ad1313bb7073d1",
+      "size": 4623,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/005-container-identities.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-controller-build-identity.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/006-controller-build-identity.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-controller-build-identity.stdout.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/006-controller-build-identity.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-tls-configuration.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/007-tls-configuration.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-tls-configuration.stdout.txt",
+      "sha256": "e1b991a0885ebc75fc6021a6345ec50a8e32cb0efe11dda20b357a01d8c38fc1",
+      "size": 1643,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/console/007-tls-configuration.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/container_identities.txt",
+      "sha256": "60f7e99b604bc78a7e176cae7dcefef2ffb2ba549e33cdbf05ad1313bb7073d1",
+      "size": 4623,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/environment/container_identities.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/egw-controller-build-identity.txt",
+      "sha256": "79e7d2105be035911e9fe596f609a77775b578f0578cab1bde77f0d610aa2022",
+      "size": 2088,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/environment/egw-controller-build-identity.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/health.json",
+      "sha256": "a29ee2b15c494311c52521766e44af56a3ad2248e7a8ab465e5206463c13d288",
+      "size": 15,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/environment/health.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/http_codes.txt",
+      "sha256": "017a3dbed0ca705c8cf8d2912c8e4a13b47aecad7349d26aa845a8ce20de09d0",
+      "size": 39,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/environment/http_codes.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/metrics.json",
+      "sha256": "232f5258750a3696308f38ff0e630eefdc41c9a31b8bd75eb4f2dbc886529e5b",
+      "size": 322,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/environment/metrics.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/ready.json",
+      "sha256": "3bdbba25e402d6fbcad933b7ee94c22606f606fff27f4ae987543aede265a0fd",
+      "size": 59,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/environment/ready.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/tls_configuration.txt",
+      "sha256": "e1b991a0885ebc75fc6021a6345ec50a8e32cb0efe11dda20b357a01d8c38fc1",
+      "size": 1643,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/environment/tls_configuration.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "sources.json",
+      "sha256": "6c3b9f0390341dfd18635526c002291b374ba88078d4f87034c71c820e21474e",
+      "size": 20,
+      "source": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06/sources.json",
+      "state": "verified"
+    }
+  ],
+  "missing_sources": [],
+  "package_completeness": "complete",
+  "path_mapping": "sources are WSL paths; sealed files inside raw/ keep their original absolute paths",
+  "run_id": "20261003T132836Z_g2-gate-preconditions_attempt06",
+  "sanitized_derivatives": [],
+  "secret_scan": {
+    "note": "values of the listed variables (names only) and PEM private keys were searched in every file",
+    "private_keys": true,
+    "secret_values": [
+      "DITTO_DEVOPS_PASSWORD",
+      "EGW_MQTT_PASSWORD",
+      "MOSQUITTO_CONTROLLER_PASSWORD",
+      "MOSQUITTO_SIMULATOR_PASSWORD"
+    ]
+  },
+  "skipped_attempt_entries": [],
+  "skipped_registered_artefacts": [],
+  "skipped_source_roots": [],
+  "skipped_special": [],
+  "source_attempt_dir": "/home/ruisth/egw-exec/attempts/20261003T132836Z_g2-gate-preconditions_attempt06",
+  "tool": "egw_experiments.local_export",
+  "tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+  "tool_version": "1"
+}

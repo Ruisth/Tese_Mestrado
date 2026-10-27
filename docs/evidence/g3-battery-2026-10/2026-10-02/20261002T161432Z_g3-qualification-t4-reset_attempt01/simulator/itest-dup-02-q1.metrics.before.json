@@ -1,0 +1,1 @@
+{"accepted":11693,"rejected":67,"duplicate":672,"failed":0,"dropped":0,"received":12432,"in_progress":0,"processing_errors":0,"started_at":"2026-10-02T15:05:04.500Z","uptime_s":4540.244771584,"monotonic_ns":4750350964718,"wall_utc":"2026-10-02T16:16:49.366Z","mqtt_subscribed":true,"mqtt_connection":1,"unacked":0,"queue_depth":0}

@@ -1,0 +1,14 @@
+Test evidence record (sealed run over clean HEAD)
+=================================================
+Date (UTC): 2026-08-08T21:24:12Z
+Command: python -m pytest tests -q --junitxml=junit.xml  (cwd: Claude/src)
+Git commit (exact tree tested): ca445a31e5d146cf0c214b3cd4a23a95a48b5289
+Git tree hash: b767b229e295b9453cbc2efcbfd0122bf8409d38
+git status --porcelain at execution: CLEAN (empty)
+Python: Python 3.14.3
+OS: Windows 11 Pro (Microsoft Windows NT 10.0.26200.0)
+Venv lock: src/requirements.lock (dev lock; ARM64 runtime lock pending, before exp-v1)
+Markers: 'integration' deselected by default via addopts; zero integration tests exist yet.
+Scope: unit tests with fakes only - M2 evidence (audit scale). Closes no gate, validates no claim.
+Note: the commit that ADDS this evidence directory necessarily comes after
+ca445a3; it adds only files under docs/evidence/tests/ and changes no code.

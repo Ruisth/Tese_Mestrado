@@ -1,0 +1,177 @@
+42c42
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+72c72
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+285a286
+> turn of the changing subcommands: last taken by 'close S1' (pid <PID>, <UTC>); that invocation: ended
+322c323
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+342c343
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+369a371,390
+> turn of the changing subcommands: last taken by 'row t7-mongo' (pid <PID>, <UTC>); that invocation: STILL RUNNING: open, row, classify and close are refused until it ends
+> session S1: state=closed attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+>   row t1-smokes: classified; gate=pass; class=valid SUT failure; driver code=1; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-smokes_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-smokes_attempt01
+>   row t1-harness: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-harness_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-harness_attempt01
+>   row t2: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t2_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t2_attempt01
+>   row t3: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t3_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t3_attempt01
+>   row t4-replay: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-replay_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-replay_attempt01
+>   row t4-reset: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-reset_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-reset_attempt01
+>   row t5: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t5_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t5_attempt01
+> session S2: state=open attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02 UP0=<UP>
+>   elapsed host uptime: <N> s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+>   row t6: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+>     attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01
+373c394
+<     processes still in its group <PID>: 62179 bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M;62194 tee -p -a /tmp/g3-dry-N1/egw-exec/g3-battery/console/028-row-t7
+---
+>     processes still in its group <PID>: 81455 bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M;81471 tee -p -a /tmp/g3-dry-N1/egw-exec/g3-battery/console/028-row
+376,377c397
+< ## <UTC> up=<UP> close S2: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02
+< REFUSED: row t7-mongo is running (pid <PID>, state 'running'): 'term t7-mongo' sends TERM, never KILL
+---
+> REFUSED: another invocation of this script is still running: 'row t7-mongo' (pid <PID>, since <UTC>). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row
+381c401
+< <PID> bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/pre
+---
+> <PID> bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M
+383,385c403,405
+< <PID> /home/ruisth/egw-exec/venv/bin/python -m egw_experiments.local_export exec --attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t7
+< <PID> bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.env && set +a && export EGW_CLONE=/tmp/g3-dry-N1/repo && . $HOME/egw-tcg
+< <PID> bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.env && set +a && export EGW_CLONE=/tmp/g3-dry-N1/repo && . $HOME/egw-tcg
+---
+> <PID> /home/ruisth/egw-exec/venv/bin/python -m egw_experiments.local_export exec --attempt
+> <PID> bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.en
+> <PID> bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.en
+394,395c414,415
+< /dev/sdd       1007G  172G  785G  18% /
+< /dev/sdd       1007G  172G  785G  18% /
+---
+> /dev/sdd       1007G  172G  784G  18% /
+> /dev/sdd       1007G  172G  784G  18% /
+398c418
+< row t7-mongo: attempt finished 'interrupted' and exported (driver code 130). It is NOT classified again: its class is written in the result note.
+---
+> row t7-mongo: attempt finished 'interrupted'; driver code 130; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01. It is NOT classified again: its class is written in the result note.
+408a429
+> turn of the changing subcommands: last taken by 'row t7-mongo' (pid <PID>, <UTC>); that invocation: ended
+437c458
+< REFUSED: NOT STARTED: session S2 has a recorded halt (up=<UP> row=t7-mongo row t7-mongo was interrupted by a signal (TERM) during 't7-mongo' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close). A halt cancels further progress until Rui directs otherwise;
+---
+> REFUSED: NOT STARTED: session S2 has a recorded halt (up=<UP> row=t7-mongo row t7-mongo was interrupted by a signal (TERM) during 't7-mongo' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close). A halt cancels further progress until Rui directs otherwise
+442c463
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+467c488
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+472c493
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+517c538
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+522c543
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+558c579
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+561a583,584
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+> keepalive: attached, about <N> s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+579a603
+> turn of the changing subcommands: last taken by 'close S2' (pid <PID>, <UTC>); that invocation: ended
+704c728
+< session clock: NOW=<UP> UP0=-9781 elapsed=<N> s (cutoff 10800 s)
+---
+> session clock: NOW=<UP> UP0=-9333 elapsed=<N> s (cutoff 10800 s)
+733c757
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+783c807
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+821c845
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+826c850
+< HALT: close: a recorder or collector unit is active, or the units could not be read (exit 3: 3 active, 97 the guest did not answer): nothing was stopped. The runbook's own cleanup is the operator's decision; then 'close' again
+---
+> HALT: close: a recorder or collector unit is active (exit 3): nothing was stopped. The runbook's own cleanup is the operator's decision (README, 'Restorations': at most three tries); then 'close' again
+852c876
+<   HALT: up=<UP> close: a recorder or collector unit is active, or the units could not be read (exit 3: 3 active, 97 the guest did not answer): nothing was stopped. The runbook's own cleanup is the operator's decision; then 'close' again
+---
+>   HALT: up=<UP> close: a recorder or collector unit is active (exit 3): nothing was stopped. The runbook's own cleanup is the operator's decision (README, 'Restorations': at most three tries); then 'close' again
+984c1008
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+1168c1192
+< Next: the next row of session S2, or 'close' after the last one.
+---
+> Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+1211,1212c1235,1243
+< ## <UTC> up=<UP> no recorder or collector unit active (read-only)
+< HALT: close: a recorder or collector unit is active, or the units could not be read (exit 97: 3 active, 97 the guest did not answer): nothing was stopped. The runbook's own cleanup is the operator's decision; then 'close' again
+---
+> HALT: close S2: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.sh is run to finish and export the session attempt
+> ## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N4/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N4/egw-exec/g3-battery/S2-guest_session_close.console.txt)
+> STOP: ssh exited non-zero - the tunnel was NOT opened
+> STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran
+> exported <STAMP>_guest-session_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_guest-session_attempt01 (verified, 20 files, 0 excluded)
+> DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+> rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+> ## <UTC> up=<UP> session S2 closed (guest_session_close.sh exit 0)
+> What remains for the operator:
+1215,1216c1246
+< session S2: state=open attempt=/tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+<   elapsed host uptime: <N> s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+---
+> session S2: state=closed attempt=/tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+1221c1251
+<   HALT: up=<UP> close: a recorder or collector unit is active, or the units could not be read (exit 97: 3 active, 97 the guest did not answer): nothing was stopped. The runbook's own cleanup is the operator's decision; then 'close' again
+---
+>   HALT: up=<UP> close S2: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.
+1253c1283
+< keepalive: pid <PID> 'sleep 40007', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+---
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+1274a1305,1306
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+> keepalive: attached, about <N> s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+1290a1323
+> turn of the changing subcommands: last taken by 'close S1' (pid <PID>, <UTC>); that invocation: ended
+1295d1327
+<   row t2: not started
+1309c1341
+< ## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N6/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N6/egw-exec/g3-battery/S1-guest_session_open.console.
+---
+> ## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N6/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N6/egw-exec/g3-battery/S1-guest_session_open.co
+1314a1347,1348
+> keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+> keepalive: attached, about <N> s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.

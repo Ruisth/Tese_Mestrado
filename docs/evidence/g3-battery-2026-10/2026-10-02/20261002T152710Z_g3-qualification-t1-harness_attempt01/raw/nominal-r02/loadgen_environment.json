@@ -1,0 +1,16 @@
+{
+  "captured_utc": "2026-10-02T15:29:33.661Z",
+  "cpu_count": 16,
+  "docker_client_version": null,
+  "docker_server_version": null,
+  "kernel_release": "6.6.87.2-microsoft-standard-WSL2",
+  "kernel_version": "#1 SMP PREEMPT_DYNAMIC Thu Jun  5 18:30:46 UTC 2025",
+  "machine": "x86_64",
+  "node": "Ruisth-Desktop",
+  "platform": "Linux-6.6.87.2-microsoft-standard-WSL2-x86_64-with-glibc2.39",
+  "processor": "x86_64",
+  "python_implementation": "CPython",
+  "python_version": "3.12.3",
+  "role": "loadgen",
+  "system": "Linux"
+}

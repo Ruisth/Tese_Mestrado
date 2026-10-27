@@ -1,0 +1,3 @@
+# (c) plaintext against the TLS listener
+if T0_9C=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-notls-q2 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --no-tls --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD"; echo "exit=$?"; else stop "test 9(c): the lower bound of (c)'s evidence was NOT read - the probe was NOT run"; fi
+sut_log broker itest-notls-q2 "$T0_9C" && cat ~/egw-tcg/itest/itest-notls-q2.sut/broker.log || stop "test 9(c): the broker log bounded to (c) was NOT read - (c) has no evidence (a read that failed shows no refusal)"

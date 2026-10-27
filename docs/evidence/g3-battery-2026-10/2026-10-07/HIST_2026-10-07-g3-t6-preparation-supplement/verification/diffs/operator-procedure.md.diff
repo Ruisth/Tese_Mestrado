@@ -1,0 +1,36 @@
+--- /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/t6supp/base/operator-procedure.md	2026-10-05 21:32:57.368249900 +0100
++++ /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/t6supp/operator-procedure.md	2026-10-07 12:14:38.960544800 +0100
+@@ -77,8 +77,11 @@
+ sizing finding), `resources_transition_rows`, `resources_proved_down`, the N1 report, and the functional recovery
+ (`restart_functional_recovery_s`). "Recovery within 120 s" is read on `restart_metrics_endpoint_recovery_s` (the
+ packet's T6 row: "endpoint recovery ≤ 120 s"; the runbook's Expected: samples resuming within 120 s), as the request
+-states in section 6; that reading is one of the request's stated choices, so another reading is Rui's decision before
+-S4, never at classification.
++states in section 6. *(2026-10-07, the Project Manager's opinion on the request's choices:)* that value measures from
++the end of the restart command (the restart record's `finished_utc`) to the first `/metrics` sample after it — the HTTP
++endpoint answering again; it measures neither the whole unavailability nor the functional recovery, which stays
++reported separately; a missing or unreadable value never allows a pass. `--exactly-once` exit 1 is invalid
++instrumentation, never a demonstrated failure of the controller.
+ 
+ ## Stop conditions (request, section 5)
+ 
+@@ -100,11 +103,14 @@
+ ## Controlled close
+ 
+ (1) Fetches and cleanups first (the runbook's own, three tries at most; the guest's `/tmp` is lost at power-off).
+-(2) No row, recorder or collector running. After `term t6` (the ceiling) the recorder `egw-events-controller_restart-r04`
+-may be left running (bench F1): `close` then halts with nothing stopped; its remedy is the runbook's own cleanup
+-(`bash $EGW_CLONE/tools/session/events_capture.sh cleanup controller_restart-r04`) through `hx` on the session's
+-attempt, three tries at most, recorded, then `close` again; the harness's collector unit ends by itself at its
+-600 s bound. Any other unit left active: record it, stop nothing by hand, hand back to Rui. (3) The attempt finished and exported as it stands (`classify`). (4)
++(2) No row, recorder or collector running. After `term t6` (the ceiling) or `T6=incomplete`, **always before
++`close`**: `ops/g3_recorder_cleanup.sh` (supplement of 2026-10-07; launch line and answers in the README, "The
++recorder's emergency cleanup"). It runs the existing `events_capture.sh cleanup controller_restart-r04 KEEP_DIR` with
++`KEEP_DIR` inside the session's package (`recovery/events-partial-controller_restart-r04`), each try a recorded step
++bounded by 120 s, at most three, any incomplete copy kept; `close` runs only after its `OK:` line (the unit shown
++stopped and the four files kept). A `HALT:` is a stop: no `close`, no forced power-off, no signal to QEMU; Rui
++decides. The harness's collector unit ends by itself at its 600 s bound. Any other unit left active: record it, stop
++nothing by hand, hand back to Rui. (3) The attempt finished and exported as it stands (`classify`). (4)
+ `close`: the recorded `docker compose --env-file .env --env-file images.lock.env stop -t 130` with its exit status and
+ the container states; a non-zero stop is a halt and a hand-back, never a forced power-off. (5) The frozen
+ `guest_session_close.sh`: tunnel down, its own `compose stop -t 60`, the boot's OOM state, power-off, no QEMU left,

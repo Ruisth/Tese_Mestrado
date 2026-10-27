@@ -1,0 +1,147 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+R=itest-3dev-01-q1; run_test $R 7 --scenario smoke --duration 60; RT=$?
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 9072 9072 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 2821.88 s, end 2953.03 s, elapsed 131.15 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T15:45:50Z -> 2026-10-02T15:47:54Z and bash SECONDS elapsed 124 s, recorded only
+{
+  "label": "before",
+  "seed": 7,
+  "devices": {
+    "fb141468-a681-4b5e-84f7-29037643a43b": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01",
+        "last_seq": 59,
+        "last_message_id": "97f7f288-bbd9-597d-a52b-6edad03a7857",
+        "last_ts": "2026-09-18T21:14:55.250Z",
+        "accepted_count": 60
+      }
+    },
+    "22c38e26-6f93-4ea5-b855-8ed9767a2b88": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01",
+        "last_seq": 11,
+        "last_message_id": "512dc49a-62eb-58af-8c5f-a44addad5dda",
+        "last_ts": "2026-09-18T21:14:51.251Z",
+        "accepted_count": 12
+      }
+    },
+    "115ade0d-d60f-4f97-8c12-f42c298e8286": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01",
+        "last_seq": 599,
+        "last_message_id": "6512e773-efa6-569d-91fc-28caf024ea66",
+        "last_ts": "2026-09-18T21:14:56.150Z",
+        "accepted_count": 600
+      }
+    }
+  }
+}
+egw_simulator: scenario=smoke seed=7 run_id=itest-3dev-01-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=60.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=672 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-3dev-01-q1
+marker monotonic_ns=2980154697022 lag_s=0.187
+confirmation window closed on the controller clock
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 9744 9744 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 3077.91 s, end 3209.36 s, elapsed 131.45 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T15:49:51Z -> 2026-10-02T15:51:56Z and bash SECONDS elapsed 125 s, recorded only
+OUTCOME RECONCILIATION itest-3dev-01-q1: published=672 with_logged_outcome=672 without_logged_outcome=0 not_reconcilable=0 queue_depth=0
+  counters since the before reading (secondary consistency figure, decides nothing): total=672 {'accepted': 672, 'rejected': 0, 'duplicate': 0, 'failed': 0, 'dropped': 0}
+-> OK: every published record of this run has a logged outcome in the fetched event log
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "fb141468-a681-4b5e-84f7-29037643a43b": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01-q1",
+        "last_seq": 59,
+        "last_message_id": "7d19df97-e3d8-5dbf-a6c1-6cefb9382361",
+        "last_ts": "2026-10-02T15:48:52.565Z",
+        "accepted_count": 120
+      }
+    },
+    "22c38e26-6f93-4ea5-b855-8ed9767a2b88": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01-q1",
+        "last_seq": 11,
+        "last_message_id": "2917b941-2c5f-570c-af77-aec030f5845e",
+        "last_ts": "2026-10-02T15:48:48.566Z",
+        "accepted_count": 24
+      }
+    },
+    "115ade0d-d60f-4f97-8c12-f42c298e8286": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-3dev-01-q1",
+        "last_seq": 599,
+        "last_message_id": "ef401b97-4d88-5973-be0d-b69c70e2cc9c",
+        "last_ts": "2026-10-02T15:48:53.465Z",
+        "accepted_count": 1200
+      }
+    }
+  }
+}
+{
+  "run_id": "itest-3dev-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 672,
+  "sent_valid": 672,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 672,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 672,
+  "latency_count": 672,
+  "latency_ms_p50": 2880.3178319999997,
+  "latency_ms_p95": 5570.772624,
+  "latency_ms_max": 5897.290144,
+  "marker_lag_s": 0.187,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 672,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}
+fb141468-a681-4b5e-84f7-29037643a43b smartwatch: existed_before=True accepted_count 60 -> 120 (delta 60); accepted records in events.jsonl 60; last_run_id itest-3dev-01-q1 last_seq 59: OK
+22c38e26-6f93-4ea5-b855-8ed9767a2b88 smart_ring: existed_before=True accepted_count 12 -> 24 (delta 12); accepted records in events.jsonl 12; last_run_id itest-3dev-01-q1 last_seq 11: OK
+115ade0d-d60f-4f97-8c12-f42c298e8286 smart_clothing: existed_before=True accepted_count 600 -> 1200 (delta 600); accepted records in events.jsonl 600; last_run_id itest-3dev-01-q1 last_seq 599: OK
+/metrics accepted: 9072 -> 9744 (delta 672); events.jsonl 672: OK
+/metrics rejected: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics duplicate: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics failed: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics dropped: 0 -> 0 (delta 0)
+TEST STATUS itest-3dev-01-q1: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict: compare the values printed above with the test's Expected list.
+if [ "$RT" = 0 ]; then for U in $(python3 -c "import json;print(' '.join(sorted({json.loads(l)['device_uuid'] for l in open('$HOME/egw-tcg/itest/$R/sent_events.jsonl')})))"); do twin $R $U || { RT=twin; break; }; done; else stop "test 2: run_test did not complete (RT='$RT') - the twins were NOT read"; fi     # a twin that could not be saved sets RT=twin, so the evaluation line below refuses instead of judging two twins out of three
+[ "$RT" = 0 ] && python3 - ~/egw-tcg/itest/$R.twin.*.json <<'EOF' || stop "test 2: not evaluated (RT='$RT') or the evaluation script failed"
+import json, sys
+want = {"smartwatch": {"vitals": ["heart_rate_bpm"], "location": ["lat", "lon"]},
+        "smart_ring": {"thermo": ["skin_temp_c"], "oximetry": ["spo2_pct"]},
+        "smart_clothing": {"motion": ["accel_x", "accel_y", "accel_z"], "respiration": ["breathing_rpm"]}}
+for f in sys.argv[1:]:
+    t = json.load(open(f)); dt = t["attributes"]["device_type"]; feats = t["features"]
+    missing = [(fe, p) for fe, props in want[dt].items() for p in props if p not in feats.get(fe, {}).get("properties", {})]
+    ing = feats["ingestion"]["properties"]
+    print(f, dt, "policyId" , t.get("policyId"), "missing:", missing, "ingestion:", {k: ing.get(k) for k in ("last_run_id", "last_seq", "accepted_count")})
+EOF
+/home/ruisth/egw-tcg/itest/itest-3dev-01-q1.twin.115ade0d-d60f-4f97-8c12-f42c298e8286.json smart_clothing policyId org.c2dta:115ade0d-d60f-4f97-8c12-f42c298e8286 missing: [] ingestion: {'last_run_id': 'itest-3dev-01-q1', 'last_seq': 599, 'accepted_count': 1200}
+/home/ruisth/egw-tcg/itest/itest-3dev-01-q1.twin.22c38e26-6f93-4ea5-b855-8ed9767a2b88.json smart_ring policyId org.c2dta:22c38e26-6f93-4ea5-b855-8ed9767a2b88 missing: [] ingestion: {'last_run_id': 'itest-3dev-01-q1', 'last_seq': 11, 'accepted_count': 24}
+/home/ruisth/egw-tcg/itest/itest-3dev-01-q1.twin.fb141468-a681-4b5e-84f7-29037643a43b.json smartwatch policyId org.c2dta:fb141468-a681-4b5e-84f7-29037643a43b missing: [] ingestion: {'last_run_id': 'itest-3dev-01-q1', 'last_seq': 59, 'accepted_count': 120}

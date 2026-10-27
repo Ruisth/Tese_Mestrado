@@ -1,0 +1,5 @@
+## 2026-10-02T15:43:48Z up=2693 classify t1-harness: pass (finished, valid/pass)
+exported 20261002T152710Z_g3-qualification-t1-harness_attempt01: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-02\20261002T152710Z_g3-qualification-t1-harness_attempt01 (verified, 86 files, 0 excluded)
+DRIVER RESULT 20261002T152710Z_g3-qualification-t1-harness_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t1-harness: pass. PASS of T1's harness Expected list, the artefact chain (packet section 2 row 2; decision 1b): plan entry nominal-r02 (seed 246295039, 120 s warm-up + 600 s at 11...."
+row t1-harness: classified 'pass'; driver code 0; export: verified -> /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T152710Z_g3-qualification-t1-harness_attempt01
+Next: the next row of session S1, or 'close' after the last one.

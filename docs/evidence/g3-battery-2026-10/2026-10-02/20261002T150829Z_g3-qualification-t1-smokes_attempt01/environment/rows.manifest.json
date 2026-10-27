@@ -1,0 +1,1243 @@
+{
+  "schema": "g3-battery-rows-manifest/1",
+  "generated_by": "g3_extract_rows.py",
+  "generator_sha256": "6940366cca642d8f824092278e82e500112d8a3f9df36ed6d32cbc6595ead304",
+  "runbook": {
+    "commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa",
+    "path": "docs/setup/qemu_integrated_gateway.md",
+    "sha256": "c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae",
+    "lines": 1614
+  },
+  "extraction_rule": {
+    "text": "the host$ commands of the fenced blocks under each heading, the 'host$ ' prompt removed and the continuation lines kept as they are: _section and _host_commands of src/tests/test_runbook_itest_helpers.py",
+    "rule_source_sha256": "da8d31ddeb4f53c057d279a01964ef6464152660368cd08ef5c8ab6767700489",
+    "checked_against_the_frozen_functions": true,
+    "how": "the two functions were taken from the frozen file's own source text and executed on the blob; their output equals this script's extraction for each of the ten headings"
+  },
+  "families": [
+    {
+      "heading": "### Test 1",
+      "commands": 5,
+      "text_lines": 5,
+      "sha256": "027d4c7c148be544ff01bdbccc342339095b053aabf26700591291cb7a599359",
+      "host_command_starts": [
+        1300,
+        1310,
+        1311,
+        1312,
+        1313
+      ]
+    },
+    {
+      "heading": "### Test 2",
+      "commands": 3,
+      "text_lines": 13,
+      "sha256": "0526d9691e25d570809309a9543417aed5c242d771251398c67faa9421430ef0",
+      "host_command_starts": [
+        1325,
+        1326,
+        1327
+      ]
+    },
+    {
+      "heading": "### Test 3",
+      "commands": 5,
+      "text_lines": 29,
+      "sha256": "e593ab0e8f045d612fee79163eb7e58dbf8b2fae7c81e79e426312591477702f",
+      "host_command_starts": [
+        1345,
+        1346,
+        1347,
+        1348,
+        1358
+      ]
+    },
+    {
+      "heading": "### Test 4",
+      "commands": 10,
+      "text_lines": 10,
+      "sha256": "dbc1ce7d030a3972a7f6f925663332776e48c912423c7b02372b457f08af0d5c",
+      "host_command_starts": [
+        1383,
+        1384,
+        1385,
+        1386,
+        1387,
+        1388,
+        1389,
+        1390,
+        1391,
+        1399
+      ]
+    },
+    {
+      "heading": "### Test 5",
+      "commands": 3,
+      "text_lines": 3,
+      "sha256": "3f23d8bef765b3e4dfe0d2f11b4f2d14ee94ebf2c85c7d0714920fc30ba3054a",
+      "host_command_starts": [
+        1407,
+        1408,
+        1409
+      ]
+    },
+    {
+      "heading": "### Test 6",
+      "commands": 7,
+      "text_lines": 7,
+      "sha256": "ebc9700c8968b633990e0a198027bbfb5d6a246e3828e696cf8a5467b36d3400",
+      "host_command_starts": [
+        1421,
+        1422,
+        1423,
+        1424,
+        1425,
+        1426,
+        1427
+      ]
+    },
+    {
+      "heading": "### Test 7",
+      "commands": 9,
+      "text_lines": 23,
+      "sha256": "df7366ab5369088b4dadffc4e577d8053bc9540dfb00d2b25dd0c27fee2c379f",
+      "host_command_starts": [
+        1439,
+        1440,
+        1441,
+        1442,
+        1443,
+        1458,
+        1459,
+        1460,
+        1461
+      ]
+    },
+    {
+      "heading": "### Repeat of test 7 for Ditto",
+      "commands": 4,
+      "text_lines": 4,
+      "sha256": "ae8becc19b6dbf240197bf2a1a53ff9cb6272a4d5dceff5f85f2cfc3bf15b449",
+      "host_command_starts": [
+        1477,
+        1478,
+        1479,
+        1480
+      ]
+    },
+    {
+      "heading": "### Test 8",
+      "commands": 5,
+      "text_lines": 7,
+      "sha256": "235a4090a8ff9169dc21eec5601cbe5f84c137cb5d74df09f55ceb3c2b3b4cf3",
+      "host_command_starts": [
+        1486,
+        1489,
+        1490,
+        1491,
+        1492
+      ]
+    },
+    {
+      "heading": "### Test 9",
+      "commands": 10,
+      "text_lines": 26,
+      "sha256": "9518fefe751c3d93363b06df4e78c8a2cb34c78beea48bea92bf21d399679c14",
+      "host_command_starts": [
+        1501,
+        1502,
+        1515,
+        1516,
+        1518,
+        1519,
+        1523,
+        1524,
+        1525,
+        1526
+      ]
+    }
+  ],
+  "substitution_rule": {
+    "suffix": "-q1",
+    "ids": [
+      {
+        "old": "itest-smoke-$i",
+        "new": "itest-smoke-$i-q1",
+        "occurrences": 2
+      },
+      {
+        "old": "itest-3dev-01",
+        "new": "itest-3dev-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-invalid-01",
+        "new": "itest-invalid-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-01",
+        "new": "itest-dup-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dup-02",
+        "new": "itest-dup-02-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-dropout-01",
+        "new": "itest-dropout-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-mongo-fault-01",
+        "new": "itest-mongo-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-ditto-fault-01",
+        "new": "itest-ditto-fault-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-reboot",
+        "new": "itest-reboot-q1",
+        "occurrences": 8
+      },
+      {
+        "old": "itest-post-reboot-01",
+        "new": "itest-post-reboot-01-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-tls-wrongca",
+        "new": "itest-tls-wrongca-q1",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-auth-wrongpw",
+        "new": "itest-auth-wrongpw-q1",
+        "occurrences": 4
+      },
+      {
+        "old": "itest-notls",
+        "new": "itest-notls-q1",
+        "occurrences": 3
+      }
+    ],
+    "unchanged": [
+      "nominal-r02",
+      "controller_restart-r03",
+      "itest-acl-$T",
+      "itest-replay"
+    ],
+    "token": "an id not preceded by [A-Za-z0-9_] and not followed by [A-Za-z0-9_-]; every occurrence of each id as a plain string is such a token (asserted), so none is left behind and none is matched inside a longer id",
+    "asserted": "per file the count of each id; the text after the substitution with every '-q1' removed is the extracted text; the unchanged literals are untouched; the extracted text held no '-q1'"
+  },
+  "rows": [
+    {
+      "row": "t1-smokes",
+      "session": "S1",
+      "steps": [
+        "t1-smokes.sh"
+      ]
+    },
+    {
+      "row": "t1-harness",
+      "session": "S1",
+      "steps": [
+        "t1-harness.sh",
+        "t1-harness-analyze.sh"
+      ],
+      "note": "t1-harness-analyze.sh is the prose-only step of runbook line 1320."
+    },
+    {
+      "row": "t2",
+      "session": "S1",
+      "steps": [
+        "t2.sh"
+      ]
+    },
+    {
+      "row": "t3",
+      "session": "S1",
+      "steps": [
+        "t3.sh"
+      ]
+    },
+    {
+      "row": "t4-replay",
+      "session": "S1",
+      "steps": [
+        "t4-replay.sh"
+      ]
+    },
+    {
+      "row": "t4-reset",
+      "session": "S1",
+      "steps": [
+        "t4-reset.sh"
+      ]
+    },
+    {
+      "row": "t5",
+      "session": "S1",
+      "steps": [
+        "t5.sh"
+      ]
+    },
+    {
+      "row": "t6",
+      "session": "S2",
+      "steps": [
+        "t6.sh"
+      ]
+    },
+    {
+      "row": "t7-mongo",
+      "session": "S2",
+      "steps": [
+        "t7-mongo.sh"
+      ]
+    },
+    {
+      "row": "t7-ditto",
+      "session": "S2",
+      "steps": [
+        "t7-ditto.sh"
+      ]
+    },
+    {
+      "row": "t8",
+      "session": "S2",
+      "steps": [
+        "t8-a-reboot.sh",
+        "t8-b-return.sh",
+        "t8-c-snapshot.sh",
+        "t8-d-smoke.sh"
+      ],
+      "note": "Between t8-a-reboot.sh and t8-b-return.sh the steps script waits for the first QEMU to exit and re-launches (no row file). t8-c-snapshot.sh only if the tunnel is up; t8-d-smoke.sh only after REBOOT SHOWN and no STOP:."
+    },
+    {
+      "row": "t9",
+      "session": "S2",
+      "steps": [
+        "t9-a.sh",
+        "t9-b.sh",
+        "t9-c.sh",
+        "t9-de.sh",
+        "t9-exposure.sh"
+      ],
+      "note": "Each of t9-a, t9-b, t9-c, t9-de only if the one before printed no STOP:. t9-exposure.sh is the prose-only step of runbook line 1529; the steps script runs it likewise only if t9-de printed no STOP: (runbook line 15), so after a STOP of (d)+(e) the three read-only exposure reads are not in the package."
+    }
+  ],
+  "files": {
+    "t1-smokes.sh": {
+      "row": "t1-smokes",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 1"
+      ],
+      "source_line_numbers": [
+        1300
+      ],
+      "source_line_ranges": "1300",
+      "host_command_starts": [
+        1300
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "4152442bd5120cc0abd1c2bf2bb9804e4561976982a878c1c3c98ddd25b58c16",
+      "sha256_after": "1b9869dae23aa6e92f8a80cb64023fdd7bb26b07b1ea993582b8777ab552e582",
+      "bytes_before": 176,
+      "bytes_after": 182,
+      "substitutions": [
+        {
+          "old": "itest-smoke-$i",
+          "new": "itest-smoke-$i-q1",
+          "count": 2,
+          "source_lines": [
+            1300,
+            1300
+          ]
+        }
+      ],
+      "diff": "t1-smokes.sh.diff",
+      "diff_sha256": "610c5bf171e0d22dee7f885ec8af66a0c38bb531d6aaf2c78e989321d13930eb",
+      "diff_bytes": 476,
+      "bash_n": "ok",
+      "range_note": "One command, line 1300. The id stands twice: run_test's argument and the STOP text; '$i-q1' expands as ${i} followed by '-q1', a hyphen not being a name character."
+    },
+    "t1-harness.sh": {
+      "row": "t1-harness",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 1"
+      ],
+      "source_line_numbers": [
+        1310,
+        1311,
+        1312,
+        1313
+      ],
+      "source_line_ranges": "1310-1313",
+      "host_command_starts": [
+        1310,
+        1311,
+        1312,
+        1313
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 4,
+      "sha256_before": "d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c",
+      "sha256_after": "d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c",
+      "bytes_before": 1496,
+      "bytes_after": 1496,
+      "substitutions": [],
+      "diff": "t1-harness.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Lines 1310-1313, four one-line commands. Nothing is substituted: nominal-r02 is a plan entry."
+    },
+    "t1-harness-analyze.sh": {
+      "row": "t1-harness",
+      "session": "S1",
+      "step_order": 2,
+      "kind": "prose-only, runbook line 1320",
+      "source_line_numbers": [
+        1320
+      ],
+      "derived_from_sentence": "The harness applies the confirmation deadline itself (manifest `confirmation_deadline_clock_domain: \"controller\"`), so no `pre`/`post` is used here; read the result with `python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json` and the columns `confirmation_deadline_source`, `sent_valid`, `delivered_unique`, `lost`, `late_confirmations`, `double_accepted` of `~/egw-tcg/pilot/results/processed/per_run.csv`",
+      "lines": 21,
+      "sha256_before": null,
+      "sha256_after": "d0fb59187c8fad3626c04c15b703911e599586a20231ba7c27849209b6e647c8",
+      "bytes_after": 2094,
+      "substitutions": [],
+      "diff": null,
+      "bash_n": "ok",
+      "range_note": "The analyze command of line 1320 (the same as the fenced line 1427) and a read of the six columns line 1320 names from nominal-r02's row of processed/per_run.csv. A constant of the script, not an extraction."
+    },
+    "t2.sh": {
+      "row": "t2",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 2"
+      ],
+      "source_line_numbers": [
+        1325,
+        1326,
+        1327,
+        1328,
+        1329,
+        1330,
+        1331,
+        1332,
+        1333,
+        1334,
+        1335,
+        1336,
+        1337
+      ],
+      "source_line_ranges": "1325-1337",
+      "host_command_starts": [
+        1325,
+        1326,
+        1327
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 13,
+      "sha256_before": "0526d9691e25d570809309a9543417aed5c242d771251398c67faa9421430ef0",
+      "sha256_after": "43fa83f2fc17b52dd41cb6d4f902ce2276ee2a0fae1e104b8692fe044f59e3b6",
+      "bytes_before": 1367,
+      "bytes_after": 1370,
+      "substitutions": [
+        {
+          "old": "itest-3dev-01",
+          "new": "itest-3dev-01-q1",
+          "count": 1,
+          "source_lines": [
+            1325
+          ]
+        }
+      ],
+      "diff": "t2.sh.diff",
+      "diff_sha256": "b75f7b9b52913104e590af3c8dd5445177cac06777faf13898680e5b174d97e6",
+      "diff_bytes": 257,
+      "bash_n": "ok",
+      "range_note": "Commands start on lines 1325-1327; the third carries its here-document, lines 1328-1337, kept as continuation lines by the rule: the text is lines 1325-1337."
+    },
+    "t3.sh": {
+      "row": "t3",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 3"
+      ],
+      "source_line_numbers": [
+        1345,
+        1346,
+        1347,
+        1348,
+        1349,
+        1350,
+        1351,
+        1352,
+        1353,
+        1354,
+        1355,
+        1356,
+        1357,
+        1358,
+        1359,
+        1360,
+        1361,
+        1362,
+        1363,
+        1364,
+        1365,
+        1366,
+        1367,
+        1368,
+        1369,
+        1370,
+        1371,
+        1372,
+        1373
+      ],
+      "source_line_ranges": "1345-1373",
+      "host_command_starts": [
+        1345,
+        1346,
+        1347,
+        1348,
+        1358
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 29,
+      "sha256_before": "e593ab0e8f045d612fee79163eb7e58dbf8b2fae7c81e79e426312591477702f",
+      "sha256_after": "9731c836d334d9534109d8da738b63243c483286303016ba7df1ad42371497f6",
+      "bytes_before": 4478,
+      "bytes_after": 4481,
+      "substitutions": [
+        {
+          "old": "itest-invalid-01",
+          "new": "itest-invalid-01-q1",
+          "count": 1,
+          "source_lines": [
+            1345
+          ]
+        }
+      ],
+      "diff": "t3.sh.diff",
+      "diff_sha256": "0cce0660d7ed78503639ae17818c4dcfc7000b26bd2ec2417f6950486e41e28b",
+      "diff_bytes": 2321,
+      "bash_n": "ok",
+      "range_note": "Commands start on lines 1345-1348 and 1358; the fourth carries lines 1349-1357 and the fifth lines 1359-1373 (two here-documents): the text is lines 1345-1373, one fenced block."
+    },
+    "t4-replay.sh": {
+      "row": "t4-replay",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 4"
+      ],
+      "source_line_numbers": [
+        1383,
+        1384,
+        1385,
+        1386,
+        1387,
+        1388,
+        1389,
+        1390,
+        1391
+      ],
+      "source_line_ranges": "1383-1391",
+      "host_command_starts": [
+        1383,
+        1384,
+        1385,
+        1386,
+        1387,
+        1388,
+        1389,
+        1390,
+        1391
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 9,
+      "sha256_before": "018d712bdbec296281eea456c11a528f90df7d65ff5eff2e7d79848ecc184d08",
+      "sha256_after": "fb646091cbc47287eee6d7d960eb15eae8c390309c766dbfb8aa784d56ac2954",
+      "bytes_before": 5259,
+      "bytes_after": 5262,
+      "substitutions": [
+        {
+          "old": "itest-dup-01",
+          "new": "itest-dup-01-q1",
+          "count": 1,
+          "source_lines": [
+            1383
+          ]
+        }
+      ],
+      "diff": "t4-replay.sh.diff",
+      "diff_sha256": "ed6770e7505dabda133aea4ab51f2010a24830539659aa0d467bbed2a7038019",
+      "diff_bytes": 1014,
+      "bash_n": "ok",
+      "range_note": "Lines 1383-1391, nine one-line commands. The directory name itest-replay (lines 1384 and 1387) is not an id and is not changed."
+    },
+    "t4-reset.sh": {
+      "row": "t4-reset",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 4"
+      ],
+      "source_line_numbers": [
+        1399
+      ],
+      "source_line_ranges": "1399",
+      "host_command_starts": [
+        1399
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "f36d92baf1dbb01e610052e3e599d108b06d48417b8502cbd510ebf11b7295f1",
+      "sha256_after": "3c5d4ec05701e41517762814f9e7207d5956394496a00c839f0b41596d020681",
+      "bytes_before": 56,
+      "bytes_after": 59,
+      "substitutions": [
+        {
+          "old": "itest-dup-02",
+          "new": "itest-dup-02-q1",
+          "count": 1,
+          "source_lines": [
+            1399
+          ]
+        }
+      ],
+      "diff": "t4-reset.sh.diff",
+      "diff_sha256": "c139b745fefffe8050bf94615dae0219692743c24cc46cddbd800460ab258308",
+      "diff_bytes": 232,
+      "bash_n": "ok",
+      "range_note": "Line 1399, the sequence reset's own fenced block."
+    },
+    "t5.sh": {
+      "row": "t5",
+      "session": "S1",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 5"
+      ],
+      "source_line_numbers": [
+        1407,
+        1408,
+        1409
+      ],
+      "source_line_ranges": "1407-1409",
+      "host_command_starts": [
+        1407,
+        1408,
+        1409
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 3,
+      "sha256_before": "3f23d8bef765b3e4dfe0d2f11b4f2d14ee94ebf2c85c7d0714920fc30ba3054a",
+      "sha256_after": "31572a360b1db5a2e7c39845421f80d6d66b4293d715b803b30f15de44ffe555",
+      "bytes_before": 1138,
+      "bytes_after": 1141,
+      "substitutions": [
+        {
+          "old": "itest-dropout-01",
+          "new": "itest-dropout-01-q1",
+          "count": 1,
+          "source_lines": [
+            1407
+          ]
+        }
+      ],
+      "diff": "t5.sh.diff",
+      "diff_sha256": "48a6f9fefe97f2f52ceff3ca2cf468d5f33b409475eaa722f125bb75251729f5",
+      "diff_bytes": 513,
+      "bash_n": "ok",
+      "range_note": "Lines 1407-1409, three one-line commands."
+    },
+    "t6.sh": {
+      "row": "t6",
+      "session": "S2",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 6"
+      ],
+      "source_line_numbers": [
+        1421,
+        1422,
+        1423,
+        1424,
+        1425,
+        1426,
+        1427
+      ],
+      "source_line_ranges": "1421-1427",
+      "host_command_starts": [
+        1421,
+        1422,
+        1423,
+        1424,
+        1425,
+        1426,
+        1427
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 7,
+      "sha256_before": "ebc9700c8968b633990e0a198027bbfb5d6a246e3828e696cf8a5467b36d3400",
+      "sha256_after": "ebc9700c8968b633990e0a198027bbfb5d6a246e3828e696cf8a5467b36d3400",
+      "bytes_before": 8897,
+      "bytes_after": 8897,
+      "substitutions": [],
+      "diff": "t6.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Lines 1421-1427, seven one-line commands. Nothing is substituted: controller_restart-r03 is a plan entry."
+    },
+    "t7-mongo.sh": {
+      "row": "t7-mongo",
+      "session": "S2",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 7"
+      ],
+      "source_line_numbers": [
+        1439,
+        1440,
+        1441,
+        1442,
+        1443,
+        1444,
+        1445,
+        1446,
+        1447,
+        1448,
+        1449,
+        1450,
+        1451,
+        1452,
+        1453,
+        1454,
+        1455,
+        1456,
+        1457,
+        1458,
+        1459,
+        1460,
+        1461
+      ],
+      "source_line_ranges": "1439-1461",
+      "host_command_starts": [
+        1439,
+        1440,
+        1441,
+        1442,
+        1443,
+        1458,
+        1459,
+        1460,
+        1461
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 23,
+      "sha256_before": "df7366ab5369088b4dadffc4e577d8053bc9540dfb00d2b25dd0c27fee2c379f",
+      "sha256_after": "dd4545c3538a137acfc2a33eb99a749cf037e1ae18242773e4faf963b56d67c7",
+      "bytes_before": 5791,
+      "bytes_after": 5794,
+      "substitutions": [
+        {
+          "old": "itest-mongo-fault-01",
+          "new": "itest-mongo-fault-01-q1",
+          "count": 1,
+          "source_lines": [
+            1439
+          ]
+        }
+      ],
+      "diff": "t7-mongo.sh.diff",
+      "diff_sha256": "1ee4314d02602ef0def57a5a18bb22dabfaa362c0ee688cd8960359e285988e8",
+      "diff_bytes": 197,
+      "bash_n": "ok",
+      "range_note": "Commands start on lines 1439-1443 and 1458-1461; lines 1444-1457 are the body of fault(), the continuation lines of the command of line 1443: the text is lines 1439-1461, the whole fenced block."
+    },
+    "t7-ditto.sh": {
+      "row": "t7-ditto",
+      "session": "S2",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 7",
+        "### Repeat of test 7 for Ditto"
+      ],
+      "source_line_numbers": [
+        1440,
+        1441,
+        1442,
+        1443,
+        1444,
+        1445,
+        1446,
+        1447,
+        1448,
+        1449,
+        1450,
+        1451,
+        1452,
+        1453,
+        1454,
+        1455,
+        1456,
+        1457,
+        1458,
+        1477,
+        1478,
+        1479,
+        1480
+      ],
+      "source_line_ranges": "1440-1458, 1477-1480",
+      "host_command_starts": [
+        1440,
+        1441,
+        1442,
+        1443,
+        1458,
+        1477,
+        1478,
+        1479,
+        1480
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "definitions_only": [
+        {
+          "lines": "1440",
+          "defines": "assignment"
+        },
+        {
+          "lines": "1441",
+          "defines": "function svc_state"
+        },
+        {
+          "lines": "1442",
+          "defines": "function fault_recover"
+        },
+        {
+          "lines": "1443-1457",
+          "defines": "function fault"
+        },
+        {
+          "lines": "1458",
+          "defines": "function readyp"
+        }
+      ],
+      "lines": 23,
+      "sha256_before": "f7be175a5633605857991407b5dab2ee0a5930f047b9e3fcc7d10d7b03532d9a",
+      "sha256_after": "23ea0b99fa9f3e7eccbe429e42d51a9b2c68d9cc2d0b4c641a0ab7b306cc74e0",
+      "bytes_before": 5796,
+      "bytes_after": 5799,
+      "substitutions": [
+        {
+          "old": "itest-ditto-fault-01",
+          "new": "itest-ditto-fault-01-q1",
+          "count": 1,
+          "source_lines": [
+            1477
+          ]
+        }
+      ],
+      "diff": "t7-ditto.sh.diff",
+      "diff_sha256": "26053922f2ec6132298c46caad9a99ef63b941f713886747cf8328330c96f363",
+      "diff_bytes": 220,
+      "bash_n": "ok",
+      "range_note": "Opens with test 7's definitions, lines 1440-1458, verbatim: the assignment of DC (1440) and the functions svc_state (1441), fault_recover (1442), fault (1443-1457) and readyp (1458). Each of the five commands only defines (asserted: one plain assignment of a double-quoted string without a substitution, four 'name() {' definitions), so nothing acts before line 1477. Line 1439 (R and SVC of the MongoDB sub-check) is left out: line 1477 sets both for Ditto. Lines 1459-1461 (the test line and the two evaluation lines of the MongoDB sub-check) are left out: lines 1478-1480 are the same lines for Ditto. These nineteen definition lines also stand in t7-mongo.sh; no id is in them."
+    },
+    "t8-a-reboot.sh": {
+      "row": "t8",
+      "session": "S2",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1486,
+        1487,
+        1488
+      ],
+      "source_line_ranges": "1486-1488",
+      "host_command_starts": [
+        1486
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 3,
+      "sha256_before": "0f3e170ddbd345114271989087cfa03cf14506fe063a7ef04a0171aff7b61908",
+      "sha256_after": "bb2d76e5ea3630b72fc39810f528766f549d0fc3f97667102874a3c77242a5c3",
+      "bytes_before": 803,
+      "bytes_after": 812,
+      "substitutions": [
+        {
+          "old": "itest-reboot",
+          "new": "itest-reboot-q1",
+          "count": 3,
+          "source_lines": [
+            1486,
+            1486,
+            1486
+          ]
+        }
+      ],
+      "diff": "t8-a-reboot.sh.diff",
+      "diff_sha256": "eb21ab1449eba4392327abd80634ee962d3bc42ec4be309b91d0d037320f881a",
+      "diff_bytes": 1248,
+      "bash_n": "ok",
+      "range_note": "The command of line 1486 with its two continuation lines 1487-1488, which the rule keeps: they are comments (the runbook's instruction to re-launch with the same data disk, done by the steps script between this step and the next) and run nothing. The work order names line 1486 only."
+    },
+    "t8-b-return.sh": {
+      "row": "t8",
+      "session": "S2",
+      "step_order": 2,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1489,
+        1490
+      ],
+      "source_line_ranges": "1489-1490",
+      "host_command_starts": [
+        1489,
+        1490
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 2,
+      "sha256_before": "f8259e353019bd02e604344292a07208c8b1116098af47b31f90b1a932a097c7",
+      "sha256_after": "f8259e353019bd02e604344292a07208c8b1116098af47b31f90b1a932a097c7",
+      "bytes_before": 463,
+      "bytes_after": 463,
+      "substitutions": [],
+      "diff": "t8-b-return.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Lines 1489-1490, two one-line commands (the guest's state after the re-launch; the tunnel reopened)."
+    },
+    "t8-c-snapshot.sh": {
+      "row": "t8",
+      "session": "S2",
+      "step_order": 3,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1491
+      ],
+      "source_line_ranges": "1491",
+      "host_command_starts": [
+        1491
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "a3f33f93597f7d0bbea6d90bf5763b319d7ea90bfeb9dff142ef99f238da2450",
+      "sha256_after": "9a60f8d6f75b99a573c91f5353a8b8963c641000974389ffd7867ce2477e73a2",
+      "bytes_before": 575,
+      "bytes_after": 590,
+      "substitutions": [
+        {
+          "old": "itest-reboot",
+          "new": "itest-reboot-q1",
+          "count": 5,
+          "source_lines": [
+            1491,
+            1491,
+            1491,
+            1491,
+            1491
+          ]
+        }
+      ],
+      "diff": "t8-c-snapshot.sh.diff",
+      "diff_sha256": "820661b1d7b6203367bf83c560ce36eb94173965e849fbb1fe33662bfbf35e64",
+      "diff_bytes": 1287,
+      "bash_n": "ok",
+      "range_note": "Line 1491. With the three of line 1486 these are the eight literals of T8's prefix, changed together."
+    },
+    "t8-d-smoke.sh": {
+      "row": "t8",
+      "session": "S2",
+      "step_order": 4,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1492
+      ],
+      "source_line_ranges": "1492",
+      "host_command_starts": [
+        1492
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "efaa852261543c4108c75aa0e7efc3c16881504263a94b0af4e78e2df7a71e65",
+      "sha256_after": "f541f1caf33787327fe2d437da9c4994e540ce1346aa2987aca89a19e5514d53",
+      "bytes_before": 70,
+      "bytes_after": 73,
+      "substitutions": [
+        {
+          "old": "itest-post-reboot-01",
+          "new": "itest-post-reboot-01-q1",
+          "count": 1,
+          "source_lines": [
+            1492
+          ]
+        }
+      ],
+      "diff": "t8-d-smoke.sh.diff",
+      "diff_sha256": "4f08634af4e70018d4fa11cdf21ee2f1b6b22fda9500a41a7ab1205e865af412",
+      "diff_bytes": 262,
+      "bash_n": "ok",
+      "range_note": "Line 1492."
+    },
+    "t9-a.sh": {
+      "row": "t9",
+      "session": "S2",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1501,
+        1502
+      ],
+      "source_line_ranges": "1501-1502",
+      "host_command_starts": [
+        1501,
+        1502
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 2,
+      "sha256_before": "e431473a5ccbe397d6d2c35da27fd02cabf38300af26f0498f00c2dbecba5acc",
+      "sha256_after": "3ff287632ab2ca135e59c221c748d88339e5d8c11b07fce4e0c776ab666b5869",
+      "bytes_before": 384,
+      "bytes_after": 387,
+      "substitutions": [
+        {
+          "old": "itest-tls-wrongca",
+          "new": "itest-tls-wrongca-q1",
+          "count": 1,
+          "source_lines": [
+            1502
+          ]
+        }
+      ],
+      "diff": "t9-a.sh.diff",
+      "diff_sha256": "c5aa9599f3044dab58f95ad48cc6ba0d5ec555dac15101d10722a58f3fe48ef6",
+      "diff_bytes": 643,
+      "bash_n": "ok",
+      "range_note": "Lines 1501-1502. Line 1500, the comment '# (a) wrong CA -> TLS verification fails', stands in the fence before the first host$ line and is dropped by the rule, so it is in no file."
+    },
+    "t9-b.sh": {
+      "row": "t9",
+      "session": "S2",
+      "step_order": 2,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1503,
+        1504,
+        1505,
+        1506,
+        1507,
+        1508,
+        1509,
+        1510,
+        1511,
+        1512,
+        1513,
+        1514,
+        1515,
+        1516
+      ],
+      "source_line_ranges": "1503-1516",
+      "host_command_starts": [
+        1515,
+        1516
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [
+        1503,
+        1504,
+        1505,
+        1506,
+        1507,
+        1508,
+        1509,
+        1510,
+        1511,
+        1512,
+        1513,
+        1514
+      ],
+      "lines": 14,
+      "sha256_before": "bc4335f915922a1b5b5f10baaadbfd53125a95008618f2c8ddbb21e9d2614a1d",
+      "sha256_after": "d6d86b2599dbef67ba3d15501f21944bd638272f4080be68b46f2996dea93c8e",
+      "bytes_before": 1928,
+      "bytes_after": 1940,
+      "substitutions": [
+        {
+          "old": "itest-auth-wrongpw",
+          "new": "itest-auth-wrongpw-q1",
+          "count": 4,
+          "source_lines": [
+            1509,
+            1515,
+            1516,
+            1516
+          ]
+        }
+      ],
+      "diff": "t9-b.sh.diff",
+      "diff_sha256": "c633e0572f5bab19aaaa448438c01dbb326cce218502f5a983fce8a229b197c2",
+      "diff_bytes": 1578,
+      "bash_n": "ok",
+      "range_note": "Lines 1503-1514 are comments: by the rule they are continuation lines of the command of line 1502 ((a)'s simulator), and by their text they describe (b) and (c); they run nothing and are placed here by source line. Commands: lines 1515 and 1516. The id stands four times, once in the comment of line 1509 inside the client id 'egw-simulator-itest-auth-wrongpw', which changes with it."
+    },
+    "t9-c.sh": {
+      "row": "t9",
+      "session": "S2",
+      "step_order": 3,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1517,
+        1518,
+        1519
+      ],
+      "source_line_ranges": "1517-1519",
+      "host_command_starts": [
+        1518,
+        1519
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [
+        1517
+      ],
+      "lines": 3,
+      "sha256_before": "8a8da5b548f4731dc91bfb70de12045ce164f3a678cb17d30e848a391ae34416",
+      "sha256_after": "9a3ae72b023c73ffa165451d34ec3095592c048b3dce3e335dddbd063d7632b7",
+      "bytes_before": 621,
+      "bytes_after": 630,
+      "substitutions": [
+        {
+          "old": "itest-notls",
+          "new": "itest-notls-q1",
+          "count": 3,
+          "source_lines": [
+            1518,
+            1519,
+            1519
+          ]
+        }
+      ],
+      "diff": "t9-c.sh.diff",
+      "diff_sha256": "6d22b404b0ec1f2064da19699ffe4d950eec3e52a0dad129c6d65b427f2bcaba",
+      "diff_bytes": 1293,
+      "bash_n": "ok",
+      "range_note": "Line 1517 is a comment, by the rule a continuation line of the command of line 1516. Commands: lines 1518 and 1519."
+    },
+    "t9-de.sh": {
+      "row": "t9",
+      "session": "S2",
+      "step_order": 4,
+      "kind": "runbook",
+      "headings": [
+        "### Test 9"
+      ],
+      "source_line_numbers": [
+        1520,
+        1521,
+        1522,
+        1523,
+        1524,
+        1525,
+        1526
+      ],
+      "source_line_ranges": "1520-1526",
+      "host_command_starts": [
+        1523,
+        1524,
+        1525,
+        1526
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [
+        1520,
+        1521,
+        1522
+      ],
+      "lines": 7,
+      "sha256_before": "4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae",
+      "sha256_after": "4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae",
+      "bytes_before": 2228,
+      "bytes_after": 2228,
+      "substitutions": [],
+      "diff": "t9-de.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Lines 1520-1522 are comments, by the rule continuation lines of the command of line 1519. Commands: lines 1523-1526. Nothing is substituted: itest-acl-$T is fresh by its UTC stamp."
+    },
+    "t9-exposure.sh": {
+      "row": "t9",
+      "session": "S2",
+      "step_order": 5,
+      "kind": "prose-only, runbook line 1529",
+      "source_line_numbers": [
+        1529
+      ],
+      "derived_from_sentence": "Also keep `ssh -p 2222 root@127.0.0.1` refused and `nmap`-free port evidence: `ss -ltn` on the host shows only 2222 and 8883 forwarded by QEMU; inside the guest `docker ps` shows `127.0.0.1:8080` and `127.0.0.1:8000` bindings and MongoDB with no published port (work order item 5).",
+      "lines": 18,
+      "sha256_before": null,
+      "sha256_after": "484f3fdf6a753d4eaae35be9a0538af9c7e51e64088ee0946a848b2f34c76f85",
+      "bytes_after": 2262,
+      "substitutions": [],
+      "diff": null,
+      "bash_n": "ok",
+      "range_note": "The three exposure checks of the last sentence of line 1529 in the non-interactive, read-only forms of the packet's execution choices: root over ssh on 2222 with -n and BatchMode=yes (only 'Permission denied' counts), ss -ltnp on the host, the guest's docker ps port bindings through ssh egw-tcg. A constant of the script, not an extraction."
+    }
+  },
+  "notes": [
+    "Line ranges. The work order names the lines on which host$ commands START; a step file holds each command whole, with its continuation lines (here-documents, a function body, trailing comment lines), so its source_line_numbers are the lines of the text. Where the two differ the file's range_note says why.",
+    "Every line the rule extracts under the ten headings stands in exactly one step file, except test 7's definition lines 1440-1458, which stand in t7-mongo.sh and again at the top of t7-ditto.sh (127 extracted lines; 146 lines in the eighteen runbook step files).",
+    "A command is cut between two files only before trailing comment lines (asserted): lines 1503-1514 (after the command of line 1502), 1517 (after 1516) and 1520-1522 (after 1519). Comments run nothing.",
+    "Not extracted, by the rule: line 1500 (a comment before the first host$ line of test 9's fence) and line 1260 (the section's preamble under '## 7.', outside the ten headings: it sources ~/egw-tcg/.env and ~/egw-tcg/itest-helpers.sh). The steps script's hx runs a superset of it, HOST_PRE of the clean clone's tools/session/guest_common.sh: the execution venv activated, ~/egw-tcg/.env exported, EGW_CLONE set to the clean clone, the DEPLOYED ~/egw-tcg/itest-helpers.sh and ~/egw-tcg/tunnel.sh sourced (files of the host, not of the clone), and the tunnel checked or reopened.",
+    "The step files of kind 'runbook' hold the extracted lines and nothing else: no header, no added line. The two prose-only files are constants of the script and open with the runbook sentence they derive from.",
+    "A <file>.diff is the unified diff (no context lines) between the extracted text and the step file; its line numbers count the lines of the extracted text, and the header names the runbook lines. It is empty when the file has no substitution; the prose-only files have none.",
+    "Every file is UTF-8 with LF line endings and one final newline, and passed 'bash -n'.",
+    "Independent check: g3_check_rows.sh (beside this script) restates the line ranges and the ids on its own and compares each runbook step file, with every '-q1' removed, byte for byte with the blob's lines read by 'git show', 'awk' and 'sed'; it also traces that the first nineteen lines of t7-ditto.sh run one assignment and define four functions, and nothing else."
+  ]
+}

@@ -1,0 +1,125 @@
+adr0011_figures.py - ARM64 guest emulated under QEMU/TCG; no figure is native performance
+
+=== R01: controller_restart-r01 (validity=invalid, harness commit 8e88670)
+R01.0 rate_msg_s=11.2 duration_s=600 restart.requested_at_s=300.0 restart.started_utc=2026-09-18T21:55:22.583Z returncode=0
+R01.0 events fetch started_utc=2026-09-18T22:01:30.951Z (the instant at which 'with an outcome' below is evaluated)
+R01.0 restart command started 2026-09-18T21:55:22.583Z finished 2026-09-18T21:55:45.287Z: 22.704 s (harness wall)
+R01.0 marker: controller wall_utc - harness polled_utc = +0.115 s (guest wall minus harness wall at the marker)
+R01.0 resource file REJECTED by the ingest rule (manifest 'warnings'): 7 sampling gap(s) over the 5 s limit; the warning lists 3 of them and is truncated:
+R01.0   egw-controller-1: 2026-09-18T21:55:34+00:00 -> 2026-09-18T21:55:43+00:00 (9.0 s)
+R01.0   egw-controller-1: 2026-09-18T21:59:30+00:00 -> 2026-09-18T21:59:36+00:00 (6.0 s)
+R01.0   egw-ditto-gateway-1: 2026-09-18T21:59:30+00:00 -> 2026-09-18T21:59:36+00:00 (6.0 s)
+R01.1 published=6720 valid=6720 with_outcome_at_fetch=4538 no_outcome_at_fetch=2182 outcome_histogram={'accepted': 4538} event_lines=4538
+R01.1 with an outcome at the fetch = confirmed by the deadline 4439 + after it 99 (ack stamp against confirmation_deadline_monotonic_ns, both controller clock)
+R01.1 deadline mapped to harness wall 2026-09-18T22:01:22.646Z; fetch started 8.305 s after it; newest acknowledgement in the copy +9.217 s from the deadline
+R01.2 no-outcome block sent_events.jsonl:2012-3771 size=1760
+R01.2 no-outcome block sent_events.jsonl:6299-6720 size=422
+R01.3 falls of cumulative accepted: 1 at controller_metrics.csv lines [309]
+R01.3 baseline line 2 2026-09-18T21:50:22.582Z accepted=5981
+R01.3 last old-process poll line 308 2026-09-18T21:55:27.661Z accepted=7909 queue_depth=1487 dropped=0
+R01.3 first new-process poll line 309 2026-09-18T21:55:59.843Z accepted=0 queue_depth=5; poll gap 32.182 s
+R01.3 dropped at every sample: max=0 over 570 samples; final poll line 571 2026-09-18T22:00:21.860Z queue_depth=1046
+R01.4 published by the last old poll                 3416
+R01.4   accepted delta at that poll (7909 - 5981)   1928   [events.jsonl records acked by then, cross-clock: 1929]
+R01.4   queue_depth at that poll                     1487
+R01.4   residual (published - accepted - queued)     1
+R01.4 identities with an outcome before the gap       2011
+R01.4   drained after the poll (2011 - 1928)          83
+R01.4   still queued when the process stopped        1404
+R01.4   + residual                                   1405
+R01.4 block members published by that poll          1405
+R01.4 check pre_gap + members_by_poll = 3416 vs published by poll 3416
+R01.5 last old-process ack events.jsonl:2011 smart_clothing seq 1794 at 2026-09-18T21:55:38.374Z harness wall (2026-09-18T21:55:38.489Z on the controller's own wall clock)
+R01.5 first identity of the first block sent_events.jsonl:2012 smart_clothing seq 1795
+R01.5 first new-process delivery events.jsonl:2012 smart_clothing seq 3366 received at 2026-09-18T21:55:59.306Z harness wall
+R01.5 old process wrote outcomes until 15.791 s after the restart command started (controller stamp mapped to harness wall through polled_utc: cross-clock)
+R01.5 its last outcome is 10.713 s after its last answered poll (same mapping)
+R01.5 identities with an outcome after the first block (all published after the outage): 2527 = 4538 - 2011
+R01.6 collector: egw-controller-1 gap around the restart 2026-09-18T21:55:34.000Z -> 2026-09-18T21:55:43.000Z = 9.0 s; mem_bytes 44994396 -> 11712594; cadence 0.2296 samples/s over the file
+R01.7 [collector row mapped to harness wall] first block partition: G1(<= last poll)=1405 G2(poll, last ack]=121 G3a(last ack, bracket upper]=51 G3b(> bracket upper)=183 total=1760
+R01.7 [collector row mapped to harness wall] bounds: received-then-discarded in [1404, 1577]; published-never-delivered in [183, 356]
+R01.7 [collector row as recorded (guest wall)] first block partition: G1(<= last poll)=1405 G2(poll, last ack]=121 G3a(last ack, bracket upper]=52 G3b(> bracket upper)=182 total=1760
+R01.7 [collector row as recorded (guest wall)] bounds: received-then-discarded in [1404, 1578]; published-never-delivered in [182, 356]
+R01.7 clock-free ends: received-left lower bound 1404 (poll ledger); published-never-delivered upper bound 1760 - 1404 = 356
+R01.7 at the offered 11.2 msg/s, one second of publication = 11.2 identities
+R01.8 subscription-outage lengths (harness wall): bracket upper -> first delivery 16.421 s (lower bound); poll gap 32.182 s; restart command -> first delivery 36.723 s (upper bound)
+R01.8 published at 11.2 msg/s across those outages: 183.9 / 360.4 / 411.3 messages (time-based; the identity-based bounds are in R01.7)
+R01.9 post-drain second fetch present: False
+R01.10 queue_depth at the last sample within t+150 s: line 152 2026-09-18T21:52:51.643Z queue_depth=818
+R01.10 queue_depth at the last sample within t+300 s: line 302 2026-09-18T21:55:21.670Z queue_depth=1445
+R01.11 identities with an outcome whose puback_monotonic_ns is null: 503
+R01.12 old process, counter, baseline -> last answered poll (harness wall only): 1928 in 305.079 s = 6.3197 msg/s; 1487 queued at that rate: 235 s
+R01.12 old process, outcome lines after the last answered poll: 83 in 10.713 s (cross-clock) = 7.7475 msg/s; 1487 queued at that rate: 192 s
+
+=== R02: controller_restart-r02 (validity=invalid, harness commit 8e88670)
+R02.0 rate_msg_s=11.2 duration_s=600 restart.requested_at_s=300.0 restart.started_utc=2026-09-19T00:18:15.344Z returncode=0
+R02.0 events fetch started_utc=2026-09-19T00:24:18.026Z (the instant at which 'with an outcome' below is evaluated)
+R02.0 restart command started 2026-09-19T00:18:15.344Z finished 2026-09-19T00:18:36.134Z: 20.790 s (harness wall)
+R02.0 marker: controller wall_utc - harness polled_utc = -0.044 s (guest wall minus harness wall at the marker)
+R02.0 resource file REJECTED by the ingest rule (manifest 'warnings'): 1 sampling gap(s) over the 5 s limit; the warning lists 1 of them:
+R02.0   egw-controller-1: 2026-09-19T00:18:29+00:00 -> 2026-09-19T00:18:35+00:00 (6.0 s)
+R02.1 published=6720 valid=6720 with_outcome_at_fetch=3819 no_outcome_at_fetch=2901 outcome_histogram={'accepted': 3819} event_lines=3819
+R02.1 with an outcome at the fetch = confirmed by the deadline 3795 + after it 24 (ack stamp against confirmation_deadline_monotonic_ns, both controller clock)
+R02.1 deadline mapped to harness wall 2026-09-19T00:24:15.492Z; fetch started 2.534 s after it; newest acknowledgement in the copy +3.760 s from the deadline
+R02.2 no-outcome block sent_events.jsonl:1595-3730 size=2136
+R02.2 no-outcome block sent_events.jsonl:5956-6720 size=765
+R02.3 falls of cumulative accepted: 1 at controller_metrics.csv lines [308]
+R02.3 baseline line 2 2026-09-19T00:13:15.343Z accepted=336
+R02.3 last old-process poll line 307 2026-09-19T00:18:19.443Z accepted=1872 queue_depth=1867 dropped=0
+R02.3 first new-process poll line 308 2026-09-19T00:18:48.558Z accepted=0 queue_depth=0; poll gap 29.115 s
+R02.3 dropped at every sample: max=0 over 573 samples; final poll line 574 2026-09-19T00:23:14.595Z queue_depth=1261
+R02.4 published by the last old poll                 3404
+R02.4   accepted delta at that poll (1872 - 336)   1536   [events.jsonl records acked by then, cross-clock: 1536]
+R02.4   queue_depth at that poll                     1867
+R02.4   residual (published - accepted - queued)     1
+R02.4 identities with an outcome before the gap       1594
+R02.4   drained after the poll (1594 - 1536)          58
+R02.4   still queued when the process stopped        1809
+R02.4   + residual                                   1810
+R02.4 block members published by that poll          1810
+R02.4 check pre_gap + members_by_poll = 3404 vs published by poll 3404
+R02.5 last old-process ack events.jsonl:1594 smart_clothing seq 1421 at 2026-09-19T00:18:30.034Z harness wall (2026-09-19T00:18:29.990Z on the controller's own wall clock)
+R02.5 first identity of the first block sent_events.jsonl:1595 smart_clothing seq 1422
+R02.5 first new-process delivery events.jsonl:1595 smartwatch seq 333 received at 2026-09-19T00:18:48.548Z harness wall
+R02.5 old process wrote outcomes until 14.690 s after the restart command started (controller stamp mapped to harness wall through polled_utc: cross-clock)
+R02.5 its last outcome is 10.591 s after its last answered poll (same mapping)
+R02.5 identities with an outcome after the first block (all published after the outage): 2225 = 3819 - 1594
+R02.6 collector: egw-controller-1 gap around the restart 2026-09-19T00:18:29.000Z -> 2026-09-19T00:18:35.000Z = 6.0 s; mem_bytes 58122240 -> 3592192; cadence 0.8331 samples/s over the file
+R02.7 [collector row mapped to harness wall] first block partition: G1(<= last poll)=1810 G2(poll, last ack]=119 G3a(last ack, bracket upper]=56 G3b(> bracket upper)=151 total=2136
+R02.7 [collector row mapped to harness wall] bounds: received-then-discarded in [1809, 1985]; published-never-delivered in [151, 327]
+R02.7 [collector row as recorded (guest wall)] first block partition: G1(<= last poll)=1810 G2(poll, last ack]=119 G3a(last ack, bracket upper]=56 G3b(> bracket upper)=151 total=2136
+R02.7 [collector row as recorded (guest wall)] bounds: received-then-discarded in [1809, 1985]; published-never-delivered in [151, 327]
+R02.7 clock-free ends: received-left lower bound 1809 (poll ledger); published-never-delivered upper bound 2136 - 1809 = 327
+R02.7 at the offered 11.2 msg/s, one second of publication = 11.2 identities
+R02.8 subscription-outage lengths (harness wall): bracket upper -> first delivery 13.505 s (lower bound); poll gap 29.115 s; restart command -> first delivery 33.205 s (upper bound)
+R02.8 published at 11.2 msg/s across those outages: 151.3 / 326.1 / 371.9 messages (time-based; the identity-based bounds are in R02.7)
+R02.9 post-drain second fetch present: False
+R02.10 queue_depth at the last sample within t+150 s: line 152 2026-09-19T00:15:44.410Z queue_depth=988
+R02.10 queue_depth at the last sample within t+300 s: line 302 2026-09-19T00:18:14.448Z queue_depth=1840
+R02.11 identities with an outcome whose puback_monotonic_ns is null: 421
+R02.12 old process, counter, baseline -> last answered poll (harness wall only): 1536 in 304.100 s = 5.0510 msg/s; 1867 queued at that rate: 370 s
+R02.12 old process, outcome lines after the last answered poll: 58 in 10.591 s (cross-clock) = 5.4763 msg/s; 1867 queued at that rate: 341 s
+
+=== N: nominal-r01 (validity=valid, harness commit fe954a9, rate 11.2 msg/s, warm-up 120 s, window 600 s)
+N.0 deadline = controller end marker + 60 s: 2331405170833 + 60e9 = 2391405170833 (equal: True)
+N.1 at the harness fetch (sealed raw events.jsonl, fetch started 2026-09-19T20:13:57.289Z): records=3879 on_time=3794 late=85 no_outcome=2841
+N.2 after the drain (analysis/events.post-drain.jsonl, commands.jsonl seq 6 started 2026-09-19T20:21:43.526684Z): records=6720 on_time=3794 late=2926 no_outcome=0
+N.2 of the 2841 without an outcome at the fetch, late after the drain: 2841; lost after the drain: 0
+N.2 drained helper: commands.jsonl seq 5 2026-09-19T20:13:58.613400Z -> 2026-09-19T20:21:43.487986Z (464.875 s, exit 0)
+N.3 identities inside the controller at the window end: 3593
+N.3 last acknowledgement 405.362 s after the window end; acknowledgements after the end: 3593
+N.4 controller_metrics.csv: samples=721 max queue_depth=3590 (line 722 2026-09-19T20:12:44.846Z) = 35.90 % of 10,000; max dropped=0
+N.5 served rates by phase (one failed run; not a capacity): warm-up 4.9397 msg/s (122 samples), measured window 6.4570 msg/s (599 samples, delta accepted 3863), drain without ingress 8.8637 msg/s
+S.1 algebra on a serial consumer: an added per-message cost x turns a served rate r into 1/(1/r + x).
+S.1 x =  1 ms: warm-up 4.940->4.915 (-0.49 %); window 6.457->6.416 (-0.64 %); drain 8.864->8.786 (-0.88 %)
+S.1 x = 10 ms: warm-up 4.940->4.707 (-4.71 %); window 6.457->6.065 (-6.07 %); drain 8.864->8.142 (-8.14 %)
+S.1 x = 50 ms: warm-up 4.940->3.961 (-19.81 %); window 6.457->4.881 (-24.41 %); drain 8.864->6.142 (-30.71 %)
+S.2 1867 queued (r02, last old-process poll) served at the phase rates above: 211 s (drain rate) to 378 s (warm-up rate)
+S.2 1487 queued (r01, last old-process poll) served at the phase rates above: 168 s (drain rate) to 301 s (warm-up rate)
+N.6 device mix of the 6720 measured identities: {'smartwatch': 600, 'smart_ring': 120, 'smart_clothing': 6000}; largest share 89.3 % on one device; distinct device_uuid 3
+N.7 served rate per 60 s block of the measured window, event log (msg/s): 6.5500, 5.5667, 5.3167, 6.0000, 6.1500, 6.1667, 6.5333, 6.8833, 6.9000, 8.5500; slowest 5.3167, fastest 8.5500
+P.1 a 300 s publication at 11.2 msg/s = 3360 messages (the nominal run published 6720 measured + its warm-up over 720 s)
+P.2 planning: quiet window 130 s + 300 s publication + 60 s confirmation wait + 405.4 s (the nominal drain, a larger backlog) + quiet window 130 s = 1025 s = 17.1 min of guest time
+P.2 planning: quiet window 490 s + 300 s publication + 60 s confirmation wait + 405.4 s (the nominal drain, a larger backlog) + quiet window 490 s = 1745 s = 29.1 min of guest time
+P.3 planning ceiling with DRAIN_LIMIT_S=900: 900 + 300 + 60 + 900 = 2160 s = 36.0 min; NOT a bound: excludes the /ready wait, the restart command's own duration (R01.0, R02.0), each drained reading's curl time, the fetches and the snapshots
+P.3 planning ceiling with DRAIN_LIMIT_S=1500: 1500 + 300 + 60 + 1500 = 3360 s = 56.0 min; NOT a bound: excludes the /ready wait, the restart command's own duration (R01.0, R02.0), each drained reading's curl time, the fetches and the snapshots

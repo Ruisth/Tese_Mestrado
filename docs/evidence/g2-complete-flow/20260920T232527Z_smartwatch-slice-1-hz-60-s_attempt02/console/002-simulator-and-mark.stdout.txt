@@ -1,0 +1,5 @@
+egw_simulator: scenario=smoke seed=20260921 run_id=itest-g2-01 broker=127.0.0.1:8883 tls=True qos=1 duration=60.0s rate=1.0msg/s devices=smartwatch
+egw_simulator: done sent=60 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-g2-01
+marker monotonic_ns=634171027976 lag_s=0.184
+FLOW STATUS itest-g2-01: simulator exit=0 transcript (tee) exit=0 mark exit=0

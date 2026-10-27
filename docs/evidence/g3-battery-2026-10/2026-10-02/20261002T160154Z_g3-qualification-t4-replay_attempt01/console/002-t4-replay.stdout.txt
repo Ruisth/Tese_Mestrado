@@ -1,0 +1,245 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+R=itest-dup-01-q1; T4=stop; REPLAYED=stop; run_test $R 42 --scenario smoke --duration 60 && keep $P/$R.reconcile.json $P/$R.reconcile.pre-replay.json && keep $P/$R/events.jsonl $P/$R.events.pre-replay.jsonl && T4=ok || stop "test 4: the first run did not complete, or its pre-replay copies were not saved - do NOT replay (T4=$T4)"   # the copies keep the pre-replay accounting: the second fetch and the second check below overwrite both originals
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 11088 11021 67 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 3854.40 s, end 3985.69 s, elapsed 131.29 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T16:02:08Z -> 2026-10-02T16:04:12Z and bash SECONDS elapsed 124 s, recorded only
+{
+  "label": "before",
+  "seed": 42,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-invalid-01-q1",
+        "last_seq": 119,
+        "last_message_id": "77107fc9-718f-5013-bfa1-af866e2ee4e0",
+        "last_ts": "2026-10-02T15:57:25.224Z",
+        "accepted_count": 1094
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-invalid-01-q1",
+        "last_seq": 23,
+        "last_message_id": "6dde222c-8e0d-5271-9ce2-b141d3b3f069",
+        "last_ts": "2026-10-02T15:57:21.224Z",
+        "accepted_count": 206
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-invalid-01-q1",
+        "last_seq": 1199,
+        "last_message_id": "0f92b148-9a33-5ff1-97fa-97a00930e6b9",
+        "last_ts": "2026-10-02T15:57:26.124Z",
+        "accepted_count": 10324
+      }
+    }
+  }
+}
+egw_simulator: scenario=smoke seed=42 run_id=itest-dup-01-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=60.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=672 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest/itest-dup-01-q1
+marker monotonic_ns=4010196859790 lag_s=0.138
+confirmation window closed on the controller clock
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 11760 11693 67 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 4108.17 s, end 4239.73 s, elapsed 131.56 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T16:06:08Z -> 2026-10-02T16:08:13Z and bash SECONDS elapsed 125 s, recorded only
+OUTCOME RECONCILIATION itest-dup-01-q1: published=672 with_logged_outcome=672 without_logged_outcome=0 not_reconcilable=0 queue_depth=0
+  counters since the before reading (secondary consistency figure, decides nothing): total=672 {'accepted': 672, 'rejected': 0, 'duplicate': 0, 'failed': 0, 'dropped': 0}
+-> OK: every published record of this run has a logged outcome in the fetched event log
+{
+  "label": "after",
+  "seed": null,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-01-q1",
+        "last_seq": 59,
+        "last_message_id": "4ad6325e-7f05-50e8-87e1-b95e5f1cc3ee",
+        "last_ts": "2026-10-02T16:05:09.309Z",
+        "accepted_count": 1154
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-01-q1",
+        "last_seq": 11,
+        "last_message_id": "844e5d32-7093-51fa-bbb7-e06462015d78",
+        "last_ts": "2026-10-02T16:05:05.309Z",
+        "accepted_count": 218
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-01-q1",
+        "last_seq": 599,
+        "last_message_id": "adfec024-f07e-5eae-8794-fd419bbc8aed",
+        "last_ts": "2026-10-02T16:05:10.207Z",
+        "accepted_count": 10924
+      }
+    }
+  }
+}
+{
+  "run_id": "itest-dup-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 672,
+  "sent_valid": 672,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 672,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 672,
+  "latency_count": 672,
+  "latency_ms_p50": 2053.257256,
+  "latency_ms_p95": 3972.0868543999995,
+  "latency_ms_max": 4331.792432,
+  "marker_lag_s": 0.138,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 672,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}
+5689c879-5f50-49ed-8303-0d42c4898beb smartwatch: existed_before=True accepted_count 1094 -> 1154 (delta 60); accepted records in events.jsonl 60; last_run_id itest-dup-01-q1 last_seq 59: OK
+b484f9ea-2dc6-45ef-9434-5fc06a06e2c9 smart_ring: existed_before=True accepted_count 206 -> 218 (delta 12); accepted records in events.jsonl 12; last_run_id itest-dup-01-q1 last_seq 11: OK
+7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0 smart_clothing: existed_before=True accepted_count 10324 -> 10924 (delta 600); accepted records in events.jsonl 600; last_run_id itest-dup-01-q1 last_seq 599: OK
+/metrics accepted: 11021 -> 11693 (delta 672); events.jsonl 672: OK
+/metrics rejected: 67 -> 67 (delta 0); events.jsonl 0: OK
+/metrics duplicate: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics failed: 0 -> 0 (delta 0); events.jsonl 0: OK
+/metrics dropped: 0 -> 0 (delta 0)
+TEST STATUS itest-dup-01-q1: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE COMPLETE. This is NOT the verdict: compare the values printed above with the test's Expected list.
+replay() { python -m egw_simulator run --scenario smoke --seed 42 --duration 60 --run-id $R --output ~/egw-tcg/itest-replay --broker 127.0.0.1 --port $MQTT_PORT --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD" --ca-cert ~/egw-tcg/ca.crt --egw-id egw-01 --qos 1; }
+if [ "$T4" = ok ] && wait_ready && drained; then T4=replayed; replay; RC=$?; echo "replay simulator exit=$RC (must be 0)"; [ "$RC" = 0 ] && REPLAYED=ok || stop "test 4: the replay simulator failed - do not evaluate; repeat the whole test under a new run id"; else stop "test 4: T4='$T4' is not 'ok' (the first line of this test did not complete, or the replay was already published once), or the controller is not ready and drained - the replay was NOT published"; fi
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 11760 11693 67 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 4241.90 s, end 4373.61 s, elapsed 131.71 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T16:08:15Z -> 2026-10-02T16:10:19Z and bash SECONDS elapsed 124 s, recorded only
+egw_simulator: scenario=smoke seed=42 run_id=itest-dup-01-q1 broker=127.0.0.1:8883 tls=True qos=1 duration=60.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: done sent=672 intended_invalid=0 buffered_dropout=0 dropout_disconnects=0
+/home/ruisth/egw-tcg/itest-replay/itest-dup-01-q1
+replay simulator exit=0 (must be 0)
+[ "$REPLAYED" = ok ] && drained && fetch $R && snap_pair $R replay && $REC same --prefix $P/$R after replay && REPLAYED=captured || stop "test 4: replay not published (REPLAYED='$REPLAYED'), replay state not captured, or twins DIFFERENT"    # 'drained' replaces the former 'sleep 65; repeat until queue_depth is 0': not a deadline, the replay can add no delivery
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 12432 11693 67 672 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 4433.78 s, end 4565.15 s, elapsed 131.37 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T16:11:16Z -> 2026-10-02T16:13:20Z and bash SECONDS elapsed 124 s, recorded only
+{
+  "label": "replay",
+  "seed": null,
+  "devices": {
+    "5689c879-5f50-49ed-8303-0d42c4898beb": {
+      "device_type": "smartwatch",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-01-q1",
+        "last_seq": 59,
+        "last_message_id": "4ad6325e-7f05-50e8-87e1-b95e5f1cc3ee",
+        "last_ts": "2026-10-02T16:05:09.309Z",
+        "accepted_count": 1154
+      }
+    },
+    "b484f9ea-2dc6-45ef-9434-5fc06a06e2c9": {
+      "device_type": "smart_ring",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-01-q1",
+        "last_seq": 11,
+        "last_message_id": "844e5d32-7093-51fa-bbb7-e06462015d78",
+        "last_ts": "2026-10-02T16:05:05.309Z",
+        "accepted_count": 218
+      }
+    },
+    "7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0": {
+      "device_type": "smart_clothing",
+      "exists": true,
+      "ingestion": {
+        "last_run_id": "itest-dup-01-q1",
+        "last_seq": 599,
+        "last_message_id": "adfec024-f07e-5eae-8794-fd419bbc8aed",
+        "last_ts": "2026-10-02T16:05:10.207Z",
+        "accepted_count": 10924
+      }
+    }
+  }
+}
+5689c879-5f50-49ed-8303-0d42c4898beb: identical {'last_run_id': 'itest-dup-01-q1', 'last_seq': 59, 'last_message_id': '4ad6325e-7f05-50e8-87e1-b95e5f1cc3ee', 'last_ts': '2026-10-02T16:05:09.309Z', 'accepted_count': 1154}
+b484f9ea-2dc6-45ef-9434-5fc06a06e2c9: identical {'last_run_id': 'itest-dup-01-q1', 'last_seq': 11, 'last_message_id': '844e5d32-7093-51fa-bbb7-e06462015d78', 'last_ts': '2026-10-02T16:05:05.309Z', 'accepted_count': 218}
+7e91df24-f0e9-4c85-ab40-d6c0d1c6f3f0: identical {'last_run_id': 'itest-dup-01-q1', 'last_seq': 599, 'last_message_id': 'adfec024-f07e-5eae-8794-fd419bbc8aed', 'last_ts': '2026-10-02T16:05:10.207Z', 'accepted_count': 10924}
+T4RC=stop; [ "$REPLAYED" = captured ] && { $REC replay-check $P/$R --replay-dir ~/egw-tcg/itest-replay/$R --events-before $P/$R.events.pre-replay.jsonl; T4RC=$?; }; case $T4RC in 0) true;; 5) stop "test 4: NOT DEMONSTRATED (replay check exit 5) - the replay's own duplicate line is not demonstrated for every replayed identity (the NOT DEMONSTRATED lines above name them, with their added duplicate lines and k, the reconnections between the 'after' and 'replay' readings): test 4 is NOT passed, and no condition failed";; *) stop "test 4: the per-identity replay check was not run (REPLAYED='$REPLAYED'), could not read its inputs (exit 1: test 4 NOT evaluated) or FAILED (exit 4) - test 4 passes only when it exits 0";; esac     # decision of 2026-09-30: the replayed identities are the message_ids of the replay's own sent_events.jsonl; the replay's lines are those the re-fetched events.jsonl holds beyond the pre-replay copy, each received after the 'after' reading (one received at or before it: exit 1); the /metrics readings 'after' and 'replay' must be of one process before anything is differenced; exit 5 (2026-10-01): with k reconnections between the two readings (the mqtt_connection delta), a replayed identity with 1 to k duplicate lines in the replay interval is not demonstrated, its lines may all be redeliveries of the first run - not a pass and not a failure, its own STOP; a failure (exit 4) takes precedence; it writes nothing; UNVERIFIED: on real event logs and /metrics readings (Appendix B, item 24)
+REPLAY CHECK itest-dup-01-q1: replayed identities=672; lines added since the pre-replay copy=672 (accepted 0, duplicate 672, rejected 0, failed 0, other 0)
+per identity: duplicate_replayed=672 of 672 (replayed identities that gained a duplicate line in the replay interval): OK
+per identity: 0 replayed identity(ies) gained an accepted line from the replay (must be 0): OK
+per identity: 0 replayed identity(ies) with more than one accepted line in the log (raw lines; double_accepted must be 0): OK
+/metrics 'after' -> 'replay': one controller process (same started_at; uptime_s and received, accepted, rejected, duplicate, failed, dropped, processing_errors, mqtt_connection non-decreasing): OK
+per identity: the 'after' reading is quiet (CONTRACTS 5: queue_depth, in_progress and unacked 0, mqtt_subscribed true, the accounting identity holding): OK
+per identity: 0 replayed identity(ies) with 1 to k=0 added duplicate lines (k = mqtt_connection 1 -> 1, the reconnections of the replay interval: at most k added duplicate lines, of any identities, can be redeliveries of the first run, so the replay's own line is demonstrated only beyond k; must be 0): OK
+duplicate_redelivery=0 (further duplicate lines added during the replay interval); mqtt_connection 1 -> 1 (delta 0): OK
+/metrics accepted: 11693 -> 11693 (delta 0): OK
+/metrics queue_depth=0 in the 'replay' reading: OK
+/metrics duplicate: 0 -> 672 (delta 672); duplicate_replayed + duplicate_redelivery = 672 + 0 = 672: equal (reported, decides nothing)
+-> OK: every replayed identity gained a duplicate line and no accepted line from the replay, none has more than one accepted line, the further duplicates are within the reconnection budget, and the two /metrics readings are of one process with accepted unchanged and an empty queue
+[ "$REPLAYED" = captured ] && python3 -c "import json,sys;a=json.load(open('$P/$R.metrics.after.json'));b=json.load(open('$P/$R.metrics.replay.json'));one=a['started_at']==b['started_at'] and all(b[k]>=a[k] for k in ('uptime_s','received','accepted','rejected','duplicate','failed','dropped','processing_errors','mqtt_connection'));print({k:b[k]-a[k] for k in ('accepted','rejected','duplicate','failed','dropped')} if one else 'no difference taken:','same controller process:',one);sys.exit(0 if one else 1)" || stop "test 4: not evaluated (REPLAYED='$REPLAYED'), or the 'after' and 'replay' readings are not of one controller process (the same started_at; uptime_s, the cumulative counters and mqtt_connection non-decreasing) - no difference was taken"     # decision of 2026-09-30: no difference across two processes (CONTRACTS 5, rule 1); the replay check above fails test 4 on such readings
+{'accepted': 0, 'rejected': 0, 'duplicate': 672, 'failed': 0, 'dropped': 0} same controller process: True
+[ "$REPLAYED" = captured ] && $REC check $P/$R && keep $P/$R.reconcile.json $P/$R.reconcile.post-replay.json || stop "test 4: second check not run (REPLAYED='$REPLAYED') or non-zero, or the post-replay copy already exists"      # check again, on the re-fetched log: double_accepted = 0 and delivered_unique unchanged; its duplicates counts every duplicate line of the whole log and is reported (the per-identity judgement is replay-check's)
+WARNING: 1 warning(s) in the row above; the exit status does not reflect them
+{
+  "run_id": "itest-dup-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 672,
+  "sent_valid": 672,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 672,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 672,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 672,
+  "latency_count": 672,
+  "latency_ms_p50": 2053.257256,
+  "latency_ms_p95": 3972.0868543999995,
+  "latency_ms_max": 4331.792432,
+  "marker_lag_s": 0.138,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 672,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": [
+    "IMPLAUSIBLE controller confirmation marker for run itest-dup-01-q1: the manifest deadline (4070196859790) precedes the last received_monotonic_ns (4397327294622) although it claims clock_domain 'controller'; the deadline is used as recorded but the run's clock domain is suspect (report 5.2)"
+  ]
+}
+[ "$REPLAYED" = captured ] && python3 -c "import json;a=json.load(open('$P/$R.reconcile.pre-replay.json'));b=json.load(open('$P/$R.reconcile.post-replay.json'));[print(k,'pre-replay',a[k],'post-replay',b[k],'' if k=='duplicates' else ('UNCHANGED' if a[k]==b[k] else 'CHANGED')) for k in ('sent_valid','delivered_unique','lost','late_confirmations','double_accepted','duplicates')]" || stop "test 4: not evaluated (REPLAYED='$REPLAYED')"
+sent_valid pre-replay 672 post-replay 672 UNCHANGED
+delivered_unique pre-replay 672 post-replay 672 UNCHANGED
+lost pre-replay 0 post-replay 0 UNCHANGED
+late_confirmations pre-replay 0 post-replay 0 UNCHANGED
+double_accepted pre-replay 0 post-replay 0 UNCHANGED
+duplicates pre-replay 0 post-replay 672 
+[ "$REPLAYED" = captured ] && python3 -c "import json,collections; ev=[json.loads(l) for l in open('$HOME/egw-tcg/itest/$R/events.jsonl')]; print(collections.Counter(e['outcome'] for e in ev)); print('accepted unique:', len({e['message_id'] for e in ev if e['outcome']=='accepted'}), 'accepted total:', sum(e['outcome']=='accepted' for e in ev))" || stop "test 4: not evaluated (REPLAYED='$REPLAYED')"
+Counter({'accepted': 672, 'duplicate': 672})
+accepted unique: 672 accepted total: 672

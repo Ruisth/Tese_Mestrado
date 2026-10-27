@@ -1,0 +1,78 @@
+# HISTORICAL RECORD. This manifest describes the LaTeX conversion of 17 September 2026 only.
+# It is not the current dissertation. The current manuscript is the student's Word file,
+# kept outside this repository and not published here (see README.md in this folder).
+status: historical
+snapshot_date: "2026-09-17"
+current_manuscript: "The student's Word file, outside this repository; not published here"
+
+title: "Blockchain-powered Personal AI -- Digital Twin Edge Gateway"
+authors: ["Rui Miguel Franco Duarte"]
+student_number: "94494"
+institution: "Iscte, Instituto Universitário de Lisboa (ISCTE-IUL)"
+degree: "Master in Telecommunications and Computer Engineering"
+style: "Supplied Template_LaTeX; official 2026 status unconfirmed (D004)"
+figs_dir: latex/imagens
+bibfile: refs/references.bib
+
+# Within this historical conversion only, latex/main.tex is the edited source and the
+# Markdown under sections/ is a mirror generated from it. Neither is the current manuscript.
+# The supplied Word content was imported without scientific or metadata revision.
+source_of_truth: latex/main.tex
+generated_by: tools/generate_sections.py
+generated_are_read_only: true
+word_import:
+  date: "2026-09-17"
+  source_filename: "Dissertation_Rui Duarte_Digital Twin Edge Gateway.docx"
+  source_sha256: "c589422a42318cf1635ad895cbe23cd24e2157ed569554a8ab3cd5dcaea25945"
+  provenance: latex/WORD_IMPORT.md
+  inventory: latex/word-import-manifest.json
+  supplied_chapters: 2
+  supplied_tables: 3
+  supplied_figures: 1
+  supplied_references: 33
+  bibliography_policy: "Preserve verbatim reference strings; no metadata audit asserted."
+  governance_effect: "None; no plan amendment, supervisor approval, gate or claim acceptance."
+
+order:
+  - sections/01_cover.md
+  - sections/02_acknowledgements.md
+  - sections/03_abstract.md
+  - sections/04_intro.md
+  - sections/05_background.md
+  - sections/06_architecture.md
+  - sections/07_implementation.md
+  - sections/08_experiments.md
+  - sections/09_results.md
+  - sections/10_conclusion.md
+  - sections/11_references.md
+
+# Six chapter slots and front matter map onto eleven repository mirror slots.
+# Chapters 3–6 contain structural headings only in this source snapshot.
+mapping:
+  sections/01_cover.md: latex/main.tex and latex/abbreviations.tex (Word cover metadata and abbreviations)
+  sections/02_acknowledgements.md: latex/main.tex (empty dedication and acknowledgment)
+  sections/03_abstract.md: latex/main.tex (empty Resumo and Abstract)
+  sections/04_intro.md: latex/chapters/01_introduction.tex
+  sections/05_background.md: latex/chapters/02_background.tex
+  sections/06_architecture.md: latex/chapters/04_architecture.tex (empty design sections)
+  sections/07_implementation.md: latex/chapters/04_architecture.tex (empty implementation sections)
+  sections/08_experiments.md: latex/chapters/03_methodology.tex (heading only)
+  sections/09_results.md: latex/chapters/05_evaluation.tex (heading only)
+  sections/10_conclusion.md: latex/chapters/06_conclusions.tex (heading only)
+  sections/11_references.md: refs/references.bib
+
+deviations:
+  - "The Word manuscript supplies Introduction and Theoretical Framework only; the other chapter slots retain empty structure, not former draft prose."
+  - "Chapter 4 retains the existing architecture/implementation section mapping, with both generated mirror slots empty apart from headings."
+  - "The repository template has no methodology slot; the empty Chapter 3 heading maps to 08_experiments.md."
+  - "The research-process PNG is extracted from the supplied Word source; the institutional logos come from the supplied LaTeX template."
+  - "IEEE biblatex and Biber use a custom driver for verbatim Word reference strings stored in @misc note fields, without a new bibliographic metadata audit."
+
+constraints:
+  - "Preserve the supplied Word prose, tables, figure and references; no additional scientific content is authorised by the conversion."
+  - "Keep sections without supplied Word content empty; no TODOs, sample text or completion placeholders."
+  - "Retain the supplied template class, layout, typography, two covers and logos; do not infer official-template approval."
+  - "No quantitative project result is admitted without evidence and a claim-evidence record."
+  - "Imported title, research questions and integrated-Yocto wording do not amend governance controls or demonstrate implementation."
+  - "The bibliography preserves source strings; verification is a separate research action."
+  - "Body language is English; any later Portuguese Resumo must follow institutional requirements."

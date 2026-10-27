@@ -1,0 +1,3 @@
+broker started 183562.4 s after the installation
+six starts span 171.9 s (earliest to latest)
+start check: as required

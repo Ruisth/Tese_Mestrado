@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1440-1458, 1477-1480 (prompt removed)
++++ b/rows/t7-ditto.sh
+@@ -20 +20 @@
+-R=itest-ditto-fault-01; SVC=ditto-things
++R=itest-ditto-fault-01-q1; SVC=ditto-things

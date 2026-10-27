@@ -1,0 +1,6 @@
+--- health (http 200, curl exit 0) ---
+{"status":"ok"}
+--- ready (http 200, curl exit 0) ---
+{"status":"ready","mqtt_connected":true,"ditto_ready":true}
+--- metrics (http 200, curl exit 0) ---
+{"accepted":0,"rejected":0,"duplicate":0,"failed":0,"dropped":0,"received":0,"in_progress":0,"processing_errors":0,"started_at":"2026-09-28T20:58:19.279Z","uptime_s":176.839447392,"monotonic_ns":423517282386,"wall_utc":"2026-09-28T21:01:10.714Z","mqtt_subscribed":true,"mqtt_connection":1,"unacked":0,"queue_depth":0}

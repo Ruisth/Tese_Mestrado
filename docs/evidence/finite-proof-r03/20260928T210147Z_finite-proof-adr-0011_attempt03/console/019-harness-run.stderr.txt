@@ -1,0 +1,3 @@
+[harness] INVALID: no SUT resources: timed runs require the VM-side collector output (deployment/scripts/collect-resources.sh, ingested via --resources-from); CPU/RAM on the SUT are essential for RQ3; override only with --allow-missing-resources
+[harness] INVALID: mandatory artefact(s) missing from the run directory: resources.csv — the run is incomplete for its condition kind, so it is marked invalid and NOT sealed (no SHA256SUMS); recover the missing evidence with 'collect' or repeat the run under a new run identity
+[harness] error: run 'proof-adr0011-r03' is missing mandatory artefact(s) resources.csv; SHA256SUMS is withheld. Recover with: python -m egw_experiments collect --run-id proof-adr0011-r03 ...

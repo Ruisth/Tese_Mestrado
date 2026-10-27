@@ -1,0 +1,158 @@
+# kas manifest for the C2DTA Edge Gateway image (EGW-OS) — gate G1 target.
+#
+# Machine : qemuarm64 (functional validation only — never performance)
+# Distro  : poky (Yocto Project 5.0.x "Scarthgap", LTS until April 2028)
+# Image   : egw-image (see meta-egw/recipes-core/images/egw-image.bb)
+#
+# Requires kas >= 4.0 (configuration format version 14: commit/branch keys
+# and lock-file 'overrides' support). Run from the src/yocto directory (or
+# via scripts/build.sh, which sets KAS_WORK_DIR accordingly) so that the
+# local meta-egw layer resolves.
+#
+# Revision pinning policy (plan section 4.3): tags and exact commits are
+# fixed here and in egw-qemuarm64.lock.yml; the build never follows the
+# HEAD of a moving branch. To re-lock after a deliberate update:
+#     kas dump --lock --inplace kas/egw-qemuarm64.yml
+#
+# Verified pins (all re-verified online on 2026-08-07):
+#   poky
+#     tag yocto-5.0.19 -> commit bb98354685781296e3b3737e7762412100f359c2
+#     Source: GitHub API mirror github.com/yoctoproject/poky
+#             (refs/tags/yocto-5.0.19 -> annotated tag object
+#             c3be1502bad8beffb8bafc1e3ab9461b33ab792d, dereferenced to the
+#             commit above; tagger date 2026-07-21). Canonical repo:
+#             https://git.yoctoproject.org/poky
+#   meta-openembedded (branch scarthgap)
+#     commit ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f (commit date 2026-07-30)
+#     Sources (two, agreeing, both checked 2026-08-07): GitHub API
+#             github.com/openembedded/meta-openembedded branches/scarthgap,
+#             and OpenEmbedded Layer Index API layers.openembedded.org
+#             (layerBranches for meta-oe, branch id 30 = scarthgap,
+#             vcs_last_rev).
+#   meta-virtualization (branch scarthgap)
+#     commit 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+#             (commit date 2026-08-07T17:08 UTC)
+#     Source: OpenEmbedded Layer Index API layers.openembedded.org
+#             (layerBranches, layer meta-virtualization, branch id 30 =
+#             scarthgap, vcs_last_rev), checked 2026-08-07; the Layer Index
+#             HTML page for the layer agreed on the commit age. The
+#             canonical cgit (git.yoctoproject.org) refused automated page
+#             fetches (HTTP 403), so this pin has ONE authoritative online
+#             source. 'kas checkout' fails loudly if the commit does not
+#             exist on the branch; confirm once on WSL2 with:
+#                 git ls-remote https://git.yoctoproject.org/meta-virtualization scarthgap
+
+header:
+  version: 14
+
+env:
+  # WHY THIS EXISTS (observed 2026-08-10, first real build):
+  # kas runs BitBake with HOME pointed at a throwaway temporary directory
+  # (kas/libcmds.py: `self.tmpdirname = tempfile.mkdtemp()` followed by
+  # `ctx.environ['HOME'] = self.tmpdirname`). A local.conf line such as
+  # `DL_DIR ?= "${HOME}/yocto-cache/downloads"` therefore resolves to
+  # /tmp/tmpXXXXXXXX/... — a directory that is removed when the run ends.
+  # Symptom: every run silently starts with an EMPTY download and sstate
+  # cache, and a re-run fails at do_unpack because the stamps claim the
+  # source was already fetched while the tarball is gone:
+  #   NOTE: Unpacking /tmp/tmpudy01gb3/yocto-cache/downloads/libffi-3.4.6.tar.gz
+  #   tar (child): ...: Cannot open: No such file or directory
+  # Variables declared here are given to BitBake by kas and added to
+  # BB_ENV_PASSTHROUGH_ADDITIONS, so they survive that HOME substitution.
+  # scripts/build.sh exports EGW_CACHE_DIR=$HOME/yocto-cache (expanded by the
+  # SHELL, where HOME is the real one); the default below only applies when
+  # kas is invoked directly.
+  EGW_CACHE_DIR: "/var/tmp/egw-yocto-cache"
+
+machine: qemuarm64
+distro: poky
+target: egw-image
+
+repos:
+
+  poky:
+    url: https://git.yoctoproject.org/poky
+    branch: scarthgap
+    # Tag yocto-5.0.19 (Yocto Project 5.0.19 point release) — see header.
+    commit: bb98354685781296e3b3737e7762412100f359c2
+    layers:
+      meta:
+      meta-poky:
+      # meta-yocto-bsp is not needed: the qemuarm64 machine configuration
+      # lives in openembedded-core (meta/conf/machine/qemuarm64.conf).
+
+  meta-openembedded:
+    url: https://git.openembedded.org/meta-openembedded
+    branch: scarthgap
+    commit: ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+    layers:
+      # Dependency set required by meta-virtualization (see its README):
+      meta-oe:
+      meta-python:
+      meta-networking:
+      meta-filesystems:
+
+  meta-virtualization:
+    url: https://git.yoctoproject.org/meta-virtualization
+    branch: scarthgap
+    commit: 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+    # Provides docker-moby (OCI runtime), containerd/runc, and the
+    # linux-yocto kernel configuration fragments for containers, activated
+    # by DISTRO_FEATURES 'virtualization' (see local_conf_header below).
+
+  meta-egw:
+    # Local layer, part of this repository — no url on purpose. kas resolves
+    # a url-less repo path relative to KAS_WORK_DIR; scripts/build.sh sets
+    # KAS_WORK_DIR to the src/yocto directory, so this resolves to
+    # src/yocto/meta-egw. No 'layers' key: the repository root is the layer.
+    path: meta-egw
+
+local_conf_header:
+
+  10-init-manager: |
+    # systemd as the init system (plan 4.3: systemd + networking + OCI
+    # runtime). In Scarthgap this include also adds the 'usrmerge' distro
+    # feature (systemd requires it) via init-manager-systemd.inc.
+    INIT_MANAGER = "systemd"
+
+  20-distro-features: |
+    # 'virtualization' switches on meta-virtualization's kernel
+    # configuration fragments for linux-yocto (cgroups, namespaces,
+    # overlayfs, netfilter — what containers need). 'systemd' is already
+    # added by INIT_MANAGER above; the explicit append keeps the
+    # requirement visible and duplicates are harmless.
+    DISTRO_FEATURES:append = " virtualization systemd"
+
+  30-parallelism: |
+    # BitBake auto-detects the CPU count for BB_NUMBER_THREADS and
+    # PARALLEL_MAKE — leave the defaults unless the WSL2 VM swaps or the
+    # OOM killer triggers during the build. In that case cap BOTH to a
+    # smaller value, for example:
+    #   BB_NUMBER_THREADS = "4"
+    #   PARALLEL_MAKE = "-j 4"
+    # Rule of thumb: never set them above the vCPUs assigned to WSL2
+    # (.wslconfig) and lower them when RAM per job is scarce.
+
+  35-perl-parallel-make: |
+    # perl's ExtUtils::MakeMaker regenerates sub-Makefiles during do_compile
+    # and then asks make to be rerun ("==> Your Makefile has been rebuilt.
+    # <== ==> Please rerun the make command. <==" followed by 'false'). Under
+    # a parallel make the sibling jobs abort instead, which fails do_compile:
+    #     make[2]: *** [Makefile:738: Makefile] Error 1
+    #     make[1]: *** [Makefile:230: cpan/Pod-Escapes/pm_to_blib] Error 2
+    # Observed here on 2026-08-10 (16-core host, default PARALLEL_MAKE).
+    # The race is intermittent, which is precisely why it must not be left to
+    # chance: claim C01 asserts a REPRODUCIBLE build from a clean checkout.
+    # Serialising make for this one recipe removes the nondeterminism; every
+    # other recipe keeps full parallelism. PARALLEL_MAKE is excluded from
+    # sstate signatures, so this does not invalidate cached artefacts.
+    PARALLEL_MAKE:pn-perl = "-j 1"
+
+  40-shared-caches: |
+    # Keep downloads and shared state OUTSIDE the repository checkout so a
+    # re-clone or 'git clean' never deletes them and rebuilds stay fast.
+    # EGW_CACHE_DIR comes from the 'env:' block above — NEVER use ${HOME}
+    # here: under kas it expands to a temporary directory (see the comment
+    # on 'env:' for the failure this caused).
+    DL_DIR ?= "${EGW_CACHE_DIR}/downloads"
+    SSTATE_DIR ?= "${EGW_CACHE_DIR}/sstate-cache"

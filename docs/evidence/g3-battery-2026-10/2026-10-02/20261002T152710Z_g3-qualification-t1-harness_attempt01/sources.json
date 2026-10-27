@@ -1,0 +1,18 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-02T15:27:10.774944Z",
+      "kind": "raw",
+      "path": "/home/ruisth/egw-tcg/pilot/results/raw/nominal-r02",
+      "role": "harness run directory of the plan entry nominal-r02 (sealed by the harness when valid)",
+      "siblings_glob": null
+    },
+    {
+      "added_utc": "2026-10-02T15:27:10.810144Z",
+      "kind": "other",
+      "path": "/home/ruisth/egw-tcg/itest/nominal-r02.sut",
+      "role": "the Docker events recorder's start record of nominal-r02 (and events-partial/ if the fetch did not keep the capture)",
+      "siblings_glob": null
+    }
+  ]
+}

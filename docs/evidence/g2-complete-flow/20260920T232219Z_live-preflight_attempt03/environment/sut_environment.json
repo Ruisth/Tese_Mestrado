@@ -1,0 +1,16 @@
+{
+  "role": "sut",
+  "captured_utc": "2026-09-20T23:23:24Z",
+  "node": "egw-qemu-integrated",
+  "uname_a": "Linux egw-qemu-integrated 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux",
+  "os_pretty_name": "Poky (Yocto Project Reference Distro) 5.0.19 (scarthgap)",
+  "nproc": 4,
+  "cpu_model": "0xd0b",
+  "mem_total_kb": 8204356,
+  "docker_version": "Docker version 25.0.9, build 43987fca48",
+  "docker_compose_version": "Docker Compose version v2.26.0",
+  "provider": "QEMU 8.2.7 TCG (qemu-system-native) on WSL2 Ubuntu-24.04, Windows 11 x86-64",
+  "region": "local-workstation",
+  "instance_type": "qemu -machine virt -cpu cortex-a76 -smp 4 -m 8192; ARM64 EMULATED",
+  "shared_vcpu_note": "TCG emulation on a shared x86-64 host; load generator co-located; never native ARM64"
+}

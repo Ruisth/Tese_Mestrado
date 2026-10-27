@@ -1,0 +1,8 @@
+{
+  "url": "http://127.0.0.1:8000/metrics",
+  "polled_utc": "2026-10-02T16:18:46.905Z",
+  "ok": true,
+  "monotonic_ns": 4873047055886,
+  "wall_utc": "2026-10-02T16:18:46.724Z",
+  "error": null
+}

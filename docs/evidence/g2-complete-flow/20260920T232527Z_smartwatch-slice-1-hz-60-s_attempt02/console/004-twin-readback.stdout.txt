@@ -1,0 +1,31 @@
+{
+    "thingId": "org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84",
+    "policyId": "org.c2dta:62da1188-4cd1-434b-a9c7-236a8c211f84",
+    "attributes": {
+        "device_type": "smartwatch",
+        "egw_id": "egw-01",
+        "schema_version": "1.0.0"
+    },
+    "features": {
+        "ingestion": {
+            "properties": {
+                "last_message_id": "ad6d3d6f-be53-56d4-93d1-c16fa42706d1",
+                "last_seq": 59,
+                "last_run_id": "itest-g2-01",
+                "last_ts": "2026-09-20T23:28:39.715Z",
+                "accepted_count": 60
+            }
+        },
+        "vitals": {
+            "properties": {
+                "heart_rate_bpm": 87
+            }
+        },
+        "location": {
+            "properties": {
+                "lat": 38.737547,
+                "lon": -9.139201
+            }
+        }
+    }
+}

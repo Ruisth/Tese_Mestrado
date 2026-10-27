@@ -1,0 +1,265 @@
+## 2026-10-05T12:05:33Z up=2654 row t9 (session S3): steps script sha256 42de225aedfd25fa0f4975276bf2880e146c2ad66a4624f811487ba61ea0f034
+keepalive: pid 305 'sleep 43200', parent 304 (Relay(305)), running for 2652 s, about 40548 s left
+keepalive: pid 308 'sleep 43202', parent 307 (Relay(308)), running for 2652 s, about 40550 s left
+keepalive: attached, about 40550 s left (needed: 3300 s). The Windows keep-awake stays the operator's own check.
+clone /home/ruisth/egw-exec/repo: HEAD=8e492613d36490a560ae56beabd6d5c2c01a8696 tree=2f0514837f267d8975f7071041aad14a5c18dcab
+clone: clean (0 porcelain lines)
+repo_identity: {"repo_commit": "8e492613d36490a560ae56beabd6d5c2c01a8696", "repo_dirty_lines": 0, "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b", "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5"}
+runbook: 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+helpers: e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb  /home/ruisth/egw-tcg/itest-helpers.sh
+helpers: 545 lines, bash -n clean
+tunnel.sh: 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  /home/ruisth/egw-tcg/tunnel.sh
+ca.crt: 556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  /home/ruisth/egw-tcg/ca.crt
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+qemuboot.conf: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+qemu-system-aarch64: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+Yocto checkout /home/ruisth/yocto/egw: HEAD=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+Yocto checkout: clean (0 porcelain lines)
+guest-state command: identical to GUEST_STATE of /home/ruisth/egw-exec/repo/tools/session/nominal.sh (adcce8a49055345a1abb4dc55c367848ddd4658739b94d9bdc9bd0637f42da6e)
+row file t9-a.sh: sha256 34be9077366b587ae976db89e7aaaeda2bcdbcf8d3976af8254d5a5219169dac = sha256_after of the manifest (row t9, step 1, 387 bytes)
+row file t9-b.sh: sha256 29e7e98099e9bb30c58c4b141b87b4bf886ccd082a42da31a0c3b8656a4c4d5b = sha256_after of the manifest (row t9, step 2, 1940 bytes)
+row file t9-c.sh: sha256 e95f9f153a766f0ab0f21fefb4b93e0893578be80d863b411c1dfc1f64fbbf43 = sha256_after of the manifest (row t9, step 3, 630 bytes)
+row file t9-de.sh: sha256 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae = sha256_after of the manifest (row t9, step 4, 2228 bytes)
+row file t9-exposure.sh: sha256 ec18b22a643203a1c2d9bc9a9519b5b4a6f69de65df9944d832f09744428fe9c = sha256_after of the manifest (row t9, step 5, 2262 bytes)
+session clock: NOW=2654 UP0=1331 elapsed=1323 s (cutoff 10800 s)
+tunnel: the master answers
+fresh on the host: itest-tls-wrongca-q2
+fresh on the host: itest-auth-wrongpw-q2
+fresh on the host: itest-notls-q2
+## 2026-10-05T12:05:38Z up=2659 row t9: attempt /home/ruisth/egw-exec/attempts/20261005T120537Z_g3-qualification-t9_attempt01 (ceiling 25 min, counted from the row's start at up=2654 and shared by everything the row does: the operator enforces it with 'term t9')
+row file t9-a.sh: sha256 34be9077366b587ae976db89e7aaaeda2bcdbcf8d3976af8254d5a5219169dac = sha256_after of the manifest (row t9, step 1, 387 bytes)
+row file t9-b.sh: sha256 29e7e98099e9bb30c58c4b141b87b4bf886ccd082a42da31a0c3b8656a4c4d5b = sha256_after of the manifest (row t9, step 2, 1940 bytes)
+row file t9-c.sh: sha256 e95f9f153a766f0ab0f21fefb4b93e0893578be80d863b411c1dfc1f64fbbf43 = sha256_after of the manifest (row t9, step 3, 630 bytes)
+row file t9-de.sh: sha256 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae = sha256_after of the manifest (row t9, step 4, 2228 bytes)
+row file t9-exposure.sh: sha256 ec18b22a643203a1c2d9bc9a9519b5b4a6f69de65df9944d832f09744428fe9c = sha256_after of the manifest (row t9, step 5, 2262 bytes)
+## 2026-10-05T12:05:38Z up=2659 row t9: the gate's read before the row
+egw-controller-1 Up 10 minutes (healthy)
+egw-ditto-things-1 Up 10 minutes (healthy)
+egw-ditto-gateway-1 Up 10 minutes (healthy)
+egw-ditto-policies-1 Up 10 minutes (healthy)
+egw-mongodb-1 Up 10 minutes (healthy)
+egw-mosquitto-1 Up 10 minutes (healthy)
+container egw-controller-1 oomkilled=false restarts=0 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-10-05T11:55:03.051846413Z
+container egw-ditto-things-1 oomkilled=false restarts=0 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-10-05T11:55:01.422288357Z
+container egw-ditto-gateway-1 oomkilled=false restarts=0 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-10-05T11:55:03.00206504Z
+container egw-ditto-policies-1 oomkilled=false restarts=0 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-10-05T11:55:01.073182656Z
+container egw-mongodb-1 oomkilled=false restarts=0 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-10-05T11:55:01.568633509Z
+container egw-mosquitto-1 oomkilled=false restarts=0 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-10-05T11:55:01.386275042Z
+memory-cgroup OOM lines: 0
+              total        used        free      shared  buff/cache   available
+Mem:           8012        2016        5168           5         828        5917
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    463.1M      1.6G  22% /
+/dev/vdb                 31.2G      2.5G     27.1G   8% /var/lib/docker
+tmpfs                     3.9G         0      3.9G   0% /tmp
+## 2026-10-05T12:05:52Z up=2673 row t9: step t9-a (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+openssl req -x509 -newkey rsa:2048 -nodes -keyout /tmp/wrong.key -out /tmp/wrong.crt -days 1 -subj '/CN=wrong' 2>/dev/null
+python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-tls-wrongca-q2 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD" --ca-cert /tmp/wrong.crt; echo "exit=$?"
+egw_simulator: scenario=smoke seed=42 run_id=itest-tls-wrongca-q2 broker=127.0.0.1:8883 tls=True qos=1 duration=10.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: connection failed: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: self-signed certificate in certificate chain (_ssl.c:1000)
+exit=1
+## 2026-10-05T12:05:52Z up=2673 row t9: step t9-a ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-05T12:05:52Z up=2673 row t9: step t9-b (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# (b) and (c): the broker log is the actual evidence, the simulator discards the CONNACK reason. Each sub-check takes the
+# guest epoch just before its simulator, 3 s back (guest_epoch 3: the guest's wall clock steps back by up to 3 s, and a
+# step between that read and the broker's line would stamp the line before the bound, where '--since' drops it), and
+# reads the broker log bounded to [that epoch, the guest's clock at the read] right after it (sut_log, 6.1): never an
+# earlier session's line. Those 3 s may hold the last line of the step before it ((a)'s TLS failure in (b)'s log; one
+# of (b)'s in (c)'s, if (b)'s read took less than 3 s). A line in (c)'s log that names (b)'s client id,
+# egw-simulator-itest-auth-wrongpw-q2, is (b)'s, never (c)'s. UNVERIFIED: whether the broker's "not authorised" line names
+# the client id at all or reads <unknown> (as in (e) below); either way a "not authorised" line in (c)'s log, named or
+# <unknown>, is never (c)'s evidence, which is a TLS/socket error (Expected below). A lower bound that was not read runs
+# no probe and prints no 'exit=' (a STOP names the sub-check): exit 1 is the refusal status (b) and (c) expect, so an
+# unbounded probe's exit could read as their evidence, and its connection attempt would change the broker log.
+# (b) wrong password -> CONNACK not authorised
+if T0_9B=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-auth-wrongpw-q2 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password wrong --ca-cert ~/egw-tcg/ca.crt; echo "exit=$?"; else stop "test 9(b): the lower bound of (b)'s evidence was NOT read - the probe was NOT run"; fi
+egw_simulator: scenario=smoke seed=42 run_id=itest-auth-wrongpw-q2 broker=127.0.0.1:8883 tls=True qos=1 duration=10.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: connection failed: MQTT connect to 127.0.0.1:8883 not acknowledged within 15 s
+exit=1
+sut_log broker itest-auth-wrongpw-q2 "$T0_9B" && cat ~/egw-tcg/itest/itest-auth-wrongpw-q2.sut/broker.log || stop "test 9(b): the broker log bounded to (b) was NOT read - (b) has no evidence (a read that failed shows no refusal)"
+proof_fetch_sut_log: broker: bounds since_guest_epoch=1791201950 (2026-10-05T12:05:50Z) until_guest_epoch=1791201968 (2026-10-05T12:06:08Z) first=2026-10-05T12:05:52.533323399Z last=2026-10-05T12:06:00.770357055Z excluded_before_since_lines=2656 excluded_sha256=3f9234be2a805e2badc1bdbbf2e4124d4cbae195686ff4065d5b5fc1ab4d5724 outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: broker: 11 line(s), 1465 bytes, sha256 469f651338011ee3568becedfcb0544e008e8cf72e7a0066ec28eaca3e530122, written to /home/ruisth/egw-tcg/itest/itest-auth-wrongpw-q2.sut/broker.log
+[2Kmosquitto-1  | 2026-10-05T12:05:52.533323399Z 2026-10-05T12:05:52: Client connection from 10.0.2.2 failed: error:0A000418:SSL routines::tlsv1 alert unknown ca.
+[2Kmosquitto-1  | 2026-10-05T12:05:53.584144295Z 2026-10-05T12:05:53: New connection from 10.0.2.2:46215 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:53.587122039Z 2026-10-05T12:05:53: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:54.663977863Z 2026-10-05T12:05:54: New connection from 10.0.2.2:49617 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:54.664244327Z 2026-10-05T12:05:54: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:56.682553895Z 2026-10-05T12:05:56: New connection from 10.0.2.2:54835 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:56.685707639Z 2026-10-05T12:05:56: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:59.304290127Z 2026-10-05T12:05:59: New connection from 10.0.2.2:43609 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:59.312597487Z 2026-10-05T12:05:59: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:06:00.573559167Z 2026-10-05T12:06:00: New connection from 127.0.0.1:52490 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:06:00.770357055Z 2026-10-05T12:06:00: Client egw-healthcheck disconnected, not authorised.
+## 2026-10-05T12:06:18Z up=2700 row t9: step t9-b ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-05T12:06:18Z up=2700 row t9: step t9-c (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# (c) plaintext against the TLS listener
+if T0_9C=$(guest_epoch 3); then python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-notls-q2 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --no-tls --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD"; echo "exit=$?"; else stop "test 9(c): the lower bound of (c)'s evidence was NOT read - the probe was NOT run"; fi
+egw_simulator: scenario=smoke seed=42 run_id=itest-notls-q2 broker=127.0.0.1:8883 tls=False qos=1 duration=10.0s rate=11.2msg/s devices=smartwatch,smart_ring,smart_clothing
+egw_simulator: connection failed: MQTT connect to 127.0.0.1:8883 not acknowledged within 15 s
+exit=1
+sut_log broker itest-notls-q2 "$T0_9C" && cat ~/egw-tcg/itest/itest-notls-q2.sut/broker.log || stop "test 9(c): the broker log bounded to (c) was NOT read - (c) has no evidence (a read that failed shows no refusal)"
+proof_fetch_sut_log: broker: bounds since_guest_epoch=1791201976 (2026-10-05T12:06:16Z) until_guest_epoch=1791201993 (2026-10-05T12:06:33Z) first=2026-10-05T12:06:19.215355407Z last=2026-10-05T12:06:31.242180463Z excluded_before_since_lines=2667 excluded_sha256=ba3770b5095b3c91b32c4d7cf0cc4caa2b75c01c8e5843dd44c2d8eff57b2d49 outside=0 unstamped=0 stepped_back_before_since=0 excluded_read_rc=0,0
+proof_fetch_sut_log: broker: 6 line(s), 893 bytes, sha256 1ae4220e69959f0cd11a63273262633a92da8d72aabeb4285e8e54a89748f9cd, written to /home/ruisth/egw-tcg/itest/itest-notls-q2.sut/broker.log
+[2Kmosquitto-1  | 2026-10-05T12:06:19.215355407Z 2026-10-05T12:06:19: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:20.225679583Z 2026-10-05T12:06:20: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:22.230218831Z 2026-10-05T12:06:22: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:26.249561279Z 2026-10-05T12:06:26: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:30.892873087Z 2026-10-05T12:06:30: New connection from 127.0.0.1:34736 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:06:31.242180463Z 2026-10-05T12:06:31: Client egw-healthcheck disconnected, not authorised.
+## 2026-10-05T12:06:42Z up=2726 row t9: step t9-c ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-05T12:06:42Z up=2726 row t9: step t9-de (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# (d)+(e) ACL proven in both directions with concurrent known traffic, and anonymous refusal. Runs in the guest, inside the
+# broker container (mosquitto_pub/mosquitto_sub of the image; nothing to install on the host; no 'timeout' applet needed).
+# Precondition, enforced by the next line: controller ready and 'drained' (no simulator/harness run may be in progress: the operator's rule).
+T=$(date -u +%Y%m%dT%H%M%SZ); PR=stop; if wait_ready && drained && metrics itest-acl-$T before; then ssh egw-tcg "sh /opt/egw/deployment/scripts/probe-acl.sh $T"; PR=$?; echo "probe exit=$PR (0 PASS, 1 FAIL, 3 INCONCLUSIVE, 2 usage/precondition: nothing was run and there is no verdict.txt, 255 ssh failed: nothing is known; about 100 s)"; metrics itest-acl-$T after; [ "$PR" = 0 ] || stop "test 9(d): probe exit=$PR - NOT a pass (1 FAIL, 3 INCONCLUSIVE, anything else: the probe did not run to its end)"; else stop "test 9(d): precondition failed - the probe was NOT run"; fi
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-05T11:55:23.920Z 1 336 336 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 2727.90 s, end 2859.31 s, elapsed 131.41 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-05T12:06:43Z -> 2026-10-05T12:08:49Z and bash SECONDS elapsed 126 s, recorded only
+tag=20261005T120642Z topic=c2dt/acl-probe/20261005T120642Z window_s=90 subscribe_lines_before_publish: ctl-sub=1 sim-sub=1; whole run: ctl-sub=1 sim-sub=1 (broker log rc=0)
+authorised subscriber (egw-controller):   P1=1 P2=0 P3=0 P4=1 rc=27
+unauthorised subscriber (egw-simulator):  deliveries=0 stdout_bytes=0 rc=27
+liveness: covered=yes clock=uptime sub_start=901 p1_start=916 p4_end=931 earliest_timeout=991 (sub_start+window; p4_end+2 must not exceed it) exec_end: ctl-sub=997 sim-sub=997 (each must exceed p4_end)
+publishers rc: P1=0 P2=0 P3=0 P4=0; v5 'Not authorized' lines=1
+anonymous: refused rc=5 refusal_lines=1 deliveries=0 stdout_bytes=0 accepted_in_broker_log=0 broker_lines=1 stderr=Connection error: Connection Refused: not authorised. 
+evidence: broker_log=complete checked: anchor_rc=0 collection_rc=0 collection_lines=400 tail=400 anchor_found=1 (must be 1) grep_rc=0 tagged_lines: collection=15 broker.txt=15; write_check (write and read back in the evidence directory): before_run=ok after_collection=ok
+verdict=PASS
+probe exit=0 (0 PASS, 1 FAIL, 3 INCONCLUSIVE, 2 usage/precondition: nothing was run and there is no verdict.txt, 255 ssh failed: nothing is known; about 100 s)
+[ "${PR:-stop}" != stop ] && scp -r egw-tcg:/opt/egw/evidence/itest-acl-$T ~/egw-tcg/itest/ || stop "test 9(d): probe not run (PR='$PR') or scp failed - no evidence was copied"
+B=~/egw-tcg/itest/itest-acl-$T.metrics.before.json; A=~/egw-tcg/itest/itest-acl-$T.metrics.after.json; if [ "${PR:-stop}" != stop ] && [ -s $B ] && [ -s $A ] && [ -s ~/egw-tcg/itest/itest-acl-$T/verdict.txt ]; then python3 -c 'import json,sys; b,a=(json.load(open(p)) for p in sys.argv[1:3]); d=[k for k in ("started_at","accepted","rejected","duplicate","failed","dropped") if a[k]!=b[k]]; print("changed fields:", d); sys.exit(1 if d else 0)' $B $A && echo "controller untouched by the probe" || stop "test 9(d): controller counters or started_at changed during the probe, or a snapshot is not valid /metrics JSON"; else stop "test 9(d): probe not run (PR='$PR'), or a metrics snapshot or verdict.txt is missing or empty - NOTHING was compared"; fi
+changed fields: []
+controller untouched by the probe
+[ "${PR:-stop}" != stop ] && { cat ~/egw-tcg/itest/itest-acl-$T/verdict.txt ~/egw-tcg/itest/itest-acl-$T/ctl-sub.out && wc -c ~/egw-tcg/itest/itest-acl-$T/sim-sub.out ~/egw-tcg/itest/itest-acl-$T/anon.out && cat ~/egw-tcg/itest/itest-acl-$T/broker.txt; } || stop "test 9(d): nothing to show (PR='$PR') or an evidence file is missing"
+tag=20261005T120642Z topic=c2dt/acl-probe/20261005T120642Z window_s=90 subscribe_lines_before_publish: ctl-sub=1 sim-sub=1; whole run: ctl-sub=1 sim-sub=1 (broker log rc=0)
+authorised subscriber (egw-controller):   P1=1 P2=0 P3=0 P4=1 rc=27
+unauthorised subscriber (egw-simulator):  deliveries=0 stdout_bytes=0 rc=27
+liveness: covered=yes clock=uptime sub_start=901 p1_start=916 p4_end=931 earliest_timeout=991 (sub_start+window; p4_end+2 must not exceed it) exec_end: ctl-sub=997 sim-sub=997 (each must exceed p4_end)
+publishers rc: P1=0 P2=0 P3=0 P4=0; v5 'Not authorized' lines=1
+anonymous: refused rc=5 refusal_lines=1 deliveries=0 stdout_bytes=0 accepted_in_broker_log=0 broker_lines=1 stderr=Connection error: Connection Refused: not authorised. 
+evidence: broker_log=complete checked: anchor_rc=0 collection_rc=0 collection_lines=400 tail=400 anchor_found=1 (must be 1) grep_rc=0 tagged_lines: collection=15 broker.txt=15; write_check (write and read back in the evidence directory): before_run=ok after_collection=ok
+verdict=PASS
+c2dt/acl-probe/20261005T120642Z acl-probe 20261005T120642Z P1 user=egw-simulator
+c2dt/acl-probe/20261005T120642Z acl-probe 20261005T120642Z P4 user=egw-simulator
+0 /home/ruisth/egw-tcg/itest/itest-acl-20261005T120642Z/sim-sub.out
+0 /home/ruisth/egw-tcg/itest/itest-acl-20261005T120642Z/anon.out
+0 total
+[2Kmosquitto-1  | 2026-10-05T12:08:58.520022097Z 2026-10-05T12:08:58: New client connected from 127.0.0.1:39976 as egw-acl-20261005T120642Z-ctl-sub (p2, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:08:58.522495761Z 2026-10-05T12:08:58: egw-acl-20261005T120642Z-ctl-sub 1 c2dt/#
+[2Kmosquitto-1  | 2026-10-05T12:08:58.546267281Z 2026-10-05T12:08:58: New client connected from 127.0.0.1:39992 as egw-acl-20261005T120642Z-sim-sub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:08:58.553270513Z 2026-10-05T12:08:58: egw-acl-20261005T120642Z-sim-sub 1 c2dt/#
+[2Kmosquitto-1  | 2026-10-05T12:09:09.529992612Z 2026-10-05T12:09:09: New client connected from 127.0.0.1:56318 as egw-acl-20261005T120642Z-p1-sim-pub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:09:09.544732004Z 2026-10-05T12:09:09: Client egw-acl-20261005T120642Z-p1-sim-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:12.285106436Z 2026-10-05T12:09:12: New client connected from 127.0.0.1:52300 as egw-acl-20261005T120642Z-p2-ctl-pub (p2, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:09:12.336373412Z 2026-10-05T12:09:12: Client egw-acl-20261005T120642Z-p2-ctl-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:18.058230932Z 2026-10-05T12:09:18: New client connected from 127.0.0.1:52304 as egw-acl-20261005T120642Z-p3-ctl-pub-v5 (p5, c1, k60, u'egw-controller').
+[2Kmosquitto-1  | 2026-10-05T12:09:18.081400868Z 2026-10-05T12:09:18: Client egw-acl-20261005T120642Z-p3-ctl-pub-v5 disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:21.682280052Z 2026-10-05T12:09:21: New client connected from 127.0.0.1:45692 as egw-acl-20261005T120642Z-p4-sim-pub (p2, c1, k60, u'egw-simulator').
+[2Kmosquitto-1  | 2026-10-05T12:09:21.737202676Z 2026-10-05T12:09:21: Client egw-acl-20261005T120642Z-p4-sim-pub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:09:24.842049844Z 2026-10-05T12:09:24: Client egw-acl-20261005T120642Z-anon disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:10:24.260235558Z 2026-10-05T12:10:24: Client egw-acl-20261005T120642Z-ctl-sub disconnected.
+[2Kmosquitto-1  | 2026-10-05T12:10:24.285513974Z 2026-10-05T12:10:24: Client egw-acl-20261005T120642Z-sim-sub disconnected.
+## 2026-10-05T12:10:30Z up=2964 row t9: step t9-de ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-05T12:10:30Z up=2964 row t9: step t9-exposure (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# G3 battery, row t9, step 5 of 5: PROSE-ONLY step. No fenced runbook line exists for it.
+# Written by g3_extract_rows.py from a constant of that script; nothing is extracted and no id is substituted.
+# It derives from docs/setup/qemu_integrated_gateway.md at 8e49261 (sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db), line 1537 (the last sentence of test 9's Expected), which says:
+#   "Also keep `ssh -p 2222 root@127.0.0.1` refused and `nmap`-free port evidence: `ss -ltn` on the host shows only 2222 and 8883 forwarded by QEMU; inside the guest `docker ps` shows `127.0.0.1:8080` and `127.0.0.1:8000` bindings and MongoDB with no published port (work order item 5)."
+# Decision packet of 2026-10-01 (revision 2), execution choice "Prose-only steps": T9's three exposure checks
+# are run and recorded, read-only. Operator procedure, T9: `ssh -n -o BatchMode=yes ... -p 2222 root@127.0.0.1 true`, where only "Permission denied" counts; `ss -ltnp`; the guest's `docker ps` ports.
+# The three commands only read, each prints what it read and its exit status, and none judges.
+# (1) root over ssh on the forwarded port 2222. BatchMode: no prompt, so no password is ever asked or typed;
+#     the host key is checked against the runbook's pinned file and nothing is added to it; the one key the
+#     guest accepts for 'egw' is the key offered. Only "Permission denied" counts as the refusal: "Host key
+#     verification failed", a timeout or "Connection refused" is no evidence, and exit 0 is a root login.
+ssh -n -o BatchMode=yes -o ConnectTimeout=20 -o StrictHostKeyChecking=yes -o UpdateHostKeys=no -o UserKnownHostsFile="$HOME/.ssh/known_hosts_egw_tcg" -o IdentitiesOnly=yes -i "$HOME/.ssh/egw_campaign" -p 2222 root@127.0.0.1 true; echo "root ssh exit=$?"
+root@127.0.0.1: Permission denied (publickey).
+root ssh exit=255
+# (2) the host's listening TCP sockets with their owning process. Expected: 2222 and 8883 forwarded by QEMU;
+#     8000 and 8080 belong to this project's own ssh tunnel master (runbook 5.7), not to QEMU.
+ss -ltnp; echo "ss exit=$?"
+State  Recv-Q Send-Q  Local Address:Port Peer Address:PortProcess                                     
+LISTEN 0      1           127.0.0.1:2222      0.0.0.0:*    users:(("qemu-system-aar",pid=34407,fd=15))
+LISTEN 0      1000   10.255.255.254:53        0.0.0.0:*                                               
+LISTEN 0      128         127.0.0.1:8080      0.0.0.0:*    users:(("ssh",pid=36049,fd=7))             
+LISTEN 0      128         127.0.0.1:8000      0.0.0.0:*    users:(("ssh",pid=36049,fd=5))             
+LISTEN 0      1           127.0.0.1:8883      0.0.0.0:*    users:(("qemu-system-aar",pid=34407,fd=14))
+LISTEN 0      4096       127.0.0.54:53        0.0.0.0:*                                               
+LISTEN 0      4096    127.0.0.53%lo:53        0.0.0.0:*                                               
+LISTEN 0      128             [::1]:8000         [::]:*    users:(("ssh",pid=36049,fd=4))             
+LISTEN 0      128             [::1]:8080         [::]:*    users:(("ssh",pid=36049,fd=6))             
+ss exit=0
+# (3) the guest's published container ports, read over ssh. Expected: bindings on 127.0.0.1:8080 and
+#     127.0.0.1:8000, and MongoDB with no published port.
+ssh -n egw-tcg 'docker ps --format "{{.Names}} {{.Ports}}"'; echo "docker ps exit=$?"
+egw-controller-1 127.0.0.1:8000->8000/tcp
+egw-ditto-things-1 8080/tcp
+egw-ditto-gateway-1 127.0.0.1:8080->8080/tcp
+egw-ditto-policies-1 8080/tcp
+egw-mongodb-1 27017/tcp
+egw-mosquitto-1 1883/tcp, 0.0.0.0:8883->8883/tcp, :::8883->8883/tcp
+docker ps exit=0
+## 2026-10-05T12:10:32Z up=2966 row t9: step t9-exposure ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-05T12:10:33Z up=2966 row t9: the gate after the row
+egw-controller-1 Up 15 minutes (healthy)
+egw-ditto-things-1 Up 15 minutes (healthy)
+egw-ditto-gateway-1 Up 15 minutes (healthy)
+egw-ditto-policies-1 Up 15 minutes (healthy)
+egw-mongodb-1 Up 15 minutes (healthy)
+egw-mosquitto-1 Up 15 minutes (healthy)
+container egw-controller-1 oomkilled=false restarts=0 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-10-05T11:55:03.051846413Z
+container egw-ditto-things-1 oomkilled=false restarts=0 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-10-05T11:55:01.422288357Z
+container egw-ditto-gateway-1 oomkilled=false restarts=0 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-10-05T11:55:03.00206504Z
+container egw-ditto-policies-1 oomkilled=false restarts=0 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-10-05T11:55:01.073182656Z
+container egw-mongodb-1 oomkilled=false restarts=0 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-10-05T11:55:01.568633509Z
+container egw-mosquitto-1 oomkilled=false restarts=0 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-10-05T11:55:01.386275042Z
+memory-cgroup OOM lines: 0
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1872        5261           5         878        6061
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    463.2M      1.6G  22% /
+/dev/vdb                 31.2G      2.5G     27.1G   8% /var/lib/docker
+tmpfs                     3.9G         0      3.9G   0% /tmp
+## faults: what the system did during the measured run
+none
+## problems: what the two records do not let anyone say
+none
+guest state before/after: 0 fault(s), 0 problem(s)
+guest-state-delta: faults=0 problems=0
+2026-10-05T12:10:44Z sample 1: egw-mosquitto-1=running/healthy egw-mongodb-1=running/healthy egw-ditto-policies-1=running/healthy egw-ditto-things-1=running/healthy egw-ditto-gateway-1=running/healthy egw-controller-1=running/healthy
+2026-10-05T12:10:50Z completed (sample 1)
+ALL HEALTHY: the 6 expected services are running and healthy (sample 1)
+no egw-events-* and no egw-resources-* unit is active
+TUNNEL CHECK: the master answers on /home/ruisth/egw-tcg/tunnel.ctl
+## 2026-10-05T12:10:51Z up=2986 GATE t9: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-05T12:10:51Z up=2986 row t9 ended after 332 s; the attempt is OPEN for the operator's classification
+attempt:  /home/ruisth/egw-exec/attempts/20261005T120537Z_g3-qualification-t9_attempt01
+consoles: /home/ruisth/egw-exec/attempts/20261005T120537Z_g3-qualification-t9_attempt01/console/ (commands.jsonl beside it)
+  001-guest-state-before.stderr.txt
+  001-guest-state-before.stdout.txt
+  002-t9-a.stderr.txt
+  002-t9-a.stdout.txt
+  003-t9-b.stderr.txt
+  003-t9-b.stdout.txt
+  004-t9-c.stderr.txt
+  004-t9-c.stdout.txt
+  005-t9-de.stderr.txt
+  005-t9-de.stdout.txt
+  006-t9-exposure.stderr.txt
+  006-t9-exposure.stdout.txt
+  007-guest-state-after.stderr.txt
+  007-guest-state-after.stdout.txt
+  008-guest-state-delta.stderr.txt
+  008-guest-state-delta.stdout.txt
+  009-gate-healthy.stderr.txt
+  009-gate-healthy.stdout.txt
+  010-gate-units.stderr.txt
+  010-gate-units.stdout.txt
+  011-gate-tunnel-check.stderr.txt
+  011-gate-tunnel-check.stdout.txt
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+host files of the row: /home/ruisth/egw-tcg/itest/<id>* (registered sources; copied by the export)
+Next: read the console and the files, then 'classify t9 <status> <validity> <outcome> <reason> <next-action>'.

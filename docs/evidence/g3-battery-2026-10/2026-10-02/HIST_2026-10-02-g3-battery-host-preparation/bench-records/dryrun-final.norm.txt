@@ -1,0 +1,1377 @@
+## <UTC> dry run of /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh
+sha256: <SHA>; bash -n: ok
+bench ready: /tmp/g3-dry-N1
+bench ready: /tmp/g3-dry-N2
+bench ready: /tmp/g3-dry-N3
+bench ready: /tmp/g3-dry-N4
+bench ready: /tmp/g3-dry-N5
+bench ready: /tmp/g3-dry-N6
+
+######## bench 1: S1 whole, then S2 with an interrupted row
+=== status before anything
+state directory: /tmp/g3-dry-N1/egw-exec/g3-battery
+latest console of this script: 
+open session (current_session): none; host uptime now: <N> s; WSL boot <BOOT>
+qemu pgrep exit=1 (0 running, 1 none)
+session S1: not opened
+session S2: not opened
+=== row before open
+## <UTC> up=<UP> row t1-smokes (session S1): steps script sha256 <SHA>
+REFUSED: session S1 was not opened by this script (/tmp/g3-dry-N1/egw-exec/g3-battery/session-S1.env is absent)
+exit=2
+=== open S2 before S1
+## <UTC> up=<UP> open S2: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+REFUSED: S2 is authorised only if S1 reached its planned end without a halt condition, and: no record of S1 (/tmp/g3-dry-N1/egw-exec/g3-battery/session-S1.env). With Rui's explicit direction, set EGW_G3_RUI_GO to his words (they are recorded)
+exit=2
+=== open S1
+## <UTC> up=<UP> open S1: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+## <UTC> up=<UP> row files of S1 against /tmp/g3-dry-N1/rows/rows.manifest.json
+row file t1-smokes.sh: sha256 <SHA> = sha256_after of the manifest (row t1-smokes, step 1, 323 bytes)
+row file t1-harness.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 1, 360 bytes)
+row file t1-harness-analyze.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 2, 165 bytes)
+row file t2.sh: sha256 <SHA> = sha256_after of the manifest (row t2, step 1, 220 bytes)
+row file t3.sh: sha256 <SHA> = sha256_after of the manifest (row t3, step 1, 104 bytes)
+row file t4-replay.sh: sha256 <SHA> = sha256_after of the manifest (row t4-replay, step 1, 143 bytes)
+row file t4-reset.sh: sha256 <SHA> = sha256_after of the manifest (row t4-reset, step 1, 51 bytes)
+row file t5.sh: sha256 <SHA> = sha256_after of the manifest (row t5, step 1, 173 bytes)
+## <UTC> up=<UP> run ids of S1 unused on the host
+## <UTC> up=<UP> guest root file system before the boot
+rootfs ext4: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260  /tmp/g3-dry-N1/yocto/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+## <UTC> up=<UP> keepalive
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## <UTC> up=<UP> UP0=<UP> (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S1-guest_session_open.console.txt)
+session open: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01 (bench stub)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+## <UTC> up=<UP> preflight.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/preflight.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S1-preflight.console.txt)
+exported <STAMP>_live-preflight_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_live-preflight_attempt01 (verified, 6 files, 0 excluded)
+DRIVER RESULT <STAMP>_live-preflight_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## environment input (PM condition 2 of 2026-10-01)
+labels: QEMU/TCG and ARM64 EMULATED are present
+## <UTC> up=<UP> gate_health.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/gate_health.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S1-gate_health.console.txt)
+TUNNEL UP
+exported <STAMP>_g2-gate-preconditions_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g2-gate-preconditions_attempt01 (verified, 7 files, 0 excluded)
+DRIVER RESULT <STAMP>_g2-gate-preconditions_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## <UTC> up=<UP> run ids of S1 unused on the guest (read-only listing)
+fresh on the guest: itest-smoke-01-q1
+fresh on the guest: itest-smoke-02-q1
+fresh on the guest: itest-smoke-03-q1
+fresh on the guest: nominal-r02
+fresh on the guest: itest-3dev-01-q1
+fresh on the guest: itest-invalid-01-q1
+fresh on the guest: itest-dup-01-q1
+fresh on the guest: itest-dup-02-q1
+fresh on the guest: itest-dropout-01-q1
+## <UTC> up=<UP> session S1 is open: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+exit=0
+=== row t1-smokes
+## <UTC> up=<UP> row t1-smokes (session S1): steps script sha256 <SHA>
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 8100 s). The Windows keep-awake stays the operator's own check.
+row file t1-smokes.sh: sha256 <SHA> = sha256_after of the manifest (row t1-smokes, step 1, 323 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t1-smokes: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-smokes_attempt01 (ceiling 105 min from now: the operator enforces it with 'term t1-smokes')
+row file t1-smokes.sh: sha256 <SHA> = sha256_after of the manifest (row t1-smokes, step 1, 323 bytes)
+## <UTC> up=<UP> row t1-smokes: the gate's read before the row
+## <UTC> up=<UP> row t1-smokes: step t1-smokes (hx: one shell, the row file is sourced)
+STOP: bench: a STOP line of a row (not a halt)
+## <UTC> up=<UP> row t1-smokes: step t1-smokes ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t1-smokes: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N1/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t1-smokes: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t1-smokes ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t1-smokes <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify with a pair that is not the packet's
+REFUSED: validity/outcome 'valid/unknown' is not a pair of packet section 5 (valid/pass, valid/fail, invalid/unknown, valid/inconclusive, unknown/inconclusive, not-applicable/not-run)
+exit=2
+=== row t1-harness before t1-smokes is classified
+## <UTC> up=<UP> row t1-harness (session S1): steps script sha256 <SHA>
+REFUSED: the previous row t1-smokes is 'awaiting-classification', not classified: the next row starts only when this one is classified and its gate passed
+exit=2
+=== close while a row awaits classification
+## <UTC> up=<UP> close S1: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01
+REFUSED: row t1-smokes awaits classification: its attempt is finished and exported first ('classify t1-smokes ...'; packet section 4, safe close)
+exit=2
+=== classify t1-smokes
+## <UTC> up=<UP> classify t1-smokes: valid SUT failure (finished, valid/fail)
+exported <STAMP>_g3-qualification-t1-smokes_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-smokes_attempt01 (verified, 25 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t1-smokes_attempt01: exit=1 (valid negative result: ran; instrumentation valid; package exported and verified; system outcome fail) status=finished instrumentation_validity=valid system_outcome=fail export=exported headline="G3 qualification t1-smokes: valid SUT failure. bench: thr
+row t1-smokes: classified 'valid SUT failure'; driver code 1; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-smokes_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== classify twice
+REFUSED: row t1-smokes is 'classified', not awaiting classification (an interrupted row is already finished and exported; a classified row is never classified twice)
+exit=2
+=== row t1-smokes again
+## <UTC> up=<UP> row t1-smokes (session S1): steps script sha256 <SHA>
+REFUSED: row t1-smokes was already started (/tmp/g3-dry-N1/egw-exec/g3-battery/row-t1-smokes.env): a row is run once, never repeated
+exit=2
+=== row t1-harness
+## <UTC> up=<UP> row t1-harness (session S1): steps script sha256 <SHA>
+row file t1-harness.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 1, 360 bytes)
+row file t1-harness-analyze.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 2, 165 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t1-harness: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-harness_attempt01 (ceiling 35 min from now: the operator enforces it with 'term t1-harness')
+row file t1-harness.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 1, 360 bytes)
+row file t1-harness-analyze.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 2, 165 bytes)
+## <UTC> up=<UP> row t1-harness: the gate's read before the row
+## <UTC> up=<UP> row t1-harness: step t1-harness (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t1-harness: step t1-harness ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t1-harness: step t1-harness-analyze (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t1-harness: step t1-harness-analyze ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t1-harness: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## <UTC> up=<UP> GATE t1-harness: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t1-harness ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t1-harness <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t1-harness
+## <UTC> up=<UP> classify t1-harness: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t1-harness_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-harness_attempt01 (verified, 38 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t1-harness_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t1-harness: pass. bench: every Expected it
+row t1-harness: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-harness_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== row t2
+## <UTC> up=<UP> row t2 (session S1): steps script sha256 <SHA>
+row file t2.sh: sha256 <SHA> = sha256_after of the manifest (row t2, step 1, 220 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t2: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t2_attempt01 (ceiling 36 min from now: the operator enforces it with 'term t2')
+row file t2.sh: sha256 <SHA> = sha256_after of the manifest (row t2, step 1, 220 bytes)
+## <UTC> up=<UP> row t2: the gate's read before the row
+## <UTC> up=<UP> row t2: step t2 (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t2: step t2 ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t2: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## <UTC> up=<UP> GATE t2: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t2 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t2 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t2
+## <UTC> up=<UP> classify t2: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t2_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t2_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t2_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t2: pass. bench: every Expected item read from the
+row t2: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t2_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== row t3
+## <UTC> up=<UP> row t3 (session S1): steps script sha256 <SHA>
+row file t3.sh: sha256 <SHA> = sha256_after of the manifest (row t3, step 1, 104 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t3: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t3_attempt01 (ceiling 37 min from now: the operator enforces it with 'term t3')
+row file t3.sh: sha256 <SHA> = sha256_after of the manifest (row t3, step 1, 104 bytes)
+## <UTC> up=<UP> row t3: the gate's read before the row
+## <UTC> up=<UP> row t3: step t3 (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t3: step t3 ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t3: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## <UTC> up=<UP> GATE t3: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t3 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t3 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t3
+## <UTC> up=<UP> classify t3: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t3_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t3_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t3_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t3: pass. bench: every Expected item read from the
+row t3: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t3_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== row t4-replay
+## <UTC> up=<UP> row t4-replay (session S1): steps script sha256 <SHA>
+row file t4-replay.sh: sha256 <SHA> = sha256_after of the manifest (row t4-replay, step 1, 143 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t4-replay: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-replay_attempt01 (ceiling 67 min from now: the operator enforces it with 'term t4-replay')
+row file t4-replay.sh: sha256 <SHA> = sha256_after of the manifest (row t4-replay, step 1, 143 bytes)
+## <UTC> up=<UP> row t4-replay: the gate's read before the row
+## <UTC> up=<UP> row t4-replay: step t4-replay (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t4-replay: step t4-replay ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t4-replay: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## <UTC> up=<UP> GATE t4-replay: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t4-replay ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t4-replay <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t4-replay
+## <UTC> up=<UP> classify t4-replay: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t4-replay_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-replay_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t4-replay_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t4-replay: pass. bench: every Expected item
+row t4-replay: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-replay_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== row t4-reset
+## <UTC> up=<UP> row t4-reset (session S1): steps script sha256 <SHA>
+row file t4-reset.sh: sha256 <SHA> = sha256_after of the manifest (row t4-reset, step 1, 51 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t4-reset: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-reset_attempt01 (ceiling 35 min from now: the operator enforces it with 'term t4-reset')
+row file t4-reset.sh: sha256 <SHA> = sha256_after of the manifest (row t4-reset, step 1, 51 bytes)
+## <UTC> up=<UP> row t4-reset: the gate's read before the row
+## <UTC> up=<UP> row t4-reset: step t4-reset (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t4-reset: step t4-reset ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t4-reset: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## <UTC> up=<UP> GATE t4-reset: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t4-reset ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t4-reset <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t4-reset
+## <UTC> up=<UP> classify t4-reset: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t4-reset_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-reset_attempt01 (verified, 22 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t4-reset_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t4-reset: pass. bench: every Expected item r
+row t4-reset: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-reset_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== row t5
+## <UTC> up=<UP> row t5 (session S1): steps script sha256 <SHA>
+row file t5.sh: sha256 <SHA> = sha256_after of the manifest (row t5, step 1, 173 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t5: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t5_attempt01 (ceiling 38 min from now: the operator enforces it with 'term t5')
+row file t5.sh: sha256 <SHA> = sha256_after of the manifest (row t5, step 1, 173 bytes)
+## <UTC> up=<UP> row t5: the gate's read before the row
+## <UTC> up=<UP> row t5: step t5 (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t5: step t5 ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t5: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## <UTC> up=<UP> GATE t5: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t5 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t5 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t5
+## <UTC> up=<UP> classify t5: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t5_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t5_attempt01 (verified, 22 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t5_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t5: pass. bench: every Expected item read from the
+row t5: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t5_attempt01
+Next: the next row of session S1, or 'close' after the last one.
+exit=0
+=== term on a finished row
+REFUSED: the recorded process group <PID> is this invocation's own
+exit=2
+=== close
+## <UTC> up=<UP> close S1: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+## <UTC> up=<UP> the recorded stop with the controller's 130 s allowance (PM condition 4)
+## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S1-guest_session_close.console.txt)
+exported <STAMP>_guest-session_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_guest-session_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+## <UTC> up=<UP> session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+  1. seal the operator records (/tmp/g3-dry-N1/egw-exec/g3-battery: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<date>-g3-battery-operator-records;
+  2. write output_test/decisions/<date>_g3-battery-s1-results.md (every row and its class; no G3 claim);
+  3. release the keepalive client and the Windows keep-awake.
+exit=0
+=== status
+state directory: /tmp/g3-dry-N1/egw-exec/g3-battery
+latest console of this script: /tmp/g3-dry-N1/egw-exec/g3-battery/console/024-close-S1.txt
+open session (current_session): none; host uptime now: <N> s; WSL boot <BOOT>
+qemu pgrep exit=1 (0 running, 1 none)
+turn of the changing subcommands: last taken by 'close S1' (pid <PID>, <UTC>); that invocation: ended
+session S1: state=closed attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  row t1-smokes: classified; gate=pass; class=valid SUT failure; driver code=1; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-smokes_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-smokes_attempt01
+  row t1-harness: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-harness_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-harness_attempt01
+  row t2: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t2_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t2_attempt01
+  row t3: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t3_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t3_attempt01
+  row t4-replay: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-replay_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-replay_attempt01
+  row t4-reset: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-reset_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-reset_attempt01
+  row t5: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t5_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t5_attempt01
+session S2: not opened
+=== open S2
+## <UTC> up=<UP> open S2: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+## <UTC> up=<UP> row files of S2 against /tmp/g3-dry-N1/rows/rows.manifest.json
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+## <UTC> up=<UP> run ids of S2 unused on the host
+## <UTC> up=<UP> guest root file system before the boot
+rootfs ext4: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260  /tmp/g3-dry-N1/yocto/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+## <UTC> up=<UP> keepalive
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## <UTC> up=<UP> UP0=<UP> (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S2-guest_session_open.console.txt)
+session open: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02 (bench stub)
+DRIVER RESULT <STAMP>_guest-session_attempt02: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+## <UTC> up=<UP> preflight.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/preflight.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S2-preflight.console.txt)
+exported <STAMP>_live-preflight_attempt02: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_live-preflight_attempt02 (verified, 6 files, 0 excluded)
+DRIVER RESULT <STAMP>_live-preflight_attempt02: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## environment input (PM condition 2 of 2026-10-01)
+## <UTC> up=<UP> gate_health.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/gate_health.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S2-gate_health.console.txt)
+TUNNEL UP
+exported <STAMP>_g2-gate-preconditions_attempt02: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g2-gate-preconditions_attempt02 (verified, 7 files, 0 excluded)
+DRIVER RESULT <STAMP>_g2-gate-preconditions_attempt02: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## <UTC> up=<UP> run ids of S2 unused on the guest (read-only listing)
+## <UTC> up=<UP> session S2 is open: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+exit=0
+=== row t6
+## <UTC> up=<UP> row t6 (session S2): steps script sha256 <SHA>
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 4620 s). The Windows keep-awake stays the operator's own check.
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t6: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01 (ceiling 47 min from now: the operator enforces it with 'term t6')
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+## <UTC> up=<UP> row t6: the gate's read before the row
+## <UTC> up=<UP> row t6: step t6 (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t6: step t6 ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t6: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-controller-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee1b6516) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N1/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t6: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t6 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t6 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t6
+## <UTC> up=<UP> classify t6: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t6_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01 (verified, 33 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t6_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t6: pass. bench: T6=ok and every Expected item"
+row t6: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+Next: the next row of session S2, or 'close' after the last one.
+exit=0
+=== row t7-mongo, detached (its step waits 600 s), then term
+turn of the changing subcommands: last taken by 'row t7-mongo' (pid <PID>, <UTC>); that invocation: STILL RUNNING: open, row, classify and close are refused until it ends
+session S1: state=closed attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  row t1-smokes: classified; gate=pass; class=valid SUT failure; driver code=1; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-smokes_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-smokes_attempt01
+  row t1-harness: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-harness_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-harness_attempt01
+  row t2: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t2_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t2_attempt01
+  row t3: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t3_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t3_attempt01
+  row t4-replay: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-replay_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-replay_attempt01
+  row t4-reset: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-reset_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-reset_attempt01
+  row t5: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t5_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t5_attempt01
+session S2: state=open attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02 UP0=<UP>
+  elapsed host uptime: <N> s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  row t6: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01
+  row t7-mongo: running; gate=; class=; driver code=; export=
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01
+    RUNNING: pid <PID> group <PID>, step 't7-mongo', <N> min of its 41 min ceiling
+    processes still in its group <PID>: 81455 bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M;81471 tee -p -a /tmp/g3-dry-N1/egw-exec/g3-battery/console/028-row
+  row t7-ditto: not started
+=== close while the row runs
+REFUSED: another invocation of this script is still running: 'row t7-mongo' (pid <PID>, since <UTC>). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row
+exit=2
+=== term t7-mongo
+## <UTC> up=<UP> term t7-mongo: the process group <PID> (row state 'running', step 't7-mongo')
+<PID> bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-M
+<PID> tee -p -a /tmp/g3-dry-N1/egw-exec/g3-battery/console/028-row-t7-mongo.txt
+<PID> /home/ruisth/egw-exec/venv/bin/python -m egw_experiments.local_export exec --attempt
+<PID> bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.en
+<PID> bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.en
+<PID> sleep 600
+<PID> sleep 600
+TERM sent to the process group <PID> (exit 0). KILL is never sent.
+The row's own trap finishes its attempt 'interrupted' and exports it; T7's fault job restores its service from its trap.
+Then: 'status'; check that no service was left stopped and no recorder or collector unit is active; 'close'.
+exit=0
+--- the row's own console after the TERM
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sdd       1007G  172G  784G  18% /
+/dev/sdd       1007G  172G  784G  18% /
+exported <STAMP>_g3-qualification-t7-mongo_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01 (verified, 15 files, 0 excluded, 2 console stream(s) not kept in full)
+DRIVER RESULT <STAMP>_g3-qualification-t7-mongo_attempt01: exit=130 (interrupted: marked interrupted and exported) status=interrupted instrumentation_validity=invalid system_outcome=interrupted export=exported capture_failures=2
+row t7-mongo: attempt finished 'interrupted'; driver code 130; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01. It is NOT classified again: its class is written in the result note.
+--- what the fault job wrote
+echo "STOP: the fault job was interrupted - the recovery is attempted now"; sleep 4; echo "RECOVERY SHOWN: bench"; exit 1
+STOP: the fault job was interrupted - the recovery is attempted now
+RECOVERY SHOWN: bench
+=== status after the TERM
+state directory: /tmp/g3-dry-N1/egw-exec/g3-battery
+latest console of this script: /tmp/g3-dry-N1/egw-exec/g3-battery/console/030-term-t7-mongo.txt
+open session (current_session): /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02; host uptime now: <N> s; WSL boot <BOOT>
+4242 qemu-system-aarch64 -bench-stub
+qemu pgrep exit=0 (0 running, 1 none)
+turn of the changing subcommands: last taken by 'row t7-mongo' (pid <PID>, <UTC>); that invocation: ended
+session S1: state=closed attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  row t1-smokes: classified; gate=pass; class=valid SUT failure; driver code=1; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-smokes_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-smokes_attempt01
+  row t1-harness: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-harness_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-harness_attempt01
+  row t2: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t2_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t2_attempt01
+  row t3: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t3_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t3_attempt01
+  row t4-replay: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-replay_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-replay_attempt01
+  row t4-reset: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-reset_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-reset_attempt01
+  row t5: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t5_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t5_attempt01
+session S2: state=open attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02 UP0=<UP>
+  elapsed host uptime: <N> s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  HALT: up=<UP> row=t7-mongo row t7-mongo was interrupted by a signal (TERM) during 't7-mongo' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t6: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01
+  row t7-mongo: interrupted; gate=; class=; driver code=130; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01
+    HALT: up=<UP> row t7-mongo was interrupted by a signal (TERM) during 't7-mongo' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t7-ditto: not started
+  row t8: not started
+  row t9: not started
+=== row t7-ditto after the halt, without Rui's go
+## <UTC> up=<UP> row t7-ditto (session S2): steps script sha256 <SHA>
+REFUSED: NOT STARTED: session S2 has a recorded halt (up=<UP> row=t7-mongo row t7-mongo was interrupted by a signal (TERM) during 't7-mongo' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close). A halt cancels further progress until Rui directs otherwise
+exit=2
+=== row t7-ditto with Rui's go
+## <UTC> up=<UP> row t7-ditto (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on, 2026-10-02
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 4260 s). The Windows keep-awake stays the operator's own check.
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t7-ditto: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01 (ceiling 41 min from now: the operator enforces it with 'term t7-ditto')
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+## <UTC> up=<UP> row t7-ditto: the gate's read before the row
+## <UTC> up=<UP> row t7-ditto: step t7-ditto (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t7-ditto: step t7-ditto ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t7-ditto: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-ditto-things-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee3eb8de) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N1/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t7-ditto: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t7-ditto ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t7-ditto <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t7-ditto
+## <UTC> up=<UP> classify t7-ditto: inconclusive / not demonstrated (finished, valid/inconclusive)
+exported <STAMP>_g3-qualification-t7-ditto_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01 (verified, 22 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t7-ditto_attempt01: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=finished instrumentation_validity=valid system_outcome=inconclusive export=exported headline="G3 qualification t7-ditto: inconclusi
+row t7-ditto: classified 'inconclusive / not demonstrated'; driver code 3; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+exit=0
+=== row t8
+## <UTC> up=<UP> row t8 (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on, 2026-10-02
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 9900 s). The Windows keep-awake stays the operator's own check.
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t8: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01 (ceiling 135 min from now: the operator enforces it with 'term t8')
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+## <UTC> up=<UP> row t8: the gate's read before the row
+## <UTC> up=<UP> row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t8: waiting at most 600 s for the first QEMU (s1) to exit and ports 2222/8883 to be free (it is never killed)
+sample 1 at +<N> s: qemu pgrep exit=0 (0 running, 1 none); /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02/boot/s1.status absent; ports 2222/8883 free
+sample 2 at +<N> s: qemu pgrep exit=1 (0 running, 1 none); /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02/boot/s1.status present: exit=0 finished=bench; ports 2222/8883 free
+QEMU EXITED: no qemu-system-aarch64 process, the first boot wrote its status file, ports 2222 and 8883 are free
+## <UTC> up=<UP> row t8: the re-launch through the session's own session_open.sh (run name s2, the same data disk)
+[bench] s2: guest up, is-system-running=running (stub re-launch)
+## <UTC> up=<UP> row t8: step t8-b-return (hx: one shell, the row file is sourced)
+TUNNEL UP
+TUNNEL CLOSED
+TUNNEL UP
+## <UTC> up=<UP> row t8: step t8-b-return ended; hx status 0 (the status of its last line; never a verdict)
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N1/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> row t8: step t8-c-snapshot (hx: one shell, the row file is sourced)
+REBOOT SHOWN: boot id 11111111-1111-1111-1111-111111111111 -> 22222222-2222-2222-2222-222222222222
+## <UTC> up=<UP> row t8: step t8-c-snapshot ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t8: step t8-d-smoke (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t8: step t8-d-smoke ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t8: the gate after the row
+gate: no guest-state comparison for T8 (the reboot replaces every start instant; packet section 3)
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N1/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t8: pass (guest state recorded and NOT compared across the reboot, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t8 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t8 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t8
+## <UTC> up=<UP> classify t8: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t8_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01 (verified, 46 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t8_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t8: pass. bench: REBOOT SHOWN and the smoke comple
+row t8: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+exit=0
+=== row t9 (its (b) prints STOP)
+## <UTC> up=<UP> row t9 (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on, 2026-10-02
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 3300 s). The Windows keep-awake stays the operator's own check.
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t9: attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t9_attempt01 (ceiling 25 min from now: the operator enforces it with 'term t9')
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+## <UTC> up=<UP> row t9: the gate's read before the row
+## <UTC> up=<UP> row t9: step t9-a (hx: one shell, the row file is sourced)
+## <UTC> up=<UP> row t9: step t9-a ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t9: step t9-b (hx: one shell, the row file is sourced)
+STOP: test 9(b): the broker log bounded to (b) was NOT read
+## <UTC> up=<UP> row t9: step t9-b ended; hx status 1 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t9: step t9-b printed STOP: (or left no console): t9-c and every later step were NOT run (runbook line 15)
+## <UTC> up=<UP> row t9: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N1/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t9: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t9 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t9 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+=== classify t9
+## <UTC> up=<UP> classify t9: invalid instrumentation (failed, invalid/unknown)
+exported <STAMP>_g3-qualification-t9_attempt01: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t9_attempt01 (verified, 32 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t9_attempt01: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=failed instrumentation_validity=invalid system_outcome=unknown export=exported headline="G3 qualification t9: invalid instrumentation. be
+row t9: classified 'invalid instrumentation'; driver code 3; export: verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t9_attempt01
+NOTE: invalid instrumentation of the shared chain is a halt condition (packet section 4, halt 2). If this is one, do not run a further row: 'close' and hand back to Rui.
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+exit=0
+=== close
+## <UTC> up=<UP> close S2: /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+## <UTC> up=<UP> the recorded stop with the controller's 130 s allowance (PM condition 4)
+## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N1/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N1/egw-exec/g3-battery/S2-guest_session_close.console.txt)
+TUNNEL CLOSED
+exported <STAMP>_guest-session_attempt02: /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_guest-session_attempt02 (verified, 25 files, 0 excluded)
+DRIVER RESULT <STAMP>_guest-session_attempt02: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+## <UTC> up=<UP> session S2 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+  1. seal the operator records (/tmp/g3-dry-N1/egw-exec/g3-battery: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<date>-g3-battery-operator-records;
+  2. write output_test/decisions/<date>_g3-battery-s2-results.md (every row and its class; no G3 claim);
+  3. release the keepalive client and the Windows keep-awake.
+exit=0
+=== status
+state directory: /tmp/g3-dry-N1/egw-exec/g3-battery
+latest console of this script: /tmp/g3-dry-N1/egw-exec/g3-battery/console/038-close-S2.txt
+open session (current_session): none; host uptime now: <N> s; WSL boot <BOOT>
+qemu pgrep exit=1 (0 running, 1 none)
+turn of the changing subcommands: last taken by 'close S2' (pid <PID>, <UTC>); that invocation: ended
+session S1: state=closed attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  row t1-smokes: classified; gate=pass; class=valid SUT failure; driver code=1; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-smokes_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-smokes_attempt01
+  row t1-harness: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t1-harness_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t1-harness_attempt01
+  row t2: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t2_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t2_attempt01
+  row t3: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t3_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t3_attempt01
+  row t4-replay: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-replay_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-replay_attempt01
+  row t4-reset: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t4-reset_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t4-reset_attempt01
+  row t5: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t5_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t5_attempt01
+session S2: state=closed attempt=/tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_guest-session_attempt02 UP0=<UP>
+  HALT: up=<UP> row=t7-mongo row t7-mongo was interrupted by a signal (TERM) during 't7-mongo' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t6: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01
+  row t7-mongo: interrupted; gate=; class=; driver code=130; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01
+    HALT: up=<UP> row t7-mongo was interrupted by a signal (TERM) during 't7-mongo' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t7-ditto: classified; gate=pass; class=inconclusive / not demonstrated; driver code=3; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01
+  row t8: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01
+  row t9: classified; gate=pass; class=invalid instrumentation; driver code=3; export=verified -> /tmp/g3-dry-N1/out/runs/2026-10-02/<STAMP>_g3-qualification-t9_attempt01
+    attempt /tmp/g3-dry-N1/egw-exec/attempts/<STAMP>_g3-qualification-t9_attempt01
+
+######## bench 2: T8 whole, T9 chain, the cutoff, the close's refusals
+=== open S2
+## <UTC> up=<UP> open S2: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+## <UTC> up=<UP> row files of S2 against /tmp/g3-dry-N2/rows/rows.manifest.json
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+## <UTC> up=<UP> run ids of S2 unused on the host
+## <UTC> up=<UP> guest root file system before the boot
+rootfs ext4: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260  /tmp/g3-dry-N2/yocto/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+## <UTC> up=<UP> keepalive
+## <UTC> up=<UP> UP0=<UP> (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N2/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N2/egw-exec/g3-battery/S2-guest_session_open.console.txt)
+bench stub boot
+bench: guest state after boot
+session open: /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01 (bench stub)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+## <UTC> up=<UP> preflight.sh (frozen driver, /tmp/g3-dry-N2/repo/tools/session/preflight.sh; console /tmp/g3-dry-N2/egw-exec/g3-battery/S2-preflight.console.txt)
+exported <STAMP>_live-preflight_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_live-preflight_attempt01 (verified, 6 files, 0 excluded)
+DRIVER RESULT <STAMP>_live-preflight_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## environment input (PM condition 2 of 2026-10-01)
+## <UTC> up=<UP> gate_health.sh (frozen driver, /tmp/g3-dry-N2/repo/tools/session/gate_health.sh; console /tmp/g3-dry-N2/egw-exec/g3-battery/S2-gate_health.console.txt)
+TUNNEL UP
+bench: endpoints read through the tunnel
+exported <STAMP>_g2-gate-preconditions_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g2-gate-preconditions_attempt01 (verified, 7 files, 0 excluded)
+DRIVER RESULT <STAMP>_g2-gate-preconditions_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## <UTC> up=<UP> run ids of S2 unused on the guest (read-only listing)
+## <UTC> up=<UP> session S2 is open: /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+exit=0
+=== row t6
+## <UTC> up=<UP> row t6 (session S2): steps script sha256 <SHA>
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t6: attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01 (ceiling 47 min from now: the operator enforces it with 'term t6')
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+## <UTC> up=<UP> row t6: the gate's read before the row
+## <UTC> up=<UP> row t6: step t6 (hx: one shell, the row file is sourced)
+bench t6: the controller was restarted in place
+## <UTC> up=<UP> row t6: step t6 ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t6: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-controller-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee1b6516) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N2/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t6: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t6 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t6 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t6: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t6_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01 (verified, 33 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t6_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t6: pass. bench"
+row t6: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+Next: the next row of session S2, or 'close' after the last one.
+=== row t7-mongo (quick)
+## <UTC> up=<UP> row t7-mongo (session S2): steps script sha256 <SHA>
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t7-mongo: attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01 (ceiling 41 min from now: the operator enforces it with 'term t7-mongo')
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+## <UTC> up=<UP> row t7-mongo: the gate's read before the row
+## <UTC> up=<UP> row t7-mongo: step t7-mongo (hx: one shell, the row file is sourced)
+bench t7-mongo: mongodb stopped and started
+## <UTC> up=<UP> row t7-mongo: step t7-mongo ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t7-mongo: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-mongodb-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffeee5f8f9) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N2/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t7-mongo: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t7-mongo ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t7-mongo <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t7-mongo: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t7-mongo_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t7-mongo_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t7-mongo: pass
+row t7-mongo: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+Next: the next row of session S2, or 'close' after the last one.
+=== the 3 h cutoff: UP0 moved back in the bench's state
+## <UTC> up=<UP> row t7-ditto (session S2): steps script sha256 <SHA>
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+session clock: NOW=<UP> UP0=-9333 elapsed=<N> s (cutoff 10800 s)
+NOT STARTED: the 3 h cutoff (row t7-ditto: 10801 s of session time; no row starts at or after 10800 s)
+exit=1
+=== row t7-ditto after the cutoff's halt, with Rui's go
+## <UTC> up=<UP> row t7-ditto (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t7-ditto: attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01 (ceiling 41 min from now: the operator enforces it with 'term t7-ditto')
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+## <UTC> up=<UP> row t7-ditto: the gate's read before the row
+## <UTC> up=<UP> row t7-ditto: step t7-ditto (hx: one shell, the row file is sourced)
+bench t7-ditto: ditto-things stopped and started
+## <UTC> up=<UP> row t7-ditto: step t7-ditto ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t7-ditto: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-ditto-things-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee3eb8de) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N2/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t7-ditto: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t7-ditto ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t7-ditto <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t7-ditto: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t7-ditto_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01 (verified, 22 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t7-ditto_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t7-ditto: pass
+row t7-ditto: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+=== row t8 (whole path)
+## <UTC> up=<UP> row t8 (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t8: attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01 (ceiling 135 min from now: the operator enforces it with 'term t8')
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+## <UTC> up=<UP> row t8: the gate's read before the row
+## <UTC> up=<UP> row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+bench: reboot requested
+## <UTC> up=<UP> row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t8: waiting at most 600 s for the first QEMU (s1) to exit and ports 2222/8883 to be free (it is never killed)
+sample 1 at +<N> s: qemu pgrep exit=0 (0 running, 1 none); /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01/boot/s1.status absent; ports 2222/8883 free
+sample 2 at +<N> s: qemu pgrep exit=1 (0 running, 1 none); /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01/boot/s1.status present: exit=0 finished=bench; ports 2222/8883 free
+QEMU EXITED: no qemu-system-aarch64 process, the first boot wrote its status file, ports 2222 and 8883 are free
+## <UTC> up=<UP> row t8: the re-launch through the session's own session_open.sh (run name s2, the same data disk)
+[bench] s2: guest up, is-system-running=running (stub re-launch)
+## <UTC> up=<UP> row t8: step t8-b-return (hx: one shell, the row file is sourced)
+TUNNEL UP
+bench: guest state after the re-launch
+TUNNEL CLOSED
+TUNNEL UP
+## <UTC> up=<UP> row t8: step t8-b-return ended; hx status 0 (the status of its last line; never a verdict)
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N2/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> row t8: step t8-c-snapshot (hx: one shell, the row file is sourced)
+REBOOT SHOWN: boot id 11111111-1111-1111-1111-111111111111 -> 22222222-2222-2222-2222-222222222222
+## <UTC> up=<UP> row t8: step t8-c-snapshot ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t8: step t8-d-smoke (hx: one shell, the row file is sourced)
+bench t8 smoke
+## <UTC> up=<UP> row t8: step t8-d-smoke ended; hx status 0 (the status of its last line; never a verdict)
+bench journalctl stub: -b -1 --no-pager
+## <UTC> up=<UP> row t8: the gate after the row
+gate: no guest-state comparison for T8 (the reboot replaces every start instant; packet section 3)
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N2/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t8: pass (guest state recorded and NOT compared across the reboot, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t8 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t8 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t8: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t8_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01 (verified, 46 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t8_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t8: pass. bench"
+row t8: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+=== row t9, (b) prints STOP
+## <UTC> up=<UP> row t9 (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t9: attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t9_attempt01 (ceiling 25 min from now: the operator enforces it with 'term t9')
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+## <UTC> up=<UP> row t9: the gate's read before the row
+## <UTC> up=<UP> row t9: step t9-a (hx: one shell, the row file is sourced)
+bench (a)
+## <UTC> up=<UP> row t9: step t9-a ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t9: step t9-b (hx: one shell, the row file is sourced)
+STOP: test 9(b): the broker log bounded to (b) was NOT read
+## <UTC> up=<UP> row t9: step t9-b ended; hx status 1 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t9: step t9-b printed STOP: (or left no console): t9-c and every later step were NOT run (runbook line 15)
+## <UTC> up=<UP> row t9: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N2/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t9: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t9 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t9 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t9: invalid instrumentation (failed, invalid/unknown)
+exported <STAMP>_g3-qualification-t9_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t9_attempt01 (verified, 32 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t9_attempt01: exit=3 (instrumentation invalid, outcome inconclusive or unknown, or a mandatory step (capture, fetch, hash, check) failed) status=failed instrumentation_validity=invalid system_outcome=unknown export=exported headline="G3 qualification t
+row t9: classified 'invalid instrumentation'; driver code 3; export: verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t9_attempt01
+NOTE: invalid instrumentation of the shared chain is a halt condition (packet section 4, halt 2). If this is one, do not run a further row: 'close' and hand back to Rui.
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+=== close with a unit active
+## <UTC> up=<UP> close S2: /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+ACTIVE UNIT: a recorder (egw-events-*) or collector (egw-resources-*) unit is still active
+HALT: close: a recorder or collector unit is active (exit 3): nothing was stopped. The runbook's own cleanup is the operator's decision (README, 'Restorations': at most three tries); then 'close' again
+exit=1
+=== close with a failing compose stop
+## <UTC> up=<UP> close S2: /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+## <UTC> up=<UP> the recorded stop with the controller's 130 s allowance (PM condition 4)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 130
+HALT: stop failed (stack-stop-130 exit 1): the close driver was NOT run and QEMU is NOT forced off. Hand back to Rui
+exit=1
+=== close
+## <UTC> up=<UP> close S2: /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+## <UTC> up=<UP> the recorded stop with the controller's 130 s allowance (PM condition 4)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 130
+## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N2/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N2/egw-exec/g3-battery/S2-guest_session_close.console.txt)
+TUNNEL CLOSED
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 60
+exported <STAMP>_guest-session_attempt01: /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_guest-session_attempt01 (verified, 31 files, 0 excluded)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+## <UTC> up=<UP> session S2 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+=== status
+session S2: state=closed attempt=/tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  HALT: up=<UP> row=t7-ditto NOT STARTED: the 3 h cutoff (10801 s; packet section 4, halt 7)
+  HALT: up=<UP> close: a recorder or collector unit is active (exit 3): nothing was stopped. The runbook's own cleanup is the operator's decision (README, 'Restorations': at most three tries); then 'close' again
+  HALT: up=<UP> stop failed (stack-stop-130 exit 1): the close driver was NOT run and QEMU is NOT forced off. Hand back to Rui
+  row t6: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+    attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01
+  row t7-mongo: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+    attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01
+  row t7-ditto: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01
+    attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01
+  row t8: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01
+    attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01
+  row t9: classified; gate=pass; class=invalid instrumentation; driver code=3; export=verified -> /tmp/g3-dry-N2/out/runs/2026-10-02/<STAMP>_g3-qualification-t9_attempt01
+    attempt /tmp/g3-dry-N2/egw-exec/attempts/<STAMP>_g3-qualification-t9_attempt01
+
+######## bench 3: a failed gate (OOM), T8 with no reboot
+=== open S2
+## <UTC> up=<UP> open S2: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+## <UTC> up=<UP> row files of S2 against /tmp/g3-dry-N3/rows/rows.manifest.json
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+## <UTC> up=<UP> run ids of S2 unused on the host
+## <UTC> up=<UP> guest root file system before the boot
+rootfs ext4: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260  /tmp/g3-dry-N3/yocto/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+## <UTC> up=<UP> keepalive
+## <UTC> up=<UP> UP0=<UP> (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N3/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N3/egw-exec/g3-battery/S2-guest_session_open.console.txt)
+bench stub boot
+bench: guest state after boot
+session open: /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_guest-session_attempt01 (bench stub)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+## <UTC> up=<UP> preflight.sh (frozen driver, /tmp/g3-dry-N3/repo/tools/session/preflight.sh; console /tmp/g3-dry-N3/egw-exec/g3-battery/S2-preflight.console.txt)
+exported <STAMP>_live-preflight_attempt01: /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_live-preflight_attempt01 (verified, 6 files, 0 excluded)
+DRIVER RESULT <STAMP>_live-preflight_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## environment input (PM condition 2 of 2026-10-01)
+## <UTC> up=<UP> gate_health.sh (frozen driver, /tmp/g3-dry-N3/repo/tools/session/gate_health.sh; console /tmp/g3-dry-N3/egw-exec/g3-battery/S2-gate_health.console.txt)
+TUNNEL UP
+bench: endpoints read through the tunnel
+exported <STAMP>_g2-gate-preconditions_attempt01: /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g2-gate-preconditions_attempt01 (verified, 7 files, 0 excluded)
+DRIVER RESULT <STAMP>_g2-gate-preconditions_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## <UTC> up=<UP> run ids of S2 unused on the guest (read-only listing)
+## <UTC> up=<UP> session S2 is open: /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_guest-session_attempt01
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+exit=0
+=== row t6
+## <UTC> up=<UP> row t6 (session S2): steps script sha256 <SHA>
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t6: attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01 (ceiling 47 min from now: the operator enforces it with 'term t6')
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+## <UTC> up=<UP> row t6: the gate's read before the row
+## <UTC> up=<UP> row t6: step t6 (hx: one shell, the row file is sourced)
+bench t6: the controller was restarted in place
+## <UTC> up=<UP> row t6: step t6 ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t6: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-controller-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee1b6516) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N3/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t6: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t6 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t6 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t6: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t6_attempt01: /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01 (verified, 33 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t6_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t6: pass. bench"
+row t6: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+Next: the next row of session S2, or 'close' after the last one.
+=== row t7-mongo (quick)
+## <UTC> up=<UP> row t7-mongo (session S2): steps script sha256 <SHA>
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t7-mongo: attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01 (ceiling 41 min from now: the operator enforces it with 'term t7-mongo')
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+## <UTC> up=<UP> row t7-mongo: the gate's read before the row
+## <UTC> up=<UP> row t7-mongo: step t7-mongo (hx: one shell, the row file is sourced)
+bench t7-mongo: mongodb stopped and started
+## <UTC> up=<UP> row t7-mongo: step t7-mongo ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t7-mongo: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-mongodb-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffeee5f8f9) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N3/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t7-mongo: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t7-mongo ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t7-mongo <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t7-mongo: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t7-mongo_attempt01: /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t7-mongo_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t7-mongo: pass
+row t7-mongo: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+Next: the next row of session S2, or 'close' after the last one.
+=== row t7-ditto with an OOM-killed container
+## <UTC> up=<UP> row t7-ditto (session S2): steps script sha256 <SHA>
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t7-ditto: attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01 (ceiling 41 min from now: the operator enforces it with 'term t7-ditto')
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+## <UTC> up=<UP> row t7-ditto: the gate's read before the row
+## <UTC> up=<UP> row t7-ditto: step t7-ditto (hx: one shell, the row file is sourced)
+bench t7-ditto: ditto-things stopped and started
+## <UTC> up=<UP> row t7-ditto: step t7-ditto ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t7-ditto: the gate after the row
+## faults: what the system did during the measured run
+FAULT: egw-ditto-gateway-1 was OOM-killed (OOMKilled=true)
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-ditto-things-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee3eb8de) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N3/home/egw-tcg/tunnel.ctl
+HALT: row t7-ditto: the gate did NOT pass (packet section 4, halt 3): guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be compared; 
+## <UTC> up=<UP> row t7-ditto ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S2: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+exit=1
+## <UTC> up=<UP> classify t7-ditto: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t7-ditto_attempt01: /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01 (verified, 22 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t7-ditto_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t7-ditto: pass
+row t7-ditto: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01
+NOTE: this row's gate did not pass (failed: guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be compared; ): no further row starts; 'close' and hand back to Rui.
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+=== row t8 whose step a prints STOP (no reboot)
+## <UTC> up=<UP> row t8 (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t8: attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01 (ceiling 135 min from now: the operator enforces it with 'term t8')
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+## <UTC> up=<UP> row t8: the gate's read before the row
+## <UTC> up=<UP> row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+STOP: test 8: no pre-reboot snapshot or no boot id - the guest was NOT rebooted
+## <UTC> up=<UP> row t8: step t8-a-reboot ended; hx status 1 (the status of its last line; never a verdict)
+HALT: row t8: step a printed STOP: (no pre-reboot snapshot or no boot id) - the guest was NOT rebooted, and nothing further of T8 was run
+## <UTC> up=<UP> row t8: the gate after the row
+gate: no guest-state comparison for T8 (the reboot replaces every start instant; packet section 3)
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N3/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t8: pass (guest state recorded and NOT compared across the reboot, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t8 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S2: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+exit=1
+## <UTC> up=<UP> classify t8: not started (failed, not-applicable/not-run)
+exported <STAMP>_g3-qualification-t8_attempt01: /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01 (verified; incomplete, 26 files, 0 excluded, 2 registered artefact(s) never written)
+DRIVER RESULT <STAMP>_g3-qualification-t8_attempt01: exit=2 (a prerequisite failed: the test did not run) status=failed instrumentation_validity=not-applicable system_outcome=not-run export=exported package=INCOMPLETE (verified; incomplete: 0 registered source root(s), 0 registered artefact
+row t8: classified 'not started'; driver code 2; export: verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 2 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this package -
+HALT: row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+exit=1
+=== close
+## <UTC> up=<UP> close S2: /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_guest-session_attempt01
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+## <UTC> up=<UP> the recorded stop with the controller's 130 s allowance (PM condition 4)
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 130
+## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N3/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N3/egw-exec/g3-battery/S2-guest_session_close.console.txt)
+TUNNEL CLOSED
+bench docker compose stub: compose --env-file .env --env-file images.lock.env stop -t 60
+exported <STAMP>_guest-session_attempt01: /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_guest-session_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+## <UTC> up=<UP> session S2 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+=== status
+session S2: state=closed attempt=/tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  HALT: up=<UP> row=t7-ditto row t7-ditto: the gate did NOT pass (packet section 4, halt 3): guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that coul
+  HALT: up=<UP> row=t8 row t8: step a printed STOP: (no pre-reboot snapshot or no boot id) - the guest was NOT rebooted, and nothing further of T8 was run
+  HALT: up=<UP> row=t8 row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+  row t6: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+    attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01
+  row t7-mongo: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N3/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+    attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01
+  row t7-ditto: classified; gate=failed: guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be compared; ; class=pass; driver code=0; expo
+    attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01
+    HALT: up=<UP> row t7-ditto: the gate did NOT pass (packet section 4, halt 3): guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be co
+  row t8: classified; gate=pass; class=not started; driver code=2; export=verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 2 registered artefact(s) that were never written and 
+    attempt /tmp/g3-dry-N3/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01
+    HALT: up=<UP> row t8: step a printed STOP: (no pre-reboot snapshot or no boot id) - the guest was NOT rebooted, and nothing further of T8 was run
+    HALT: up=<UP> row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+  row t9: not started
+
+######## bench 4: T8 with a failed re-launch
+=== open S2
+## <UTC> up=<UP> open S2: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+## <UTC> up=<UP> row files of S2 against /tmp/g3-dry-N4/rows/rows.manifest.json
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+row file t9-a.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 1, 32 bytes)
+row file t9-b.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 2, 278 bytes)
+row file t9-c.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 3, 32 bytes)
+row file t9-de.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 4, 175 bytes)
+row file t9-exposure.sh: sha256 <SHA> = sha256_after of the manifest (row t9, step 5, 77 bytes)
+## <UTC> up=<UP> run ids of S2 unused on the host
+## <UTC> up=<UP> guest root file system before the boot
+rootfs ext4: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260  /tmp/g3-dry-N4/yocto/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+## <UTC> up=<UP> keepalive
+## <UTC> up=<UP> UP0=<UP> (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N4/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N4/egw-exec/g3-battery/S2-guest_session_open.console.txt)
+bench stub boot
+bench: guest state after boot
+session open: /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01 (bench stub)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+## <UTC> up=<UP> preflight.sh (frozen driver, /tmp/g3-dry-N4/repo/tools/session/preflight.sh; console /tmp/g3-dry-N4/egw-exec/g3-battery/S2-preflight.console.txt)
+exported <STAMP>_live-preflight_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_live-preflight_attempt01 (verified, 6 files, 0 excluded)
+DRIVER RESULT <STAMP>_live-preflight_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## environment input (PM condition 2 of 2026-10-01)
+## <UTC> up=<UP> gate_health.sh (frozen driver, /tmp/g3-dry-N4/repo/tools/session/gate_health.sh; console /tmp/g3-dry-N4/egw-exec/g3-battery/S2-gate_health.console.txt)
+TUNNEL UP
+bench: endpoints read through the tunnel
+exported <STAMP>_g2-gate-preconditions_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g2-gate-preconditions_attempt01 (verified, 7 files, 0 excluded)
+DRIVER RESULT <STAMP>_g2-gate-preconditions_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported
+## <UTC> up=<UP> run ids of S2 unused on the guest (read-only listing)
+## <UTC> up=<UP> session S2 is open: /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01
+Next: 'row t6'. Keepalive and keep-awake stay attached for the whole session.
+exit=0
+=== row t6
+## <UTC> up=<UP> row t6 (session S2): steps script sha256 <SHA>
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t6: attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01 (ceiling 47 min from now: the operator enforces it with 'term t6')
+row file t6.sh: sha256 <SHA> = sha256_after of the manifest (row t6, step 1, 403 bytes)
+## <UTC> up=<UP> row t6: the gate's read before the row
+## <UTC> up=<UP> row t6: step t6 (hx: one shell, the row file is sourced)
+bench t6: the controller was restarted in place
+## <UTC> up=<UP> row t6: step t6 ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t6: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-controller-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee1b6516) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N4/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t6: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t6 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t6 <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t6: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t6_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01 (verified, 33 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t6_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t6: pass. bench"
+row t6: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+Next: the next row of session S2, or 'close' after the last one.
+=== row t7-mongo (quick)
+## <UTC> up=<UP> row t7-mongo (session S2): steps script sha256 <SHA>
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t7-mongo: attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01 (ceiling 41 min from now: the operator enforces it with 'term t7-mongo')
+row file t7-mongo.sh: sha256 <SHA> = sha256_after of the manifest (row t7-mongo, step 1, 648 bytes)
+## <UTC> up=<UP> row t7-mongo: the gate's read before the row
+## <UTC> up=<UP> row t7-mongo: step t7-mongo (hx: one shell, the row file is sourced)
+bench t7-mongo: mongodb stopped and started
+## <UTC> up=<UP> row t7-mongo: step t7-mongo ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t7-mongo: the gate after the row
+## faults: what the system did during the measured run
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-mongodb-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffeee5f8f9) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N4/home/egw-tcg/tunnel.ctl
+## <UTC> up=<UP> GATE t7-mongo: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## <UTC> up=<UP> row t7-mongo ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+Next: read the console and the files, then 'classify t7-mongo <status> <validity> <outcome> <reason> <next-action>'.
+exit=0
+## <UTC> up=<UP> classify t7-mongo: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t7-mongo_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01 (verified, 23 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t7-mongo_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t7-mongo: pass
+row t7-mongo: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+Next: the next row of session S2, or 'close' after the last one.
+=== row t7-ditto with an OOM-killed container
+## <UTC> up=<UP> row t7-ditto (session S2): steps script sha256 <SHA>
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t7-ditto: attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01 (ceiling 41 min from now: the operator enforces it with 'term t7-ditto')
+row file t7-ditto.sh: sha256 <SHA> = sha256_after of the manifest (row t7-ditto, step 1, 175 bytes)
+## <UTC> up=<UP> row t7-ditto: the gate's read before the row
+## <UTC> up=<UP> row t7-ditto: step t7-ditto (hx: one shell, the row file is sourced)
+bench t7-ditto: ditto-things stopped and started
+## <UTC> up=<UP> row t7-ditto: step t7-ditto ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t7-ditto: the gate after the row
+## faults: what the system did during the measured run
+FAULT: egw-ditto-gateway-1 was OOM-killed (OOMKilled=true)
+## problems: what the two records do not let anyone say
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-ditto-things-1 was restarted in place during the run, as expected: it started again at <UTC> (it had been running since <UTC>), the same container object (c0ffee3eb8de) with its restart count unchanged (0) and not OOM-killed
+TUNNEL CHECK: the master answers on /tmp/g3-dry-N4/home/egw-tcg/tunnel.ctl
+HALT: row t7-ditto: the gate did NOT pass (packet section 4, halt 3): guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be compared; 
+## <UTC> up=<UP> row t7-ditto ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S2: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+exit=1
+## <UTC> up=<UP> classify t7-ditto: pass (finished, valid/pass)
+exported <STAMP>_g3-qualification-t7-ditto_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01 (verified, 22 files, 0 excluded)
+DRIVER RESULT <STAMP>_g3-qualification-t7-ditto_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t7-ditto: pass
+row t7-ditto: classified 'pass'; driver code 0; export: verified -> /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-ditto_attempt01
+NOTE: this row's gate did not pass (failed: guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be compared; ): no further row starts; 'close' and hand back to Rui.
+Next: 'close', then hand back to Rui: session S2 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+=== row t8 with a failed re-launch
+## <UTC> up=<UP> row t8 (session S2): steps script sha256 <SHA>
+session S2 has a recorded halt; EGW_G3_RUI_GO is set and is recorded: bench: Rui said go on
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+session clock: NOW=<UP> UP0=<UP> elapsed=<N> s (cutoff 10800 s)
+## <UTC> up=<UP> row t8: attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01 (ceiling 135 min from now: the operator enforces it with 'term t8')
+row file t8-a-reboot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 1, 423 bytes)
+row file t8-b-return.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 2, 123 bytes)
+row file t8-c-snapshot.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 3, 280 bytes)
+row file t8-d-smoke.sh: sha256 <SHA> = sha256_after of the manifest (row t8, step 4, 65 bytes)
+## <UTC> up=<UP> row t8: the gate's read before the row
+## <UTC> up=<UP> row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+bench: reboot requested
+## <UTC> up=<UP> row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## <UTC> up=<UP> row t8: waiting at most 600 s for the first QEMU (s1) to exit and ports 2222/8883 to be free (it is never killed)
+sample 1 at +<N> s: qemu pgrep exit=0 (0 running, 1 none); /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01/boot/s1.status absent; ports 2222/8883 free
+sample 2 at +<N> s: qemu pgrep exit=1 (0 running, 1 none); /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01/boot/s1.status present: exit=0 finished=bench; ports 2222/8883 free
+QEMU EXITED: no qemu-system-aarch64 process, the first boot wrote its status file, ports 2222 and 8883 are free
+## <UTC> up=<UP> row t8: the re-launch through the session's own session_open.sh (run name s2, the same data disk)
+[bench] STOP: no SSH for s2
+HALT: row t8: the re-launch ended 1 (a re-launch STOP; packet section 4, halt 5): steps b, c and d were NOT run, and T9 is not run
+## <UTC> up=<UP> row t8: the gate after the row
+gate: no guest-state comparison for T8 (the reboot replaces every start instant; packet section 3)
+STOP: ssh exited non-zero - the tunnel was NOT opened
+STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran
+HALT: row t8: the gate did NOT pass (packet section 4, halt 3): the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not answer); whe
+## <UTC> up=<UP> row t8 ended after <N> s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S2: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+exit=1
+## <UTC> up=<UP> classify t8: not started (failed, not-applicable/not-run)
+exported <STAMP>_g3-qualification-t8_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t8_attempt01 (verified; incomplete, 33 files, 0 excluded, 1 registered artefact(s) never written)
+DRIVER RESULT <STAMP>_g3-qualification-t8_attempt01: exit=2 (a prerequisite failed: the test did not run) status=failed instrumentation_validity=not-applicable system_outcome=not-run export=exported package=INCOMPLETE (verified; incomplete: 0 registered source root(s), 0 registered artefact
+row t8: classified 'not started'; driver code 2; export: verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 1 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this package -
+HALT: row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+NOTE: this row's gate did not pass (failed: the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not answer); whether a recorder or c
+exit=1
+=== close
+## <UTC> up=<UP> close S2: /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01
+HALT: close S2: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.sh is run to finish and export the session attempt
+## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N4/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N4/egw-exec/g3-battery/S2-guest_session_close.console.txt)
+STOP: ssh exited non-zero - the tunnel was NOT opened
+STOP: the host preamble of runbook 6.1 (the venv, the secrets, the helpers and the tunnels) could not be loaded: the step never ran
+exported <STAMP>_guest-session_attempt01: /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_guest-session_attempt01 (verified, 20 files, 0 excluded)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+## <UTC> up=<UP> session S2 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=1
+=== status
+session S2: state=closed attempt=/tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  HALT: up=<UP> row=t7-ditto row t7-ditto: the gate did NOT pass (packet section 4, halt 3): guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that coul
+  HALT: up=<UP> row=t8 row t8: the re-launch ended 1 (a re-launch STOP; packet section 4, halt 5): steps b, c and d were NOT run, and T9 is not run
+  HALT: up=<UP> row=t8 row t8: the gate did NOT pass (packet section 4, halt 3): the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 
+  HALT: up=<UP> row=t8 row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+  HALT: up=<UP> close S2: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.
+  row t6: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t6_attempt01
+    attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t6_attempt01
+  row t7-mongo: classified; gate=pass; class=pass; driver code=0; export=verified -> /tmp/g3-dry-N4/out/runs/2026-10-02/<STAMP>_g3-qualification-t7-mongo_attempt01
+    attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t7-mongo_attempt01
+  row t7-ditto: classified; gate=failed: guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be compared; ; class=pass; driver code=0; expo
+    attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t7-ditto_attempt01
+    HALT: up=<UP> row t7-ditto: the gate did NOT pass (packet section 4, halt 3): guest-state-delta exit 1 (faults and problems: 1 0): an OOM kill, an unexpected restart or replacement, an expected restart the pair does not show, or a pair that could not be co
+  row t8: classified; gate=failed: the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not determined, 4 both, 97 the guest did not a
+    attempt /tmp/g3-dry-N4/egw-exec/attempts/<STAMP>_g3-qualification-t8_attempt01
+    HALT: up=<UP> row t8: the re-launch ended 1 (a re-launch STOP; packet section 4, halt 5): steps b, c and d were NOT run, and T9 is not run
+    HALT: up=<UP> row t8: the gate did NOT pass (packet section 4, halt 3): the guest state after the row was not recorded (guest-state-after exit 97); the six services were not all running and healthy within 900 s (gate-healthy exit 97: 1 not healthy, 2 not d
+    HALT: up=<UP> row t8 is classified not started (packet section 4, halt 1): it is not attempted again under this approval
+  row t9: not started
+
+######## bench 5: the preflight fails at the open
+=== open S1
+## <UTC> up=<UP> open S1: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+## <UTC> up=<UP> row files of S1 against /tmp/g3-dry-N5/rows/rows.manifest.json
+row file t1-smokes.sh: sha256 <SHA> = sha256_after of the manifest (row t1-smokes, step 1, 323 bytes)
+row file t1-harness.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 1, 360 bytes)
+row file t1-harness-analyze.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 2, 165 bytes)
+row file t2.sh: sha256 <SHA> = sha256_after of the manifest (row t2, step 1, 220 bytes)
+row file t3.sh: sha256 <SHA> = sha256_after of the manifest (row t3, step 1, 104 bytes)
+row file t4-replay.sh: sha256 <SHA> = sha256_after of the manifest (row t4-replay, step 1, 143 bytes)
+row file t4-reset.sh: sha256 <SHA> = sha256_after of the manifest (row t4-reset, step 1, 51 bytes)
+row file t5.sh: sha256 <SHA> = sha256_after of the manifest (row t5, step 1, 173 bytes)
+## <UTC> up=<UP> run ids of S1 unused on the host
+## <UTC> up=<UP> guest root file system before the boot
+rootfs ext4: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260  /tmp/g3-dry-N5/yocto/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+## <UTC> up=<UP> keepalive
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## <UTC> up=<UP> UP0=<UP> (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N5/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N5/egw-exec/g3-battery/S1-guest_session_open.console.txt)
+session open: /tmp/g3-dry-N5/egw-exec/attempts/<STAMP>_guest-session_attempt01 (bench stub)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); the guest session stays OPEN and is exported by guest_session_close.sh) status=running instrumentation_validity=unknown system_outcome=unknown export=deferred
+## <UTC> up=<UP> preflight.sh (frozen driver, /tmp/g3-dry-N5/repo/tools/session/preflight.sh; console /tmp/g3-dry-N5/egw-exec/g3-battery/S1-preflight.console.txt)
+exported <STAMP>_live-preflight_attempt01: /tmp/g3-dry-N5/out/runs/2026-10-02/<STAMP>_live-preflight_attempt01 (verified, 6 files, 0 excluded)
+DRIVER RESULT <STAMP>_live-preflight_attempt01: exit=2 (a prerequisite failed: the test did not run) status=failed instrumentation_validity=invalid system_outcome=not-run export=exported
+HALT: preflight.sh exited 2; see /tmp/g3-dry-N5/egw-exec/g3-battery/S1-preflight.console.txt
+The session state is 'halted' and nothing was closed. If '/tmp/g3-dry-N5/egw-exec/current_session' exists the guest is UP: decide, then run 'close'.
+exit=1
+=== row after the halted open
+## <UTC> up=<UP> row t1-smokes (session S1): steps script sha256 <SHA>
+REFUSED: session S1 is recorded 'halted', not open
+exit=2
+=== open S1 again
+## <UTC> up=<UP> open S1: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+REFUSED: a session is open (/tmp/g3-dry-N5/egw-exec/current_session names '/tmp/g3-dry-N5/egw-exec/attempts/<STAMP>_guest-session_attempt01')
+exit=2
+=== close
+## <UTC> up=<UP> close S1: /tmp/g3-dry-N5/egw-exec/attempts/<STAMP>_guest-session_attempt01
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+## <UTC> up=<UP> the recorded stop with the controller's 130 s allowance (PM condition 4)
+## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N5/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N5/egw-exec/g3-battery/S1-guest_session_close.console.txt)
+TUNNEL UP
+TUNNEL CLOSED
+exported <STAMP>_guest-session_attempt01: /tmp/g3-dry-N5/out/runs/2026-10-02/<STAMP>_guest-session_attempt01 (verified, 21 files, 0 excluded)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+## <UTC> up=<UP> session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+=== status
+state directory: /tmp/g3-dry-N5/egw-exec/g3-battery
+latest console of this script: /tmp/g3-dry-N5/egw-exec/g3-battery/console/004-close-S1.txt
+open session (current_session): none; host uptime now: <N> s; WSL boot <BOOT>
+qemu pgrep exit=1 (0 running, 1 none)
+turn of the changing subcommands: last taken by 'close S1' (pid <PID>, <UTC>); that invocation: ended
+session S1: state=closed attempt=/tmp/g3-dry-N5/egw-exec/attempts/<STAMP>_guest-session_attempt01 UP0=<UP>
+  HALT: up=<UP> preflight.sh exited 2; see /tmp/g3-dry-N5/egw-exec/g3-battery/S1-preflight.console.txt
+  row t1-smokes: not started
+  row t1-harness: not started
+
+######## bench 6: the REAL row files and manifest (checked only, never run); a capture without labels; a dirty clone; a changed row file
+=== open S1 on the real rows
+## <UTC> up=<UP> open S1: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/
+row file t1-smokes.sh: sha256 <SHA> = sha256_after of the manifest (row t1-smokes, step 1, 182 bytes)
+row file t1-harness.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 1, 1496 bytes)
+row file t1-harness-analyze.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 2, 2094 bytes)
+row file t2.sh: sha256 <SHA> = sha256_after of the manifest (row t2, step 1, 1370 bytes)
+row file t3.sh: sha256 <SHA> = sha256_after of the manifest (row t3, step 1, 4481 bytes)
+row file t4-replay.sh: sha256 <SHA> = sha256_after of the manifest (row t4-replay, step 1, 5262 bytes)
+row file t4-reset.sh: sha256 <SHA> = sha256_after of the manifest (row t4-reset, step 1, 59 bytes)
+row file t5.sh: sha256 <SHA> = sha256_after of the manifest (row t5, step 1, 1141 bytes)
+rows.manifest.json sha256: <SHA>
+## <UTC> up=<UP> guest_session_open.sh (frozen driver, /tmp/g3-dry-N6/repo/tools/session/guest_session_open.sh; console /tmp/g3-dry-N6/egw-exec/g3-battery/S1-guest_session_open.co
+labels: STOP: the capture does not carry the QEMU/TCG and ARM64 EMULATED labels
+HALT: the environment copy of PM condition 2 failed (see /tmp/g3-dry-N6/egw-exec/g3-battery/S1-environment-copy.txt): the harness rows would not read the labelled capture
+exit=1
+=== close
+## <UTC> up=<UP> close S1: /tmp/g3-dry-N6/egw-exec/attempts/<STAMP>_guest-session_attempt01
+keepalive: pid <PID> 'sleep 43200', parent <PID> (Relay(<PID>)), running for <N> s, about <N> s left
+keepalive: attached, about <N> s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## <UTC> up=<UP> no recorder or collector unit active (read-only)
+## <UTC> up=<UP> the recorded stop with the controller's 130 s allowance (PM condition 4)
+## <UTC> up=<UP> guest_session_close.sh (frozen driver, /tmp/g3-dry-N6/repo/tools/session/guest_session_close.sh; console /tmp/g3-dry-N6/egw-exec/g3-battery/S1-guest_session_close.console.txt)
+TUNNEL UP
+TUNNEL CLOSED
+exported <STAMP>_guest-session_attempt01: /tmp/g3-dry-N6/out/runs/2026-10-02/<STAMP>_guest-session_attempt01 (verified, 21 files, 0 excluded)
+DRIVER RESULT <STAMP>_guest-session_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=not-applicable system_outcome=pass export=exported
+rootfs ext4 after the close: c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260 (S2 opens only on this value)
+## <UTC> up=<UP> session S1 closed (guest_session_close.sh exit 0)
+What remains for the operator:
+exit=0
+=== open S1 with a dirty clone
+## <UTC> up=<UP> open S1: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+HALT: the clone /tmp/g3-dry-N6/repo is not clean (1 porcelain line(s)) (packet section 4, halt 6); nothing was started
+exit=1
+=== open S1 with a changed row file
+## <UTC> up=<UP> open S1: steps script /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 <SHA>
+## <UTC> up=<UP> candidate identities
+## <UTC> up=<UP> row files of S1 against /tmp/g3-dry-N6/rows/rows.manifest.json
+row file t1-smokes.sh: sha256 <SHA> = sha256_after of the manifest (row t1-smokes, step 1, 323 bytes)
+row file t1-harness.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 1, 360 bytes)
+row file t1-harness-analyze.sh: sha256 <SHA> = sha256_after of the manifest (row t1-harness, step 2, 165 bytes)
+row file t2.sh: sha256 <SHA> = sha256_after of the manifest (row t2, step 1, 220 bytes)
+STOP: t3.sh: sha256 <SHA> is not the manifest sha256_after d5c9d0fc69ec7d620697baa6ad433f412bfa6dcf9d1e0750b6b2cad9b4c56a68
+HALT: the row files of t3 are not the manifest's; nothing was started
+exit=1
+
+## <UTC> dry run ended

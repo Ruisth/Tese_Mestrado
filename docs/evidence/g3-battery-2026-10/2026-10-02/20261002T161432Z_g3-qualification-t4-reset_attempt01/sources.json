@@ -1,0 +1,11 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-02T16:14:33.173534Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-dup-02-q1",
+      "role": "itest run itest-dup-02-q1: the simulator's directory with the fetched events.jsonl, and every itest-dup-02-q1.* sibling the helpers write (transcript, marker, metrics, twins, reconcile, copies, .sut/)",
+      "siblings_glob": "itest-dup-02-q1.*"
+    }
+  ]
+}

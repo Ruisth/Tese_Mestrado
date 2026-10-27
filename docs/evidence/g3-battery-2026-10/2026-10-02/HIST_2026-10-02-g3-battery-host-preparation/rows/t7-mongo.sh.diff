@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1439-1461 (prompt removed)
++++ b/rows/t7-mongo.sh
+@@ -1 +1 @@
+-R=itest-mongo-fault-01; SVC=mongodb
++R=itest-mongo-fault-01-q1; SVC=mongodb

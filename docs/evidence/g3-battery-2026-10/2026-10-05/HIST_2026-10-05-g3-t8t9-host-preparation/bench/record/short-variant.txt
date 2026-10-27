@@ -1,0 +1,12 @@
+## 2026-10-05T09:34:38Z the short-timing variant
+final bytes:   g3_battery.sh           sha256 a77bd201a54d02620e625a620d2da796a8834289ec67daa808ed15324950f5cb  2288 lines
+short variant: bench/g3_battery.short.sh sha256 c9adaf5f7d984895becf68644c82a37f753b6ae25a75d32ae3cde1221cd3f14b  2288 lines
+differing lines (4 lines of diff output: '<' final, '>' variant):
+99,100c99,100
+< T8_SSH_WAIT_S=900               # T8: at most 15 min for the rebooted guest to answer over ssh
+< T8_SSH_POLL_S=10                # T8: one read-only poll every 10 s during that wait
+---
+> T8_SSH_WAIT_S=48                # T8: at most 15 min for the rebooted guest to answer over ssh
+> T8_SSH_POLL_S=3                 # T8: one read-only poll every 10 s during that wait
+bash -n: clean
+carriage returns in the variant: 0

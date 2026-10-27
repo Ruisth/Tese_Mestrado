@@ -1,0 +1,121 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+  it differs from the final bytes (g3_battery.sh, sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-04T23:01:13Z scenario s11b; host uptime 7453.36 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh fc1a6629d55c11aa, bs3_setup.sh c59f48bc4a8c4ea9, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+OBSERVED CASE (no fixed expectation for what is left running): 'term t8' while a poll is in flight - a read that stalls under its 20 s timeout, in a process group of its own. Expected: TERM reaches the row, the attempt is finished 'interrupted' and exported, the fake QEMU is untouched; the poll in flight is not reached by TERM and ends by its own timeout.
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-04T23:01:17Z up=7456 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+## 2026-10-04T23:01:17Z up=7457 candidate identities
+## 2026-10-04T23:01:17Z up=7457 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-04T23:01:17Z up=7457 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-04T23:01:17Z up=7457 guest root file system before the boot
+## 2026-10-04T23:01:17Z up=7457 keepalive
+## 2026-10-04T23:01:18Z up=7457 UP0=7457 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-04T23:01:18Z up=7457 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/state/S3-guest_session_open.console.txt)
+## 2026-10-04T23:01:18Z up=7458 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-04T23:01:19Z up=7459 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/state/S3-gate_health.console.txt)
+TUNNEL UP
+## 2026-10-04T23:01:20Z up=7459 run ids of S3 unused on the guest (read-only listing)
+## 2026-10-04T23:01:20Z up=7460 session S3 is open: <bench>/egw-exec/attempts/20261004T230118Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S3
+CHECK ok: the session is open
+--- the fake process that stands for QEMU after the open: pid 261685 alive, start tick 745806
+
+=== g3_battery.sh row t8 (detached, in a session of its own, as the launcher starts it)
+--- the row is in its wait: step 't8-wait-ssh', 1 poll(s) so far; the row's process group: 272909 (the row's pid: 272909)
+
+=== g3_battery.sh status
+open session (current_session): <bench>/egw-exec/attempts/20261004T230118Z_guest-session_attempt01; host uptime now: 7466 s; WSL boot a3554b82-fdf8-4a4d-9122-024f6040bd4e
+qemu pgrep exit=0 (0 running, 1 none)
+session S3: state=open attempt=<bench>/egw-exec/attempts/20261004T230118Z_guest-session_attempt01 UP0=7457
+  elapsed host uptime: 9 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  row t8: running; gate=; class=; driver code=; export=
+    attempt <bench>/egw-exec/attempts/20261004T230121Z_g3-qualification-t8_attempt02
+    RUNNING: pid 272909 group 272909, step 't8-wait-ssh', 0 min of its 135 min ceiling
+    processes still in its group 272909: 272909 bash <a path of the scratchpad, cut>;273220 tee -p -a <bench>/state/console/002-row-t8.txt;282300 /home/ruisth/egw-exec/venv/bin/python -m egw_experiments.local_export exec --attemp;
+  row t9: not started
+--- members of the row's process group before TERM: 272909 bash <a path of the scratchpad, cut>|273220 tee -p -a <bench>/state/console/002-row-t8.txt|282300 /home/ruisth/egw-exec/venv/bin/python -m egw_experiments.local_|
+--- processes of the bench outside that group (a poll under 'timeout' is in a group of its own):  282325  282325 timeout 20 env E=<bench>/egw-exec/attempts/20261004T230118Z_|
+
+=== g3_battery.sh term t8
+-> exit 0
+## 2026-10-04T23:01:27Z up=7466 term t8: the process group 272909 (row state 'running', step 't8-wait-ssh')
+TERM sent to the process group 272909 (exit 0). KILL is never sent.
+CHECK ok: exit status 0: term t8
+CHECK ok: TERM is sent to the row's process group, and KILL never
+
+=== the row's own console after TERM
+-> exit 130 (the row ended 0.4 s after 'term' was issued)
+## 2026-10-04T23:01:22Z up=7461 row t8: the gate's read before the row
+## 2026-10-04T23:01:22Z up=7461 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+QEMU PROCESS: pid=261685 start=745806 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 14 arguments of pid 261685
+## 2026-10-04T23:01:22Z up=7462 row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+drained: queue_depth 0 and identical counters on 2 consecutive readings over 0 s (0 0 0 true 2026-09-18T10:00:00Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 7462.11 s, end 7462.11 s, 
+reboot command sent (status not tested) 2026-10-04T23:01:22Z: boot id aaaaaaaa-0000-4000-8000-00000000000a, 6 running container ids, 3 event directory names and /var/lib/docker on /dev/vdb saved
+## 2026-10-04T23:01:22Z up=7462 row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-04T23:01:22Z up=7462 row t8: waiting at most 48 s from the end of step a (up=7462) for the guest to answer over ssh with a boot id other than the saved one aaaaaaaa-0000-4000-8000-00000000000a (read-only polls every 3 s, each a recorded step bounded by 'timeout' to 20 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (u
+## 2026-10-04T23:01:27Z up=7466 row t8: interrupted by a signal (TERM)
+HALT: row t8 was interrupted by a signal (TERM) during 't8-wait-ssh' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+row t8: attempt finished 'interrupted'; driver code 130; export: verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 1 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this package -> <bench>/out/runs/2026-10-04/20261004T230121Z_g3-qualification-t8_attempt02. It is NOT classified again: its class is wri
+CHECK ok: exit status 130: row t8 after TERM (interrupted)
+CHECK ok: the row's trap ran
+CHECK ok: the attempt is finished interrupted and exported (the export tool's own verification)
+CHECK ok: the row's state: interrupted
+CHECK ok: the attempt's own status: interrupted
+CHECK ok: the exported package exists under the bench's output root: 1
+CHECK ok: the fake QEMU process after TERM: pid 261685 alive, start tick 745806
+CHECK ok: no line b ran
+recorded steps of row t8, in order: guest-state-before t8-qemu-before t8-a-reboot t8-wait-ssh guest-state-after-interrupt
+--- processes of the bench right after the row ended (the fake QEMU aside): 282325 timeout 20 env E=<bench>/egw-exec/attempts/20261004T230118Z_guest-session_attempt01 bash |
+--- the poll in flight: commands.jsonl holds 0 record(s) of t8-wait-ssh for 1 console file(s)
+--- the attempt's validity and capture failures after the export: validity=None outcome=None capture_failures=[{"bytes_kept": 0, "bytes_received": null, "console": "console/004-t8-wait-ssh.stderr.txt", "error": "no command record: the command never reached commands.jsonl (interrupted, or the record could not be appended), so nothing says how much output it produced", "name": "t8-wait-ssh", "seq": 4, "stream
+--- 22 s later: processes of the bench (the fake QEMU aside): 
+CHECK ok: processes of the bench left 22 s after the row ended (the fake QEMU aside): 0
+CHECK ok: commands that start, restart or bring up anything, sent to the stub guest (the test module's own pattern): 0
+CHECK ok: pkill or killall calls: 0
+--- bench: the stub guest answers again
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-04T23:01:49Z up=7489 row t9 (session S3): steps script sha256 a5d6d6621fd67e501c9bfe5a7322a162546212b616f8518c3cd179163d63ae7f
+REFUSED: NOT STARTED: session S3 has a recorded halt (up=7466 row=t8 row t8 was interrupted by a signal (TERM) during 't8-wait-ssh' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close). A halt cancels further progress until Rui directs otherwise; with his explicit go, set EGW_G3_RUI_GO to his words (they are recorded)
+CHECK ok: exit status 2: row t9 after the interrupted row t8 (refused)
+CHECK ok: row t9 is refused because of the recorded halt
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-04T23:01:49Z up=7489 close S3: <bench>/egw-exec/attempts/20261004T230118Z_guest-session_attempt01
+## 2026-10-04T23:01:49Z up=7489 no recorder or collector unit active (read-only)
+## 2026-10-04T23:01:49Z up=7489 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-04T23:01:50Z up=7489 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/state/S3-guest_session_close.console.txt)
+## 2026-10-04T23:01:50Z up=7490 session S3 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+CHECK ok: the session is closed
+
+=== g3_battery.sh status
+open session (current_session): none; host uptime now: 7490 s; WSL boot a3554b82-fdf8-4a4d-9122-024f6040bd4e
+qemu pgrep exit=1 (0 running, 1 none)
+session S3: state=closed attempt=<bench>/egw-exec/attempts/20261004T230118Z_guest-session_attempt01 UP0=7457
+  HALT: up=7466 row=t8 row t8 was interrupted by a signal (TERM) during 't8-wait-ssh' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t8: interrupted; gate=; class=; driver code=130; export=verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 1 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this pack
+    attempt <bench>/egw-exec/attempts/20261004T230121Z_g3-qualification-t8_attempt02
+    HALT: up=7466 row t8 was interrupted by a signal (TERM) during 't8-wait-ssh' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t9: not started
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-04T23:01:51Z SCENARIO s11b: PASS (20 checks)

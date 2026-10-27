@@ -1,0 +1,130 @@
+{
+  "boot": "qemu-boot-01",
+  "started_utc": "2026-08-13T23:09:07Z",
+  "purpose": "gate G1 functional validation; never a performance measurement",
+  "checks": [
+    {
+      "id": "kernel_and_release",
+      "kind": "required_assertion",
+      "required": true,
+      "command": "uname -a; head -n 3 /etc/os-release",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "\r\r\nLinux qemuarm64 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux\r\r\nID=poky\r\r\nNAME=\"Poky (Yocto Project Reference Distro)\"\r\r\nVERSION=\"5.0.19 (scarthgap)\"\r\r\n"
+    },
+    {
+      "id": "systemd_state",
+      "kind": "required_assertion",
+      "required": true,
+      "command": "echo STATE=$(systemctl is-system-running --wait 2>&1)",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": false,
+      "passed": false,
+      "output_tail": "\r\r\nSTATE=running\r\r\n",
+      "reason": "the command finished but its output did not satisfy the check"
+    },
+    {
+      "id": "systemd_targets",
+      "kind": "required_assertion",
+      "required": true,
+      "command": "systemctl list-units --type=target --no-pager --no-legend; systemctl get-default",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "\r\r\n  basic.target          loaded active active Basic System\r\r\n  getty.target          loaded active active Login Prompts\r\r\n  local-fs-pre.target   loaded active active Preparation for Local File Systems\r\r\n  local-fs.target       loaded active active Local File Systems\r\r\n  multi-user.target     loaded active active Multi-User System\r\r\n  network-online.target loaded active active Network is Online\r\r\n  network-pre.target    loaded active active Preparation for Network\r\r\n  network.target        loaded active active Network\r\r\n  nss-lookup.target     loaded active active Host and Network Name Lookups\r\r\n  paths.target          loaded active active Path Units\r\r\n  remote-fs.target      loaded active active Remote File Systems\r\r\n  rpcbind.target        loaded active active RPC Port Mapper\r\r\n  slices.target         loaded active active Slice Units\r\r\n  sockets.target        loaded active active Socket Units\r\r\n  swap.target           loaded active active Swaps\r\r\n  sysinit.target        loaded active active System Initialization\r\r\n  time-set.target       loaded active active System Time Set\r\r\n  timers.target         loaded active active Timer Units\r\r\nmulti-user.target\r\r\n"
+    },
+    {
+      "id": "failed_units",
+      "kind": "required_assertion",
+      "required": true,
+      "command": "systemctl --failed --no-pager --no-legend; echo FAILED_UNITS_END",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "\r\r\nFAILED_UNITS_END\r\r\n"
+    },
+    {
+      "id": "networking",
+      "kind": "required_assertion",
+      "required": true,
+      "command": "ip addr; ip route",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "28 scope host \r\r\n       valid_lft forever preferred_lft forever\r\r\n2: enp0s1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast qlen 1000\r\r\n    link/ether 52:54:00:12:35:02 brd ff:ff:ff:ff:ff:ff\r\r\n    inet 10.0.2.15/24 brd 10.0.2.255 scope global dynamic enp0s1\r\r\n       valid_lft 86389sec preferred_lft 86389sec\r\r\n    inet6 fec0::5054:ff:fe12:3502/64 scope site dynamic noprefixroute flags 100 \r\r\n       valid_lft 86390sec preferred_lft 14390sec\r\r\n    inet6 fe80::5054:ff:fe12:3502/64 scope link \r\r\n       valid_lft forever preferred_lft forever\r\r\n3: sit0@NONE: <NOARP> mtu 1480 qdisc noop qlen 1000\r\r\n    link/sit 0.0.0.0 brd 0.0.0.0\r\r\n4: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue \r\r\n    link/ether 02:42:e9:5e:c8:04 brd ff:ff:ff:ff:ff:ff\r\r\n    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0\r\r\n       valid_lft forever preferred_lft forever\r\r\ndefault via 10.0.2.2 dev enp0s1  src 10.0.2.15  metric 1024 \r\r\n10.0.2.0/24 dev enp0s1 scope link  src 10.0.2.15  metric 1024 \r\r\n10.0.2.2 dev enp0s1 scope link  src 10.0.2.15  metric 1024 \r\r\n10.0.2.3 dev enp0s1 scope link  src 10.0.2.15  metric 1024 \r\r\n172.17.0.0/16 dev docker0 scope link  src 172.17.0.1 \r\r\n"
+    },
+    {
+      "id": "gateway_reachable",
+      "kind": "observation",
+      "required": false,
+      "command": "ping -c 3 -W 5 10.0.2.2 || true",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "\r\r\nPING 10.0.2.2 (10.0.2.2): 56 data bytes\r\r\n64 bytes from 10.0.2.2: seq=0 ttl=255 time=1.783 ms\r\r\n64 bytes from 10.0.2.2: seq=1 ttl=255 time=0.832 ms\r\r\n64 bytes from 10.0.2.2: seq=2 ttl=255 time=0.673 ms\r\r\n\r\r\n--- 10.0.2.2 ping statistics ---\r\r\n3 packets transmitted, 3 packets received, 0% packet loss\r\r\nround-trip min/avg/max = 0.673/1.096/1.783 ms\r\r\n"
+    },
+    {
+      "id": "container_runtime",
+      "kind": "required_assertion",
+      "required": true,
+      "command": "systemctl start docker || true; sleep 5; docker info 2>&1 | head -n 20",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "\r\r\nClient:\r\r\n Version:    25.0.9\r\r\n Context:    default\r\r\n Debug Mode: false\r\r\n\r\r\nServer:\r\r\n Containers: 0\r\r\n  Running: 0\r\r\n  Paused: 0\r\r\n  Stopped: 0\r\r\n Images: 0\r\r\n Server Version: 25.0.9\r\r\n Storage Driver: overlay2\r\r\n  Backing Filesystem: extfs\r\r\n  Supports d_type: true\r\r\n  Using metacopy: false\r\r\n  Native Overlay Diff: true\r\r\n  userxattr: false\r\r\n Logging Driver: json-file\r\r\n Cgroup Driver: systemd\r\r\n"
+    },
+    {
+      "id": "container_smoke",
+      "kind": "required_assertion",
+      "required": true,
+      "command": "egw-container-smoke.sh; echo SMOKE_EXIT=$?",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "\r\r\n2026-08-13T23:09:48Z INFO egw-container-smoke start (online=0)\r\r\n2026-08-13T23:09:49Z INFO docker info OK\r\r\n2026-08-13T23:09:49Z INFO using /bin/busybox for the offline smoke image\r\r\n2026-08-13T23:09:50Z INFO bundled 4 object(s) under both /lib and /usr/lib\r\r\n2026-08-13T23:10:02Z PASS container executed (docker import + run of local busybox image)\r\r\nSMOKE_EXIT=0\r\r\n"
+    },
+    {
+      "id": "smoke_diagnostics",
+      "kind": "observation",
+      "required": false,
+      "command": "INTERP=$(strings /bin/busybox 2>/dev/null | grep -m 1 '^/lib/ld-'); [ -n \"$INTERP\" ] || INTERP=$(tr -c '[:print:]' '\\n' < /bin/busybox 2>/dev/null | grep -m 1 '^/lib/ld-'); echo \"INTERP=${INTERP:-unavailable}\"; ls -l /lib/ld-linux-aarch64.so.1 /lib/libc.so.6 2>&1 | head -n 4; docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | head -n 3; docker run --rm egw-smoke:local /bin/busybox echo BUSYBOX_DIRECT_OK 2>&1 | tail -n 2",
+      "completed": true,
+      "timed_out": false,
+      "predicate_passed": true,
+      "passed": true,
+      "output_tail": "\r\r\nINTERP=unavailable\r\r\n-rwxr-xr-x    1 root     root        202848 Mar  9  2018 /lib/ld-linux-aarch64.so.1\r\r\n-rwxr-xr-x    1 root     root       1716520 Mar  9  2018 /lib/libc.so.6\r\r\negw-smoke:local 5.75MB\r\r\nBUSYBOX_DIRECT_OK\r\r\n"
+    }
+  ],
+  "reached_console": true,
+  "clean_poweroff": true,
+  "summary": {
+    "required_assertions_total": 7,
+    "required_assertions_run": 7,
+    "required_assertions_passed": 6,
+    "supplementary_observations_total": 2,
+    "supplementary_observations_run": 2,
+    "supplementary_observations_recorded": 2,
+    "checks_expected": 9,
+    "checks_run": 9,
+    "checks_timed_out": [],
+    "reached_console": true,
+    "clean_poweroff": true,
+    "note": "supplementary observations are recorded for diagnosis and are never counted as verification; only the required assertions and the clean power-down decide the outcome, and the outcome is a driver report, not a gate decision"
+  },
+  "headline": "6 of 7 required assertions passed; 2 of 2 supplementary observations recorded; clean power-down confirmed",
+  "outcome_reasons": [
+    "required assertion 'systemd_state' failed (output did not satisfy the check)"
+  ],
+  "outcome": "fail",
+  "finished_utc": "2026-08-13T23:10:16Z",
+  "console_log": "/home/ruisth/yocto/logs/g1-20260813-f0e19d5/qemu-boot-01.log"
+}

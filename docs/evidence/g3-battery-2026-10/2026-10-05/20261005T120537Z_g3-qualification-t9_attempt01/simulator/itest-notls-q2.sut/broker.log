@@ -1,0 +1,6 @@
+[2Kmosquitto-1  | 2026-10-05T12:06:19.215355407Z 2026-10-05T12:06:19: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:20.225679583Z 2026-10-05T12:06:20: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:22.230218831Z 2026-10-05T12:06:22: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:26.249561279Z 2026-10-05T12:06:26: Client connection from 10.0.2.2 failed: error:0A00010B:SSL routines::wrong version number.
+[2Kmosquitto-1  | 2026-10-05T12:06:30.892873087Z 2026-10-05T12:06:30: New connection from 127.0.0.1:34736 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:06:31.242180463Z 2026-10-05T12:06:31: Client egw-healthcheck disconnected, not authorised.

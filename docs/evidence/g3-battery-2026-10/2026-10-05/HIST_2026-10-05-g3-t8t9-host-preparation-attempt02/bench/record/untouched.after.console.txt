@@ -1,0 +1,14 @@
+## 2026-10-05T11:42:39Z bs3b_untouched.sh after (HOME=/home/ruisth); host uptime 1222.66 s
+entries of ~/egw-exec and ~/egw-tcg: 18846; sha256 of the listing: b2e3e64309a6eed50a88d72d5790d931d07e6b3a4346797d5aee8183adc5d109
+listing (path, modification time, size of every entry): IDENTICAL before and after
+entries newer than the marker (2026-10-05T11:33:28Z): 0
+clone HEAD: 8e492613d36490a560ae56beabd6d5c2c01a8696 (unchanged)
+the first opening's state directory ~/egw-exec/g3-t8t9-s3: exists, 12 entries
+  its S3-preflight.console.txt sha256 bd7bdb373948869d61ea35a48e2292b3ffcb2a93dd848da2936b8fdb1994390c; session-S3.env sha256 798746478a7f5d9c0efc7bd5eff1f316601482085d099548c22bb8f5d2a49c7c, state=closed
+the second opening's default state directory ~/egw-exec/g3-t8t9-s3-attempt02: does not exist
+~/egw-exec/current_session: does not exist
+/tmp entries that were not there before: 
+/tmp/wrong.key or /tmp/wrong.crt: neither exists
+processes whose command line names a scenario's bench (/tmp/g3-s3b-bench/e<number>...): 0
+processes named qemu-system-aarch64 on this host (real pgrep, the frozen drivers' pattern): 0; bash loops that stood for QEMU: 0
+keepalive clients, 'sleep N' with N of 3600 or more (not started and not ended by this stream): pid 305 sleep 43200, running for 1220 s; pid 308 sleep 43202, running for 1220 s; 

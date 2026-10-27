@@ -1,0 +1,3 @@
+2026-09-20T23:37:52Z sample 1: egw-mosquitto-1=running/healthy egw-mongodb-1=running/healthy egw-ditto-policies-1=running/healthy egw-ditto-things-1=running/healthy egw-ditto-gateway-1=running/healthy egw-controller-1=running/starting
+2026-09-20T23:38:12Z sample 2: egw-mosquitto-1=running/healthy egw-mongodb-1=running/healthy egw-ditto-policies-1=running/healthy egw-ditto-things-1=running/healthy egw-ditto-gateway-1=running/healthy egw-controller-1=running/healthy
+ALL HEALTHY: the 6 expected services are running and healthy (sample 2)

@@ -1,0 +1,45 @@
+
+##############################################################################
+# A. Coverage
+##############################################################################
+rows 4320 instants 720 containers ['egw-controller-1', 'egw-ditto-gateway-1', 'egw-ditto-policies-1', 'egw-ditto-things-1', 'egw-mongodb-1', 'egw-mosquitto-1']
+max spacing 1.000 ; gaps>2 s 0
+window in guest wall (45.769..45.876): 600 instants ; harness-wall window: 600 instants ; same set: True
+instants after the guest-wall window end: 1 ; before start: 119
+
+##############################################################################
+# B. Per container, window
+##############################################################################
+egw-controller-1       mean 36.70 p50 28.19 p95 109.64 max 128.28  mem% max 26.94
+egw-ditto-gateway-1    mean 65.52 p50 60.05 p95 109.35 max 190.12  mem% max 68.02
+egw-ditto-policies-1   mean 19.95 p50 12.77 p95 60.01 max 116.85  mem% max 70.89
+egw-ditto-things-1     mean 70.63 p50 62.06 p95 126.47 max 177.62  mem% max 76.13
+egw-mongodb-1          mean 28.87 p50 8.89 p95 114.49 max 160.83  mem% max 76.45
+egw-mosquitto-1        mean 5.16 p50 2.79 p95 15.34 max 84.17  mem% max 5.44
+sum six: mean 226.83 p50 220.49 p95 316.79 max 361.77 ; >=300: 55 ; >=350: 5 ; >=380: 0
+medians over all instants: {'egw-ditto-things-1': 65.98, 'egw-ditto-gateway-1': 63.12, 'egw-controller-1': 27.48, 'egw-ditto-policies-1': 12.73, 'egw-mongodb-1': 8.59, 'egw-mosquitto-1': 2.75}
+mosquitto mem mean 4.27 MiB (window) ; over all instants 4.28 MiB
+
+##############################################################################
+# C. Controller CPU vs busy time; shares
+##############################################################################
+controller mean 36.699 % ; CPU-s over 600 one-second instants 220.19 ; / 600.107 s = 36.692 %
+shares: ditto 68.82 % mongo 12.73 % controller 16.18 % mosquitto 2.27 %
+per ack in window (3878): controller 56.78 ms ; six 350.94 ms
+per measured ack in window (3127): controller 70.42 ms
+
+##############################################################################
+# D. Acks/s against summed CPU
+##############################################################################
+band  150..200   n 221  E 7.937  C 7.904
+band  200..250   n 174  E 6.546  C 6.538
+band  250..300   n 149  E 5.168  C 5.174
+band  300..350   n  50  E 3.740  C 3.860
+band  350..      n   5  E 3.600  C 3.791
+below 150: 1
+Pearson r: E -0.6229 ; C -0.6337 ; measured-only E -0.3680
+Pearson r E vs sum without controller: -0.5953 ; E vs ditto trio: -0.3910 ; E vs controller cpu: -0.0904 ; E vs mongodb: -0.3091
+  r(sumCPU_t, E_t-2) = -0.3399
+  r(sumCPU_t, E_t-1) = -0.4384
+  r(sumCPU_t, E_t+1) = -0.6335
+  r(sumCPU_t, E_t+2) = -0.3817

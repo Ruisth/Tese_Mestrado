@@ -1,0 +1,10 @@
+stop_requested_guest_epoch=1790955747
+unit_state_before_stop=active
+boot_id=b35d0fa2-7979-4e8c-ad2e-4223327528f3
+MainPID=298
+ExecMainStartTimestampMonotonic=12669859
+closing_marker=cdcb2894-29bd-40ec-8059-d136323ca59a
+closing_marker_container=egw-mosquitto-1
+closing_marker_exec_rc=0
+closing_marker_seen=yes
+unit_state_after_stop=inactive

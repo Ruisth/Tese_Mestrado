@@ -1,0 +1,11 @@
+--- first-preparation/ops/seal_ops.sh
++++ ops/seal_ops.sh
+@@ -11,7 +11,7 @@
+ # without SHA256SUMS: seal_ops_finish.sh, or Rui's decision); 2 refused, nothing created.
+ set -u
+ LABEL=${1:?} OPS=${2:?} PKG=${3:?} PREP=${4:?}
+-STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3}
++STATE=${EGW_G3_STATE:-$HOME/egw-exec/g3-t8t9-s3-attempt02}   # S3, second opening: a fresh state directory
+ ENVF=$HOME/egw-tcg/.env
+ refuse() { echo "STOP: $* - nothing was created"; exit 2; }
+ [ "$LABEL" = S3 ] || refuse "the label must be S3 (the records of S1 and S2 are sealed), not $LABEL"

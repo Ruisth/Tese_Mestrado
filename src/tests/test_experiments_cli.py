@@ -1,0 +1,604 @@
+"""Tests for egw_experiments.cli exit codes and user-facing messages.
+
+Stdlib-only fixtures; no docker, no network, no broker. Only fail-fast code
+paths are driven (existing plan file, tampered checksums, external-condition
+run ids), so no simulator subprocess is ever spawned.
+"""
+from __future__ import annotations
+
+import csv
+from pathlib import Path
+
+import pytest
+
+from egw_experiments import checksums, cli, plan_gen
+from egw_experiments.analyze import CAMPAIGN_PLAN_ENV_VAR
+from egw_experiments.run import DEFAULT_PLAN_PATH
+
+
+# ---------------------------------------------------------------------------
+# plan
+# ---------------------------------------------------------------------------
+
+
+def test_plan_twice_without_force_exits_2(tmp_path, capsys) -> None:
+    out = tmp_path / "campaign_plan.json"
+    assert cli.main(["plan", "--master-seed", "42", "--output", str(out)]) == 0
+    # The plan tracks run statuses: overwriting must be deliberate.
+    assert cli.main(["plan", "--master-seed", "42", "--output", str(out)]) == 2
+    err = capsys.readouterr().err
+    assert "already exists" in err
+    assert "--force" in err
+    # --force overwrites deliberately.
+    assert (
+        cli.main(["plan", "--master-seed", "42", "--output", str(out), "--force"])
+        == 0
+    )
+
+
+# ---------------------------------------------------------------------------
+# plan-supplement (G3's test 6, offline block authorised 2026-10-05)
+# ---------------------------------------------------------------------------
+
+
+def test_plan_supplement_adds_the_g3_t6_entry_once_to_the_named_plan(tmp_path, capsys) -> None:
+    """The command the next preparation runs on the pilot plan: one entry
+    appended, every byte before it kept; run again, nothing changes."""
+    plan = tmp_path / "pilot" / "campaign_plan.json"
+    assert cli.main(["plan", "--master-seed", "42", "--output", str(plan)]) == 0
+    before = plan.read_bytes()
+    capsys.readouterr()
+    argv = ["plan-supplement", "--plan", str(plan), "--entry", "g3-t6"]
+    assert cli.main(argv) == 0
+    out = capsys.readouterr().out
+    seed = plan_gen.derive_run_seed(42, "controller_restart-r04")
+    assert "added controller_restart-r04" in out and f"seed {seed}" in out and "order 96" in out
+    after = plan.read_bytes()
+    assert after.startswith(before[: -len(b"\n  ]\n}\n")] + b",\n    {\n")
+    assert plan_gen.load_campaign_plan(plan)["runs"][-1] == plan_gen.supplementary_entry(42, "g3-t6", 96)
+    assert cli.main(argv) == 0
+    assert "already holds controller_restart-r04" in capsys.readouterr().out
+    assert plan.read_bytes() == after
+
+
+def test_plan_supplement_names_its_plan_and_a_known_entry(tmp_path) -> None:
+    """--plan has no default, so the frozen campaign plan is never supplemented
+    by omission; an entry the code does not define is a usage error."""
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["plan-supplement", "--entry", "g3-t6"])
+    assert exc.value.code == 2
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["plan-supplement", "--plan", str(tmp_path / "p.json"), "--entry", "g3-t7"])
+    assert exc.value.code == 2
+
+
+def test_plan_supplement_refusal_exits_2_and_leaves_the_plan_as_it_was(tmp_path, capsys) -> None:
+    plan = tmp_path / "campaign_plan.json"
+    generated = plan_gen.generate_campaign_plan(42)
+    next(e for e in generated["runs"] if e["run_id"] == "controller_restart-r03")["seed"] += 1
+    plan_gen.write_campaign_plan(generated, plan)
+    kept = plan.read_bytes()
+    assert cli.main(["plan-supplement", "--plan", str(plan), "--entry", "g3-t6"]) == 2
+    err = capsys.readouterr().err
+    assert "controller_restart-r03" in err and "not changed" in err
+    assert plan.read_bytes() == kept
+    assert cli.main(["plan-supplement", "--plan", str(tmp_path / "missing.json"), "--entry", "g3-t6"]) == 2
+    assert not (tmp_path / "missing.json").exists()
+
+
+def test_plan_supplement_is_in_the_usage() -> None:
+    assert "plan-supplement --plan PATH --entry g3-t6" in (cli.__doc__ or "")
+
+
+# ---------------------------------------------------------------------------
+# verify-checksums
+# ---------------------------------------------------------------------------
+
+
+def _make_verified_run(base: Path) -> Path:
+    run_dir = base / "raw" / "nominal-r01"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text('{"run_id": "nominal-r01"}\n', "utf-8")
+    (run_dir / "events.jsonl").write_text('{"outcome": "accepted"}\n', "utf-8")
+    checksums.write_sha256sums(run_dir)
+    return run_dir
+
+
+def test_verify_checksums_exits_1_on_tampered_run_dir(tmp_path) -> None:
+    base = tmp_path / "results"
+    run_dir = _make_verified_run(base)
+    assert cli.main(["verify-checksums", "--base-dir", str(base)]) == 0
+    (run_dir / "events.jsonl").write_text('{"outcome": "tampered"}\n', "utf-8")
+    assert cli.main(["verify-checksums", "--base-dir", str(base)]) == 1
+
+
+def test_verify_checksums_exits_2_on_missing_base_dir(tmp_path, capsys) -> None:
+    missing = tmp_path / "does-not-exist"
+    assert cli.main(["verify-checksums", "--base-dir", str(missing)]) == 2
+    assert "does not exist" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# run (external conditions are never driven by the simulator harness)
+# ---------------------------------------------------------------------------
+
+
+def test_run_with_external_condition_run_id_exits_2(tmp_path, capsys) -> None:
+    plan_path = tmp_path / "campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan_path)
+    rc = cli.main(
+        [
+            "run",
+            "--run-id",
+            "qemu_boot-r01",
+            "--plan",
+            str(plan_path),
+            "--base-dir",
+            str(tmp_path / "results"),
+        ]
+    )
+    assert rc == 2
+    err = capsys.readouterr().err
+    assert "not driven by the simulator" in err
+    # The refusal points to the ingestion path for external evidence.
+    assert "--external-timings" in err
+    # Nothing was created: the refusal happens before any side effect.
+    assert not (tmp_path / "results").exists()
+
+
+# ---------------------------------------------------------------------------
+# run: new collection/validity flags parse (audit 9.1-9.7)
+# ---------------------------------------------------------------------------
+
+
+def test_run_parser_accepts_collection_and_hook_flags() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "run",
+            "--run-id",
+            "nominal-r01",
+            "--fetch-events-cmd",
+            "scp vm:/opt/egw/data/events/{run_id}/events.jsonl {dest}",
+            "--sut-env-from",
+            "sut_environment.json",
+            "--resources-from",
+            "resources.csv",
+            "--allow-missing-sut-env",
+            "--allow-missing-resources",
+            "--controller-url",
+            "http://127.0.0.1:8000",
+            "--restart-cmd",
+            "ssh vm docker compose restart controller",
+            "--restart-at-s",
+            "300",
+            "--external-timings",
+            "timings.json",
+            "--external-logs",
+            "logs",
+            "--local-resources",
+            "--allow-warmup-failure",
+            "--allow-protocol-deviation",
+        ]
+    )
+    assert args.fetch_events_cmd.endswith("{dest}")
+    assert args.sut_env_from == "sut_environment.json"
+    assert args.resources_from == "resources.csv"
+    assert args.allow_missing_sut_env is True
+    assert args.allow_missing_resources is True
+    assert args.controller_url == "http://127.0.0.1:8000"
+    assert args.restart_at_s == 300.0
+    assert args.external_timings == "timings.json"
+    assert args.local_resources is True
+    # Work order P1 fix 5: deviation-authorization flags.
+    assert args.allow_warmup_failure is True
+    assert args.allow_protocol_deviation is True
+
+
+def test_run_parser_deviation_flags_default_false() -> None:
+    args = cli.build_parser().parse_args(["run", "--run-id", "nominal-r01"])
+    assert args.allow_warmup_failure is False
+    assert args.allow_protocol_deviation is False
+
+
+# ---------------------------------------------------------------------------
+# run/campaign: sprint P5 flags (collector hooks, confirmation marker)
+# ---------------------------------------------------------------------------
+
+
+COLLECTOR_START = (
+    "ssh vm 'systemd-run --unit egw-resources-{run_id} --collect sh "
+    "/opt/egw/src/deployment/scripts/collect-resources.sh "
+    "/tmp/resources-{run_id}.csv --duration {duration_s}'"
+)
+COLLECTOR_STOP = "ssh vm 'systemctl stop egw-resources-{run_id}'"
+COLLECTOR_FETCH = "scp vm:/tmp/resources-{run_id}.csv {dest}"
+
+
+def test_run_parser_accepts_collector_hooks_and_marker_override() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "run",
+            "--run-id",
+            "nominal-r01",
+            "--collector-start-cmd",
+            COLLECTOR_START,
+            "--collector-stop-cmd",
+            COLLECTOR_STOP,
+            "--collector-fetch-cmd",
+            COLLECTOR_FETCH,
+            "--allow-missing-controller-marker",
+        ]
+    )
+    assert "{duration_s}" in args.collector_start_cmd
+    assert "{run_id}" in args.collector_stop_cmd
+    assert args.collector_fetch_cmd.endswith("{dest}")
+    assert args.allow_missing_controller_marker is True
+
+
+def test_campaign_parser_accepts_collector_hooks_and_marker_override() -> None:
+    args = cli.build_parser().parse_args(
+        [
+            "campaign",
+            "--collector-start-cmd",
+            COLLECTOR_START,
+            "--collector-stop-cmd",
+            COLLECTOR_STOP,
+            "--collector-fetch-cmd",
+            COLLECTOR_FETCH,
+            "--allow-missing-controller-marker",
+        ]
+    )
+    assert "{duration_s}" in args.collector_start_cmd
+    assert args.collector_fetch_cmd.endswith("{dest}")
+    assert args.allow_missing_controller_marker is True
+
+
+def test_p5_flags_default_to_off() -> None:
+    parser = cli.build_parser()
+    run_args = parser.parse_args(["run", "--run-id", "nominal-r01"])
+    assert run_args.collector_start_cmd is None
+    assert run_args.collector_stop_cmd is None
+    assert run_args.collector_fetch_cmd is None
+    assert run_args.allow_missing_controller_marker is False
+    camp_args = parser.parse_args(["campaign"])
+    assert camp_args.collector_fetch_cmd is None
+    assert camp_args.allow_missing_controller_marker is False
+    # 'collect' can re-apply the authorization but never re-measures the
+    # marker, so it takes the flag without the hooks.
+    col_args = parser.parse_args(["collect", "--run-id", "nominal-r01"])
+    assert col_args.allow_missing_controller_marker is False
+    assert not hasattr(col_args, "collector_start_cmd")
+
+
+# ---------------------------------------------------------------------------
+# run/campaign/collect: --expect-services (collector output accounting, on
+# the hooks' output and on the manual --resources-from path alike)
+# ---------------------------------------------------------------------------
+
+
+SIX_SERVICES = (
+    "egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,"
+    "egw-ditto-gateway-1,egw-controller-1"
+)
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        ["run", "--run-id", "nominal-r01"],
+        ["campaign"],
+        ["collect", "--run-id", "nominal-r01"],
+    ],
+)
+def test_run_campaign_and_collect_parse_expect_services_into_a_list(command) -> None:
+    args = cli.build_parser().parse_args([*command, "--expect-services", SIX_SERVICES])
+    assert args.expect_services == SIX_SERVICES.split(",")
+    defaults = cli.build_parser().parse_args(command)
+    assert defaults.expect_services is None
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["", "egw-controller-1,", "egw controller", "egw-controller-1;rm", "a,,b", "a,a"],
+)
+def test_expect_services_rejects_names_the_collector_would_refuse(
+    value, capsys, monkeypatch
+) -> None:
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(
+            ["run", "--run-id", "nominal-r01", "--expect-services", value]
+        )
+    assert exc.value.code == 2
+    assert "--expect-services" in capsys.readouterr().err
+
+
+def test_expect_services_is_forwarded_by_run_campaign_and_collect(monkeypatch) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen["run"] = kwargs.get("expect_services")
+        return 0
+
+    def fake_run_campaign(plan, **kwargs):
+        seen["campaign"] = kwargs.get("expect_services")
+        return 0
+
+    def fake_collect_run(run_id, **kwargs):
+        seen["collect"] = kwargs.get("expect_services")
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    monkeypatch.setattr(cli, "run_campaign", fake_run_campaign)
+    monkeypatch.setattr(cli, "collect_run", fake_collect_run)
+    assert cli.main(["run", "--run-id", "nominal-r01", "--expect-services", SIX_SERVICES]) == 0
+    assert cli.main(["campaign", "--expect-services", SIX_SERVICES]) == 0
+    assert cli.main(
+        [
+            "collect", "--run-id", "nominal-r01", "--resources-from", "r.csv",
+            "--expect-services", SIX_SERVICES,
+        ]
+    ) == 0
+    expected = SIX_SERVICES.split(",")
+    assert seen == {"run": expected, "campaign": expected, "collect": expected}
+
+
+def test_run_passes_the_started_at_read_through_and_campaign_does_not_take_it(monkeypatch, capsys) -> None:
+    """Decision 1a (adopted 2026-09-30): --fetch-started-at-cmd is an option of
+    'run' (test 6 hands it to its harness); absent, execute_run gets None and
+    every run is as before. The campaign does not take it."""
+    seen: dict[str, object] = {}
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen.setdefault("run", []).append(kwargs.get("fetch_started_at_cmd", "missing"))
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    template = 'bash "tools/session/fetch_started_at.sh" "{dest}"'
+    assert cli.main(["run", "--run-id", "controller_restart-r01", "--fetch-started-at-cmd", template]) == 0
+    assert cli.main(["run", "--run-id", "controller_restart-r01"]) == 0
+    assert seen["run"] == [template, None]
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(["campaign", "--fetch-started-at-cmd", template])
+    assert exc.value.code == 2
+    assert "--fetch-started-at-cmd" in capsys.readouterr().err
+
+
+def test_run_passes_the_restart_transition_rule_through_and_names_only_the_adopted_one(
+    monkeypatch, capsys
+) -> None:
+    """The restart transition rule (option A, qualified; adopted 2026-10-05): an
+    explicit option of 'run' naming the rule; absent, execute_run gets None and
+    every run is as before. Another name, or the campaign, is refused."""
+    seen: list[object] = []
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen.append(kwargs.get("restart_transition_rule", "missing"))
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    rule = "1a-option-a-2026-10-05"
+    assert cli.main(["run", "--run-id", "controller_restart-r01", "--restart-transition-rule", rule]) == 0
+    assert cli.main(["run", "--run-id", "controller_restart-r01"]) == 0
+    assert seen == [rule, None]
+    for argv in (
+        ["run", "--run-id", "controller_restart-r01", "--restart-transition-rule", "1a-option-b"],
+        ["campaign", "--restart-transition-rule", rule],
+    ):
+        with pytest.raises(SystemExit) as exc:
+            cli.build_parser().parse_args(argv)
+        assert exc.value.code == 2
+        assert "--restart-transition-rule" in capsys.readouterr().err
+
+
+def test_run_and_campaign_forward_the_declared_execution_mode(monkeypatch) -> None:
+    """G4 core provenance (plan 655-661): --execution-mode is a run-level
+    option of 'run' and 'campaign'; absent, the harness gets None (no default,
+    no environment fallback) and records the run as invalid."""
+    seen: dict[str, list[object]] = {"run": [], "campaign": []}
+
+    def fake_execute_run(plan, run_id, **kwargs):
+        seen["run"].append(kwargs.get("execution_mode", "missing"))
+        return 0
+
+    def fake_run_campaign(plan, **kwargs):
+        seen["campaign"].append(kwargs.get("execution_mode", "missing"))
+        return 0
+
+    monkeypatch.setattr(cli, "execute_run", fake_execute_run)
+    monkeypatch.setattr(cli, "run_campaign", fake_run_campaign)
+    monkeypatch.setenv("EGW_EXECUTION_MODE", "tcg-emulated")
+    for mode in ("tcg-emulated", "native-kvm", "native-metal"):
+        assert cli.main(["run", "--run-id", "nominal-r01", "--execution-mode", mode]) == 0
+        assert cli.main(["campaign", "--execution-mode", mode]) == 0
+    assert cli.main(["run", "--run-id", "nominal-r01"]) == 0
+    assert cli.main(["campaign"]) == 0
+    expected = ["tcg-emulated", "native-kvm", "native-metal", None]
+    assert seen == {"run": expected, "campaign": expected}
+
+
+@pytest.mark.parametrize(
+    "argv",
+    [
+        ["run", "--run-id", "nominal-r01", "--execution-mode", "emulated-qemu-tcg"],
+        ["campaign", "--execution-mode", "TCG-EMULATED"],
+        ["run", "--run-id", "nominal-r01", "--execution-mode", ""],
+        ["collect", "--run-id", "nominal-r01", "--execution-mode", "tcg-emulated"],
+    ],
+    ids=["run-unknown", "campaign-case", "run-empty", "collect"],
+)
+def test_execution_mode_takes_only_the_three_tokens_and_collect_has_none(argv, capsys) -> None:
+    with pytest.raises(SystemExit) as exc:
+        cli.build_parser().parse_args(argv)
+    assert exc.value.code == 2
+    assert "--execution-mode" in capsys.readouterr().err
+
+
+def test_execution_mode_help_states_no_default_and_no_environment_fallback(monkeypatch, capsys) -> None:
+    monkeypatch.setenv("COLUMNS", "10000")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    for command in (["run", "--help"], ["campaign", "--help"]):
+        with pytest.raises(SystemExit) as exc:
+            cli.main(command)
+        assert exc.value.code == 0
+        flat = " ".join(capsys.readouterr().out.split())
+        assert "--execution-mode {tcg-emulated,native-kvm,native-metal}" in flat
+        assert "no default and no environment fallback" in flat
+        assert "invalid" in flat
+
+
+def test_collector_help_uses_the_guest_path_and_quotes_dest(monkeypatch, capsys) -> None:
+    # A wide terminal keeps argparse from wrapping inside hyphenated paths;
+    # no colour codes (argparse >= 3.14 may colour its help).
+    monkeypatch.setenv("COLUMNS", "10000")
+    monkeypatch.setenv("NO_COLOR", "1")
+    monkeypatch.delenv("FORCE_COLOR", raising=False)
+    with pytest.raises(SystemExit) as exc:
+        cli.main(["run", "--help"])
+    assert exc.value.code == 0
+    flat = " ".join(capsys.readouterr().out.split())
+    assert "/opt/egw/deployment/scripts/collect-resources.sh" in flat
+    assert "/opt/egw/src/deployment" not in flat
+    assert '"{dest}"' in flat
+    assert "{expect_services}" in flat
+
+
+# ---------------------------------------------------------------------------
+# analyze: identity completeness needs the plan on the OFFICIAL command
+# ---------------------------------------------------------------------------
+
+
+def test_analyze_parser_takes_plan_defaulting_to_the_frozen_plan() -> None:
+    """The shipped 'analyze' must be able to do identity completeness: the
+    subcommand carries --plan with the SAME default as run/campaign/collect,
+    so the frozen plan is used automatically when it exists (sprint P5.4)."""
+    args = cli.build_parser().parse_args(["analyze"])
+    assert args.plan == DEFAULT_PLAN_PATH
+    explicit = cli.build_parser().parse_args(["analyze", "--plan", "other.json"])
+    assert explicit.plan == Path("other.json")
+
+
+def test_analyze_usage_and_help_document_plan_and_env_fallback(capsys) -> None:
+    # The usage docstring is the shipped documentation of the subcommand.
+    assert "analyze [--base-dir PATH] [--plan PATH]" in (cli.__doc__ or "")
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["analyze", "--help"])
+    help_text = capsys.readouterr().out
+    assert "--plan" in help_text
+    # The environment-variable fallback of analyze() must be documented
+    # where the operator looks for it.
+    assert CAMPAIGN_PLAN_ENV_VAR in help_text
+    assert "IDENTITY-based" in help_text
+
+
+def test_analyze_takes_no_execution_mode_option(capsys) -> None:
+    """The execution mode comes from each run's own records, with no
+    default: the analysis has no option that sets, overrides or filters it
+    (G4 core provenance, plan 655-661)."""
+    with pytest.raises(SystemExit):
+        cli.build_parser().parse_args(["analyze", "--execution-mode", "tcg-emulated"])
+    capsys.readouterr()
+
+
+def _empty_results_tree(tmp_path: Path) -> Path:
+    base = tmp_path / "results"
+    (base / "raw").mkdir(parents=True)
+    return base
+
+
+def _acceptance_rows(base: Path) -> list[dict]:
+    text = (base / "processed" / "acceptance_by_condition.csv").read_text("utf-8")
+    return list(csv.DictReader(text.splitlines()))
+
+
+def test_analyze_cli_forwards_plan_to_identity_completeness(tmp_path, capsys) -> None:
+    base = _empty_results_tree(tmp_path)
+    plan_path = tmp_path / "campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan_path)
+
+    assert cli.main(["analyze", "--base-dir", str(base), "--plan", str(plan_path)]) == 0
+
+    out = capsys.readouterr().out
+    assert "BY COUNT ONLY" not in out
+    complete = next(
+        r
+        for r in _acceptance_rows(base)
+        if r["condition_id"] == "smoke_sequence" and r["criterion"] == "runs_complete"
+    )
+    # Identity checking really ran: the missing runs are named, not counted.
+    assert "identity mismatch vs campaign plan" in complete["observed"]
+    assert "identity checking NOT performed" not in complete["observed"]
+
+
+def test_analyze_cli_without_an_existing_plan_degrades_to_counts(
+    tmp_path, capsys
+) -> None:
+    """A missing plan file degrades to count-only completeness with the
+    existing warning; the analysis never fails because of it."""
+    base = _empty_results_tree(tmp_path)
+    missing = tmp_path / "campaign_plan.json"
+
+    assert cli.main(["analyze", "--base-dir", str(base), "--plan", str(missing)]) == 0
+
+    captured = capsys.readouterr()
+    assert "could not be read" in captured.err
+    assert "BY COUNT ONLY" in captured.out
+    complete = next(
+        r
+        for r in _acceptance_rows(base)
+        if r["condition_id"] == "smoke_sequence" and r["criterion"] == "runs_complete"
+    )
+    assert "identity checking NOT performed" in complete["observed"]
+
+
+def test_analyze_cli_absent_default_plan_falls_back_to_env_var(
+    tmp_path, monkeypatch, capsys
+) -> None:
+    """A results tree analyzed before the plan is frozen is not an operator
+    error: the absent DEFAULT plan degrades to counts quietly and the
+    documented EGW_CAMPAIGN_PLAN fallback stays reachable."""
+    base = _empty_results_tree(tmp_path)
+    plan_path = tmp_path / "env_campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan_path)
+    monkeypatch.setattr(cli, "DEFAULT_PLAN_PATH", tmp_path / "absent_plan.json")
+
+    monkeypatch.delenv(CAMPAIGN_PLAN_ENV_VAR, raising=False)
+    assert cli.main(["analyze", "--base-dir", str(base)]) == 0
+    captured = capsys.readouterr()
+    assert "BY COUNT ONLY" in captured.out
+    assert "could not be read" not in captured.err
+
+    monkeypatch.setenv(CAMPAIGN_PLAN_ENV_VAR, str(plan_path))
+    assert cli.main(["analyze", "--base-dir", str(base)]) == 0
+    assert "BY COUNT ONLY" not in capsys.readouterr().out
+    complete = next(
+        r
+        for r in _acceptance_rows(base)
+        if r["condition_id"] == "smoke_sequence" and r["criterion"] == "runs_complete"
+    )
+    assert "identity mismatch vs campaign plan" in complete["observed"]
+
+
+# ---------------------------------------------------------------------------
+# collect (recovery path, audit 9.3)
+# ---------------------------------------------------------------------------
+
+
+def test_collect_on_missing_run_dir_exits_2(tmp_path, capsys) -> None:
+    plan_path = tmp_path / "campaign_plan.json"
+    plan_gen.write_campaign_plan(plan_gen.generate_campaign_plan(42), plan_path)
+    rc = cli.main(
+        [
+            "collect",
+            "--run-id",
+            "nominal-r01",
+            "--plan",
+            str(plan_path),
+            "--base-dir",
+            str(tmp_path / "results"),
+        ]
+    )
+    assert rc == 2
+    assert "only recovers runs already executed" in capsys.readouterr().err

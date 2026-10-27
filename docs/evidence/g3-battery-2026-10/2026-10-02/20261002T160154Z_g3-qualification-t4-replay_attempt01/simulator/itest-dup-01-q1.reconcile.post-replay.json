@@ -1,0 +1,35 @@
+{
+  "run_id": "itest-dup-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 672,
+  "sent_valid": 672,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 672,
+  "lost": 0,
+  "late_confirmations": 0,
+  "duplicates": 672,
+  "double_accepted": 0,
+  "failed": 0,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 672,
+  "latency_count": 672,
+  "latency_ms_p50": 2053.257256,
+  "latency_ms_p95": 3972.0868543999995,
+  "latency_ms_max": 4331.792432,
+  "marker_lag_s": 0.138,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 672,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": [
+    "IMPLAUSIBLE controller confirmation marker for run itest-dup-01-q1: the manifest deadline (4070196859790) precedes the last received_monotonic_ns (4397327294622) although it claims clock_domain 'controller'; the deadline is used as recorded but the run's clock domain is suspect (report 5.2)"
+  ]
+}

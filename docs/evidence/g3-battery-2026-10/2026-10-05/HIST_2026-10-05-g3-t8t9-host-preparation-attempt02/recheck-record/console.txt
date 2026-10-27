@@ -1,0 +1,36 @@
+s3b_recheck.sh sha256 2344e9d603dddc731fda440e1fb0efef9ed82cd39bc8800bb796ca6e65c7d1ae
+
+## 2026-10-05T11:17:13Z no guest, no open session
+no qemu-system-aarch64 process
+no current_session
+
+## 2026-10-05T11:17:13Z execution clone and helper
+clone HEAD=8e492613d36490a560ae56beabd6d5c2c01a8696 tree=2f0514837f267d8975f7071041aad14a5c18dcab porcelain lines=0
+helper sha256=e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb lines=545
+
+## 2026-10-05T11:17:13Z root file system before the listing
+rootfs-ext4: b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093  /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+expected:    b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093 (rootfs_after_close of the first opening of S3)
+
+## 2026-10-05T11:17:16Z the -q2 identifiers on the host (file names under ~/egw-tcg, ~/egw-exec/attempts and output_test)
+fresh on the host: itest-reboot-q2
+fresh on the host: itest-post-reboot-01-q2
+fresh on the host: itest-tls-wrongca-q2
+fresh on the host: itest-auth-wrongpw-q2
+fresh on the host: itest-notls-q2
+
+## 2026-10-05T11:17:24Z earlier attempts of rows t8 and t9
+/home/ruisth/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+t8 attempts listed: 2 (other than S2's attempt01: 0); t9 attempts listed: 0
+
+## 2026-10-05T11:17:24Z the -q2 identifiers on the guest root file system (offline, read-only: debugfs -c)
+guest event directories listed: 37 names
+fresh on the guest: itest-reboot-q2
+fresh on the guest: itest-post-reboot-01-q2
+fresh on the guest: itest-tls-wrongca-q2
+fresh on the guest: itest-auth-wrongpw-q2
+fresh on the guest: itest-notls-q2
+rootfs-ext4-after-listing: b48b010d571689ae03d610175fd1b127f6ef6b30f78b25448e6f32a3096de093
+
+outcome=checked (at 2026-10-05T11:17:25Z)

@@ -1,0 +1,33 @@
+{
+  "run_id": "itest-ditto-fault-01-q1",
+  "confirmation_deadline_source": "controller-marker",
+  "sent_total": 3360,
+  "sent_valid": 3360,
+  "intended_invalid_sent": 0,
+  "delivered_unique": 1465,
+  "lost": 1895,
+  "late_confirmations": 1890,
+  "duplicates": 0,
+  "double_accepted": 0,
+  "failed": 5,
+  "rejected_valid": 0,
+  "rejected_intended_invalid": 0,
+  "rejected_unmatched": 0,
+  "intended_invalid_accepted": 0,
+  "confirmed_unmatched": 0,
+  "events_accepted_total": 3355,
+  "latency_count": 1465,
+  "latency_ms_p50": 11847.18616,
+  "latency_ms_p95": 225921.5796704,
+  "latency_ms_max": 228979.440096,
+  "marker_lag_s": 0.151,
+  "sim_completed": true,
+  "sim_totals": {
+    "sent": 3360,
+    "intended_invalid": 0,
+    "buffered_dropout": 0,
+    "dropout_disconnects": 0
+  },
+  "latency_label": "ARM64 EMULATED (QEMU/TCG); not a performance result",
+  "warnings": []
+}

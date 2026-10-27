@@ -1,0 +1,28 @@
+## broker listener and TLS material, from mosquitto.conf (configuration, never secrets)
+listener 8883 0.0.0.0
+protocol mqtt
+cafile /mosquitto/config/certs/ca.crt
+certfile /mosquitto/config/certs/server.crt
+keyfile /mosquitto/config/certs/server.key
+require_certificate false
+tls_version tlsv1.2
+allow_anonymous false
+password_file /mosquitto/config/passwd
+acl_file /mosquitto/config/acl
+## the files the broker itself names, translated into the deployed tree
+cafile /mosquitto/config/certs/ca.crt -> mosquitto/config/certs/ca.crt
+certfile /mosquitto/config/certs/server.crt -> mosquitto/config/certs/server.crt
+keyfile /mosquitto/config/certs/server.key -> mosquitto/config/certs/server.key
+password_file /mosquitto/config/passwd -> mosquitto/config/passwd
+acl_file /mosquitto/config/acl -> mosquitto/config/acl
+## the certificate authority the broker itself names (never its private material)
+subject=O=C2DTA EGW dev, CN=EGW Dev Root CA
+notAfter=Dec 21 18:56:14 2028 GMT
+sha256 Fingerprint=AA:34:ED:1E:B4:15:2D:1A:F3:A5:B1:9C:89:37:C6:C1:F9:00:E5:A6:CB:56:C4:BD:5B:E3:A2:A1:B0:B3:E6:DF
+## modes and ownership of the material the broker names (never a byte of it)
+644 egw:egw 1911 mosquitto/config/certs/ca.crt
+644 egw:egw 1631 mosquitto/config/certs/server.crt
+600 UNKNOWN:UNKNOWN 1708 mosquitto/config/certs/server.key
+600 UNKNOWN:UNKNOWN 255 mosquitto/config/passwd
+640 UNKNOWN:UNKNOWN 472 mosquitto/config/acl
+TLS AT THE GATE: the broker listens on 8883 with tlsv1.2 and names a certificate authority, a certificate and a key that are in the deployed tree; allow_anonymous is false, which is the configuration and not an exercised refusal

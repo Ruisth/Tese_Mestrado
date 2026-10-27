@@ -1,0 +1,729 @@
+2026-08-14 00:18:06 - INFO     - kas 5.4 started on Ubuntu noble
+2026-08-14 00:18:06 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-08-14 00:18:06 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-08-14 00:18:06 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-08-14 00:18:06 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-08-14 00:18:06 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-08-14 00:18:06 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+2026-08-14 00:18:06 - INFO     - To start the default build, run: bitbake -c build egw-image
+runqemu - INFO - Running MACHINE=qemuarm64 bitbake -e  ...
+runqemu - INFO - Continuing with the following parameters:
+KERNEL: [/home/ruisth/yocto/egw-g1-20260813-f0e19d5/src/yocto/build/tmp/deploy/images/qemuarm64/Image]
+MACHINE: [qemuarm64]
+FSTYPE: [ext4]
+ROOTFS: [/home/ruisth/yocto/egw-g1-20260813-f0e19d5/src/yocto/build/tmp/deploy/images/qemuarm64/egw-image-qemuarm64.rootfs-20260813221142.ext4]
+CONFFILE: [/home/ruisth/yocto/egw-g1-20260813-f0e19d5/src/yocto/build/tmp/deploy/images/qemuarm64/egw-image-qemuarm64.rootfs.qemuboot.conf]
+
+runqemu - INFO - Network configuration: ip=dhcp
+runqemu - INFO - Port forward: hostfwd=tcp:127.0.0.1:2222-:22 hostfwd=tcp:127.0.0.1:2323-:23
+runqemu - INFO - Running /home/ruisth/yocto/egw-g1-20260813-f0e19d5/src/yocto/build/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device virtio-net-pci,netdev=net0,mac=52:54:00:12:35:02 -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:2323-:23,tftp=/home/ruisth/yocto/egw-g1-20260813-f0e19d5/src/yocto/build/tmp/deploy/images/qemuarm64 -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 -drive id=disk0,file=/home/ruisth/yocto/egw-g1-20260813-f0e19d5/src/yocto/build/tmp/deploy/images/qemuarm64/egw-image-qemuarm64.rootfs-20260813221142.ext4,if=none,format=raw -device virtio-blk-pci,drive=disk0 -device qemu-xhci -device usb-tablet -device usb-kbd  -machine virt -cpu cortex-a57 -smp 4 -m 256 -serial mon:stdio -serial null -nographic -device virtio-gpu-pci -kernel /home/ruisth/yocto/egw-g1-20260813-f0e19d5/src/yocto/build/tmp/deploy/images/qemuarm64/Image -append 'root=/dev/vda rw  mem=256M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0 '
+
+runqemu - INFO - Host uptime: 37.68
+
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x411fd070]
+[    0.000000] Linux version 6.6.142-yocto-standard (oe-user@oe-host) (aarch64-poky-linux-gcc (GCC) 13.4.0, GNU ld (GNU Binutils) 2.42.0.20240723) #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026
+[    0.000000] random: crng init done
+[    0.000000] Machine model: linux,dummy-virt
+[    0.000000] Memory limited to 256MB
+[    0.000000] efi: UEFI not found.
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000040000000-0x000000004fffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   empty
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x000000004fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x000000004fffffff]
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: Trusted OS migration not required
+[    0.000000] psci: SMC Calling Convention v1.0
+[    0.000000] percpu: Embedded 27 pages/cpu s73320 r8192 d29080 u110592
+[    0.000000] Detected PIPT I-cache on CPU0
+[    0.000000] CPU features: detected: Spectre-v2
+[    0.000000] CPU features: detected: Spectre-v4
+[    0.000000] CPU features: detected: Spectre-BHB
+[    0.000000] CPU features: detected: ARM erratum 1742098
+[    0.000000] CPU features: detected: ARM erratum 832075
+[    0.000000] CPU features: detected: ARM errata 1165522, 1319367, or 1530923
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: root=/dev/vda rw  mem=256M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0 
+[    0.000000] Dentry cache hash table entries: 32768 (order: 6, 262144 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 64512
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.000000] software IO TLB: area num 4.
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size roundup to 1MB
+[    0.000000] software IO TLB: mapped [mem 0x000000004f700000-0x000000004f800000] (1MB)
+[    0.000000] Memory: 228068K/262144K available (13632K kernel code, 2016K rwdata, 3204K rodata, 4608K init, 557K bss, 34076K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] ftrace: allocating 41946 entries in 164 pages
+[    0.000000] ftrace: allocated 164 pages with 3 groups
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU event tracing is enabled.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=256 to nr_cpu_ids=4.
+[    0.000000] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000] 	Rude variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] Root IRQ handler: gic_handle_irq
+[    0.000000] GICv2m: range[mem 0x08020000-0x08020fff], SPI[80:143]
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] arch_timer: cp15 timer(s) running at 62.50MHz (virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0x1ffffffffffffff max_cycles: 0x1cd42e208c, max_idle_ns: 881590405314 ns
+[    0.000044] sched_clock: 57 bits at 63MHz, resolution 16ns, wraps every 4398046511096ns
+[    0.016842] kfence: initialized - using 2097152 bytes for 255 objects at 0x(____ptrval____)-0x(____ptrval____)
+[    0.020698] Console: colour dummy device 80x25
+[    0.021371] Calibrating delay loop (skipped), value calculated using timer frequency.. 125.00 BogoMIPS (lpj=250000)
+[    0.021478] pid_max: default: 32768 minimum: 301
+[    0.022251] LSM: initializing lsm=capability,landlock,integrity
+[    0.022500] landlock: Up and running.
+[    0.024013] Mount-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+[    0.024037] Mountpoint-cache hash table entries: 512 (order: 0, 4096 bytes, linear)
+[    0.041361] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    0.048824] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.048979] RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.049219] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.050104] rcu: Hierarchical SRCU implementation.
+[    0.050127] rcu: 	Max phase no-delay instances is 1000.
+[    0.052164] EFI services will not be available.
+[    0.053111] smp: Bringing up secondary CPUs ...
+[    0.056260] Detected PIPT I-cache on CPU1
+[    0.056969] CPU1: Booted secondary processor 0x0000000001 [0x411fd070]
+[    0.059980] Detected PIPT I-cache on CPU2
+[    0.060111] CPU2: Booted secondary processor 0x0000000002 [0x411fd070]
+[    0.061347] Detected PIPT I-cache on CPU3
+[    0.061483] CPU3: Booted secondary processor 0x0000000003 [0x411fd070]
+[    0.061832] smp: Brought up 1 node, 4 CPUs
+[    0.061856] SMP: Total of 4 processors activated.
+[    0.061901] CPU features: detected: 32-bit EL0 Support
+[    0.061932] CPU features: detected: CRC32 instructions
+[    0.064772] CPU: All CPU(s) started at EL1
+[    0.064790] alternatives: applying system-wide alternatives
+[    0.076147] devtmpfs: initialized
+[    0.082005] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.082155] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.085637] DMI not present or invalid.
+[    0.091154] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.094332] DMA: preallocated 128 KiB GFP_KERNEL pool for atomic allocations
+[    0.094464] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.094510] DMA: preallocated 128 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.096677] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.097521] ASID allocator initialised with 65536 entries
+[    0.097775] Serial: AMBA PL011 UART driver
+[    0.114827] 9000000.pl011: ttyAMA0 at MMIO 0x9000000 (irq = 13, base_baud = 0) is a PL011 rev1
+[    0.115469] printk: console [ttyAMA0] enabled
+[    0.189426] Modules: 26720 pages in range for non-PLT usage
+[    0.189453] Modules: 518240 pages in range for PLT usage
+[    0.265499] raid6: neonx8   gen()  5963 MB/s
+[    0.335031] raid6: neonx4   gen()  4766 MB/s
+[    0.404671] raid6: neonx2   gen()  2797 MB/s
+[    0.474511] raid6: neonx1   gen()  1626 MB/s
+[    0.550675] raid6: int64x8  gen()  2202 MB/s
+[    0.621146] raid6: int64x4  gen()  3259 MB/s
+[    0.690464] raid6: int64x2  gen()  3572 MB/s
+[    0.759859] raid6: int64x1  gen()  2659 MB/s
+[    0.760187] raid6: using algorithm neonx8 gen() 5963 MB/s
+[    0.829507] raid6: .... xor() 2447 MB/s, rmw enabled
+[    0.829942] raid6: using neon recovery algorithm
+[    0.831281] iommu: Default domain type: Translated
+[    0.831567] iommu: DMA domain TLB invalidation policy: strict mode
+[    0.832944] SCSI subsystem initialized
+[    0.833711] usbcore: registered new interface driver usbfs
+[    0.834507] usbcore: registered new interface driver hub
+[    0.834936] usbcore: registered new device driver usb
+[    0.835742] pps_core: LinuxPPS API ver. 1 registered
+[    0.836065] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.838324] PTP clock support registered
+[    0.846182] vgaarb: loaded
+[    0.847954] clocksource: Switched to clocksource arch_sys_counter
+[    0.882370] NET: Registered PF_INET protocol family
+[    0.883578] IP idents hash table entries: 4096 (order: 3, 32768 bytes, linear)
+[    0.889234] tcp_listen_portaddr_hash hash table entries: 256 (order: 0, 4096 bytes, linear)
+[    0.889549] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.889959] TCP established hash table entries: 2048 (order: 2, 16384 bytes, linear)
+[    0.890562] TCP bind hash table entries: 2048 (order: 4, 65536 bytes, linear)
+[    0.891385] TCP: Hash tables configured (established 2048 bind 2048)
+[    0.893667] UDP hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.894451] UDP-Lite hash table entries: 256 (order: 1, 8192 bytes, linear)
+[    0.896957] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.900757] RPC: Registered named UNIX socket transport module.
+[    0.901114] RPC: Registered udp transport module.
+[    0.901382] RPC: Registered tcp transport module.
+[    0.901638] RPC: Registered tcp-with-tls transport module.
+[    0.902334] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    0.902922] PCI: CLS 0 bytes, default 64
+[    0.909592] workingset: timestamp_bits=46 max_order=16 bucket_order=0
+[    0.912457] NFS: Registering the id_resolver key type
+[    0.913269] Key type id_resolver registered
+[    0.913530] Key type id_legacy registered
+[    0.917669] Key type cifs.idmap registered
+[    0.950590] xor: measuring software checksum speed
+[    0.951479]    8regs           :  6757 MB/sec
+[    0.952526]    32regs          :  4335 MB/sec
+[    0.953464]    arm64_neon      :  4428 MB/sec
+[    0.953659] xor: using function: 8regs (6757 MB/sec)
+[    0.954091] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 250)
+[    0.955304] io scheduler mq-deadline registered
+[    0.956317] io scheduler kyber registered
+[    0.959044] pci-host-generic 4010000000.pcie: host bridge /pcie@10000000 ranges:
+[    0.961392] pci-host-generic 4010000000.pcie:       IO 0x003eff0000..0x003effffff -> 0x0000000000
+[    0.962380] pci-host-generic 4010000000.pcie:      MEM 0x0010000000..0x003efeffff -> 0x0010000000
+[    0.963048] pci-host-generic 4010000000.pcie:      MEM 0x8000000000..0xffffffffff -> 0x8000000000
+[    0.966824] pci-host-generic 4010000000.pcie: Memory resource size exceeds max for 32 bits
+[    0.967765] pci-host-generic 4010000000.pcie: ECAM at [mem 0x4010000000-0x401fffffff] for [bus 00-ff]
+[    0.973455] pci-host-generic 4010000000.pcie: PCI host bridge to bus 0000:00
+[    0.974425] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    0.974949] pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    0.975376] pci_bus 0000:00: root bus resource [mem 0x10000000-0x3efeffff]
+[    0.976849] pci_bus 0000:00: root bus resource [mem 0x8000000000-0xffffffffff]
+[    0.978449] pci 0000:00:00.0: [1b36:0008] type 00 class 0x060000
+[    0.981536] pci 0000:00:01.0: [1af4:1000] type 00 class 0x020000
+[    0.982210] pci 0000:00:01.0: BAR 0 [io  0x0000-0x001f]
+[    0.982833] pci 0000:00:01.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.983458] pci 0000:00:01.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.986207] pci 0000:00:01.0: ROM [mem 0x00000000-0x0003ffff pref]
+[    0.986823] pci 0000:00:02.0: [1af4:1005] type 00 class 0x00ff00
+[    0.987539] pci 0000:00:02.0: BAR 0 [io  0x0000-0x001f]
+[    0.989090] pci 0000:00:02.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.989442] pci 0000:00:02.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.990383] pci 0000:00:03.0: [1af4:1001] type 00 class 0x010000
+[    0.990871] pci 0000:00:03.0: BAR 0 [io  0x0000-0x007f]
+[    0.991274] pci 0000:00:03.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.991443] pci 0000:00:03.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.993699] pci 0000:00:04.0: [1b36:000d] type 00 class 0x0c0330
+[    0.994365] pci 0000:00:04.0: BAR 0 [mem 0x00000000-0x00003fff 64bit]
+[    0.996266] pci 0000:00:05.0: [1af4:1050] type 00 class 0x038000
+[    0.996945] pci 0000:00:05.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.997547] pci 0000:00:05.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.999608] pci 0000:00:01.0: ROM [mem 0x10000000-0x1003ffff pref]: assigned
+[    1.001249] pci 0000:00:01.0: BAR 4 [mem 0x8000000000-0x8000003fff 64bit pref]: assigned
+[    1.001853] pci 0000:00:02.0: BAR 4 [mem 0x8000004000-0x8000007fff 64bit pref]: assigned
+[    1.002752] pci 0000:00:03.0: BAR 4 [mem 0x8000008000-0x800000bfff 64bit pref]: assigned
+[    1.005187] pci 0000:00:04.0: BAR 0 [mem 0x800000c000-0x800000ffff 64bit]: assigned
+[    1.006214] pci 0000:00:05.0: BAR 4 [mem 0x8000010000-0x8000013fff 64bit pref]: assigned
+[    1.006501] pci 0000:00:01.0: BAR 1 [mem 0x10040000-0x10040fff]: assigned
+[    1.007127] pci 0000:00:02.0: BAR 1 [mem 0x10041000-0x10041fff]: assigned
+[    1.009051] pci 0000:00:03.0: BAR 1 [mem 0x10042000-0x10042fff]: assigned
+[    1.010016] pci 0000:00:05.0: BAR 1 [mem 0x10043000-0x10043fff]: assigned
+[    1.011077] pci 0000:00:03.0: BAR 0 [io  0x1000-0x107f]: assigned
+[    1.012994] pci 0000:00:01.0: BAR 0 [io  0x1080-0x109f]: assigned
+[    1.015340] pci 0000:00:02.0: BAR 0 [io  0x10a0-0x10bf]: assigned
+[    1.018220] pci 0000:00:04.0: enabling device (0000 -> 0002)
+[    1.023558] virtio-pci 0000:00:01.0: enabling device (0000 -> 0003)
+[    1.029827] virtio-pci 0000:00:02.0: enabling device (0000 -> 0003)
+[    1.031672] virtio-pci 0000:00:03.0: enabling device (0000 -> 0003)
+[    1.035029] virtio-pci 0000:00:05.0: enabling device (0000 -> 0002)
+[    1.047550] [drm] pci: virtio-gpu-pci detected at 0000:00:05.0
+[    1.048616] [drm] features: -virgl +edid -resource_blob -host_visible
+[    1.048635] [drm] features: -context_init
+[    1.050557] [drm] number of scanouts: 1
+[    1.051222] [drm] number of cap sets: 0
+[    1.058120] [drm] Initialized virtio_gpu 0.1.0 0 for 0000:00:05.0 on minor 0
+[    1.091504] Console: switching to colour frame buffer device 160x50
+[    1.099145] virtio-pci 0000:00:05.0: [drm] fb0: virtio_gpudrmfb frame buffer device
+[    1.126025] brd: module loaded
+[    1.137263] loop: module loaded
+[    1.137749] virtio_blk virtio2: 4/0/0 default/read/poll queues
+[    1.141676] virtio_blk virtio2: [vda] 5092334 512-byte logical blocks (2.61 GB/2.43 GiB)
+[    1.152996] xhci_hcd 0000:00:04.0: xHCI Host Controller
+[    1.153646] xhci_hcd 0000:00:04.0: new USB bus registered, assigned bus number 1
+[    1.158091] xhci_hcd 0000:00:04.0: hcc params 0x00087001 hci version 0x100 quirks 0x0000000000000010
+[    1.161922] xhci_hcd 0000:00:04.0: xHCI Host Controller
+[    1.162745] xhci_hcd 0000:00:04.0: new USB bus registered, assigned bus number 2
+[    1.164841] xhci_hcd 0000:00:04.0: Host supports USB 3.0 SuperSpeed
+[    1.170112] hub 1-0:1.0: USB hub found
+[    1.170712] hub 1-0:1.0: 4 ports detected
+[    1.173539] usb usb2: We don't know the algorithms for LPM for this host, disabling LPM.
+[    1.175254] hub 2-0:1.0: USB hub found
+[    1.176476] hub 2-0:1.0: 4 ports detected
+[    1.180772] rtc-pl031 9010000.pl031: registered as rtc0
+[    1.181747] rtc-pl031 9010000.pl031: setting system clock to 2026-08-13T23:18:14 UTC (1786663094)
+[    1.184224] device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@redhat.com
+[    1.186760] usbcore: registered new interface driver usbhid
+[    1.188469] usbhid: USB HID core driver
+[    1.191080] hw perfevents: enabled with armv8_pmuv3 PMU driver, 7 counters available
+[    1.192237] u32 classifier
+[    1.192510]     input device check on
+[    1.193007]     Actions configured
+[    1.194983] NET: Registered PF_INET6 protocol family
+[    1.202044] Segment Routing with IPv6
+[    1.202934] In-situ OAM (IOAM) with IPv6
+[    1.204486] sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+[    1.207323] NET: Registered PF_PACKET protocol family
+[    1.208615] Bridge firewalling registered
+[    1.209556] Key type dns_resolver registered
+[    1.210679] NET: Registered PF_VSOCK protocol family
+[    1.221931] registered taskstats version 1
+[    1.236428] Key type .fscrypt registered
+[    1.236918] Key type fscrypt-provisioning registered
+[    1.241443] Btrfs loaded, zoned=no, fsverity=no
+[    1.254361] Key type encrypted registered
+[    1.256768] printk: console [netcon0] enabled
+[    1.257066] netconsole: network logging started
+[    1.288213] Sending DHCP requests ., OK
+[    1.304527] IP-Config: Got DHCP answer from 10.0.2.2, my address is 10.0.2.15
+[    1.305210] IP-Config: Complete:
+[    1.305853]      device=eth0, hwaddr=52:54:00:12:35:02, ipaddr=10.0.2.15, mask=255.255.255.0, gw=10.0.2.2
+[    1.307379]      host=10.0.2.15, domain=, nis-domain=(none)
+[    1.307739]      bootserver=10.0.2.2, rootserver=10.0.2.2, rootpath=
+[    1.307880]      nameserver0=10.0.2.3
+[    1.313181] clk: Disabling unused clocks
+[    1.317225] md: Waiting for all devices to be available before autodetect
+[    1.317847] md: If you don't use raid, use raid=noautodetect
+[    1.318691] md: Autodetecting RAID arrays.
+[    1.319165] md: autorun ...
+[    1.319636] md: ... autorun DONE.
+[    1.382219] EXT4-fs (vda): mounted filesystem e7b0f111-cd9f-4425-8fc7-9277ae2b3d9f r/w with ordered data mode. Quota mode: disabled.
+[    1.385422] VFS: Mounted root (ext4 filesystem) on device 253:0.
+[    1.388638] devtmpfs: mounted
+[    1.419140] Freeing unused kernel memory: 4608K
+[    1.420480] Run /sbin/init as init process
+[    1.428432] usb 1-1: new high-speed USB device number 2 using xhci_hcd
+[    1.589449] input: QEMU QEMU USB Tablet as /devices/platform/4010000000.pcie/pci0000:00/0000:00:04.0/usb1/1-1/1-1:1.0/0003:0627:0001.0001/input/input0
+[    1.592653] hid-generic 0003:0627:0001.0001: input: USB HID v0.01 Mouse [QEMU QEMU USB Tablet] on usb-0000:00:04.0-1/input0
+[    1.712917] systemd[1]: systemd 255.21^ running in system mode (-PAM -AUDIT -SELINUX -APPARMOR +IMA -SMACK +SECCOMP -GCRYPT -GNUTLS -OPENSSL +ACL +BLKID -CURL -ELFUTILS -FIDO2 -IDN2 -IDN -IPTC +KMOD -LIBCRYPTSETUP +LIBFDISK -PCRE2 -PWQUALITY -P11KIT -QRENCODE -TPM2 -BZIP2 -LZ4 -XZ -ZLIB +ZSTD -BPF_FRAMEWORK +XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    1.724471] usb 1-2: new high-speed USB device number 3 using xhci_hcd
+[    1.725624] systemd[1]: Detected virtualization qemu.
+[    1.728415] systemd[1]: Detected architecture arm64.
+
+Welcome to [1mPoky (Yocto Project Reference Distro) 5.0.19 (scarthgap)[0m!
+
+[    1.740515] systemd[1]: Hostname set to <qemuarm64>.
+[    1.920261] input: QEMU QEMU USB Keyboard as /devices/platform/4010000000.pcie/pci0000:00/0000:00:04.0/usb1/1-2/1-2:1.0/0003:0627:0001.0002/input/input1
+[    2.003123] hid-generic 0003:0627:0001.0002: input: USB HID v1.11 Keyboard [QEMU QEMU USB Keyboard] on usb-0000:00:04.0-2/input0
+[    2.670648] systemd[1]: Queued start job for default target Multi-User System.
+[    2.730183] systemd[1]: Created slice Slice /system/getty.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/getty[0m.
+[    2.737446] systemd[1]: Created slice Slice /system/modprobe.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/modprobe[0m.
+[    2.742174] systemd[1]: Created slice Slice /system/serial-getty.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/serial-getty[0m.
+[    2.746825] systemd[1]: Created slice User and Session Slice.
+[[0;32m  OK  [0m] Created slice [0;1;39mUser and Session Slice[0m.
+[    2.750240] systemd[1]: Started Dispatch Password Requests to Console Directory Watch.
+[[0;32m  OK  [0m] Started [0;1;39mDispatch Password Requests to Console Directory Watch[0m.
+[    2.755106] systemd[1]: Started Forward Password Requests to Wall Directory Watch.
+[[0;32m  OK  [0m] Started [0;1;39mForward Password Requests to Wall Directory Watch[0m.
+[    2.761213] systemd[1]: Reached target Path Units.
+[[0;32m  OK  [0m] Reached target [0;1;39mPath Units[0m.
+[    2.762625] systemd[1]: Reached target Remote File Systems.
+[[0;32m  OK  [0m] Reached target [0;1;39mRemote File Systems[0m.
+[    2.765896] systemd[1]: Reached target Slice Units.
+[[0;32m  OK  [0m] Reached target [0;1;39mSlice Units[0m.
+[    2.767457] systemd[1]: Reached target Swaps.
+[[0;32m  OK  [0m] Reached target [0;1;39mSwaps[0m.
+[    2.852881] systemd[1]: Listening on RPCbind Server Activation Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mRPCbind Server Activation Socket[0m.
+[    2.857184] systemd[1]: Reached target RPC Port Mapper.
+[[0;32m  OK  [0m] Reached target [0;1;39mRPC Port Mapper[0m.
+[    2.862082] systemd[1]: Listening on Syslog Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mSyslog Socket[0m.
+[    2.865572] systemd[1]: Listening on initctl Compatibility Named Pipe.
+[[0;32m  OK  [0m] Listening on [0;1;39minitctl Compatibility Named Pipe[0m.
+[    2.906750] systemd[1]: Journal Audit Socket was skipped because of an unmet condition check (ConditionSecurity=audit).
+[    2.911541] systemd[1]: Listening on Journal Socket (/dev/log).
+[[0;32m  OK  [0m] Listening on [0;1;39mJournal Socket (/dev/log)[0m.
+[    2.914730] systemd[1]: Listening on Journal Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mJournal Socket[0m.
+[    2.919492] systemd[1]: Listening on Network Service Netlink Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mNetwork Service Netlink Socket[0m.
+[    2.925608] systemd[1]: Listening on udev Control Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mudev Control Socket[0m.
+[    2.927358] systemd[1]: Listening on udev Kernel Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mudev Kernel Socket[0m.
+[    2.930782] systemd[1]: Listening on User Database Manager Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mUser Database Manager Socket[0m.
+[    2.935604] systemd[1]: Huge Pages File System was skipped because of an unmet condition check (ConditionPathExists=/sys/kernel/mm/hugepages).
+[    2.987402] systemd[1]: Mounting POSIX Message Queue File System...
+         Mounting [0;1;39mPOSIX Message Queue File System[0m...
+[    3.002357] systemd[1]: Mounting Kernel Debug File System...
+         Mounting [0;1;39mKernel Debug File System[0m...
+[    3.025167] systemd[1]: Mounting Kernel Trace File System...
+         Mounting [0;1;39mKernel Trace File System[0m...
+[    3.041269] systemd[1]: Mounting Temporary Directory /tmp...
+         Mounting [0;1;39mTemporary Directory /tmp[0m...
+[    3.158540] systemd[1]: Starting Create List of Static Device Nodes...
+         Starting [0;1;39mCreate List of Static Device Nodes[0m...
+[    3.197523] systemd[1]: Starting Load Kernel Module configfs...
+         Starting [0;1;39mLoad Kernel Module configfs[0m...
+[    3.245859] systemd[1]: Starting Load Kernel Module drm...
+         Starting [0;1;39mLoad Kernel Module drm[0m...
+[    3.331669] systemd[1]: Starting Load Kernel Module fuse...
+         Starting [0;1;39mLoad Kernel Module fuse[0m...
+[    3.400993] systemd[1]: Starting RPC Bind...
+         Starting [0;1;39mRPC Bind[0m...
+[    3.406787] systemd[1]: File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+[    3.506766] systemd[1]: Starting Journal Service...
+         Starting [0;1;39mJournal Service[0m...
+[    3.525374] systemd[1]: Starting Load Kernel Modules...
+         Starting [0;1;39mLoad Kernel Modules[0m...
+[    3.581697] systemd[1]: Starting Generate network units from Kernel command line...
+         Starting [0;1;39mGenerate network units from Kernel command line[0m...
+[    3.624323] systemd[1]: Starting Remount Root and Kernel File Systems...
+         Starting [0;1;39mRemount Root and Kernel File Systems[0m...
+[    3.659231] systemd[1]: Starting Coldplug All udev Devices...
+         Starting [0;1;39mColdplug All udev Devices[0m...
+[    3.708749] systemd[1]: Mounted POSIX Message Queue File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mPOSIX Message Queue File System[0m.
+[    3.721674] systemd[1]: Mounted Kernel Debug File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Debug File System[0m.
+[    3.730113] systemd[1]: Mounted Kernel Trace File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Trace File System[0m.
+[    3.737590] systemd[1]: Mounted Temporary Directory /tmp.
+[[0;32m  OK  [0m] Mounted [0;1;39mTemporary Directory /tmp[0m.
+[    3.756570] systemd[1]: Finished Create List of Static Device Nodes.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate List of Static Device Nodes[0m.
+[    3.820474] systemd[1]: Starting Create Static Device Nodes in /dev gracefully...
+         Starting [0;1;39mCreate Static Device Nodes in /dev gracefully[0m...
+[    3.844619] systemd[1]: Started RPC Bind.
+[[0;32m  OK  [0m] Started [0;1;39mRPC Bind[0m.
+[    3.865013] systemd[1]: modprobe@drm.service: Deactivated successfully.
+[    3.874342] systemd[1]: Finished Load Kernel Module drm.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Module drm[0m.
+[    4.015117] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[    4.020194] systemd[1]: Finished Load Kernel Module configfs.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Module configfs[0m.
+[    4.045430] systemd[1]: Mounting Kernel Configuration File System...
+         Mounting [0;1;39mKernel Configuration File System[0m...
+[    4.276340] systemd[1]: Finished Generate network units from Kernel command line.
+[[0;32m  OK  [0m] Finished [0;1;39mGenerate network units from Kernel command line[0m.
+[    4.301831] fuse: init (API version 7.39)
+[    4.410755] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[    4.418012] systemd[1]: Finished Load Kernel Module fuse.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Module fuse[0m.
+[    4.426474] systemd[1]: Mounted Kernel Configuration File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Configuration File System[0m.
+[    4.498090] systemd[1]: Mounting FUSE Control File System...
+         Mounting [0;1;39mFUSE Control File System[0m...
+[    4.597616] openvswitch: Open vSwitch switching datapath
+[    4.714609] systemd-journald[114]: Collecting audit messages is disabled.
+[    4.717715] systemd[1]: Finished Load Kernel Modules.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Modules[0m.
+[    4.728537] EXT4-fs (vda): re-mounted e7b0f111-cd9f-4425-8fc7-9277ae2b3d9f.
+[    4.765027] systemd[1]: Starting Apply Kernel Variables...
+         Starting [0;1;39mApply Kernel Variables[0m...
+[    4.784750] systemd[1]: Mounted FUSE Control File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mFUSE Control File System[0m.
+[    4.801048] systemd[1]: Finished Remount Root and Kernel File Systems.
+[[0;32m  OK  [0m] Finished [0;1;39mRemount Root and Kernel File Systems[0m.
+[    4.819491] systemd[1]: Rebuild Hardware Database was skipped because of an unmet condition check (ConditionNeedsUpdate=/etc).
+[    4.926886] systemd[1]: Finished Create Static Device Nodes in /dev gracefully.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Static Device Nodes in /dev gracefully[0m.
+[    4.935012] systemd[1]: Create System Users was skipped because no trigger condition checks were met.
+[    4.973196] systemd[1]: Starting Create Static Device Nodes in /dev...
+         Starting [0;1;39mCreate Static Device Nodes in /dev[0m...
+[    5.046639] systemd[1]: Started Journal Service.
+[[0;32m  OK  [0m] Started [0;1;39mJournal Service[0m.
+         Starting [0;1;39mFlush Journal to Persistent Storage[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mApply Kernel Variables[0m.
+[    5.336974] systemd-journald[114]: Received client request to flush runtime journal.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Static Device Nodes in /dev[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mFlush Journal to Persistent Storage[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mPreparation for Local File Systems[0m.
+         Mounting [0;1;39m/var/volatile[0m...
+         Starting [0;1;39mRule-based Manager for Device Events and Files[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mColdplug All udev Devices[0m.
+[[0;32m  OK  [0m] Mounted [0;1;39m/var/volatile[0m.
+         Starting [0;1;39mLoad/Save OS Random Seed[0m...
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal File Systems[0m.
+         Starting [0;1;39mCreate System Files and Directories[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mLoad/Save OS Random Seed[0m.
+[[0;32m  OK  [0m] Started [0;1;39mRule-based Manager for Device Events and Files[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate System Files and Directories[0m.
+         Starting [0;1;39mNetwork Name Resolution[0m...
+         Starting [0;1;39mNetwork Time Synchronization[0m...
+         Starting [0;1;39mRecord System Boot/Shutdown in UTMP[0m...
+         Starting [0;1;39mUser Database Manager[0m...
+[    6.571653] virtio_net virtio0 enp0s1: renamed from eth0 (while UP)
+[[0;32m  OK  [0m] Finished [0;1;39mRecord System Boot/Shutdown in UTMP[0m.
+[[0;32m  OK  [0m] Started [0;1;39mUser Database Manager[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mLoad/Save RF Kill Switch Status /dev/rfkill Watch[0m.
+         Starting [0;1;39mVirtual Console Setup[0m...
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Time Synchronization[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Time Set[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Name Resolution[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mHost and Network Name Lookups[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mVirtual Console Setup[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Started [0;1;39mDaily Cleanup of Temporary Directories[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mTimer Units[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mAvahi mDNS/DNS-SD Stack Activation Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mD-Bus System Message Bus Socket[0m.
+         Starting [0;1;39mDocker Socket for the API[0m...
+         Starting [0;1;39msshd.socket[0m...
+[[0;32m  OK  [0m] Listening on [0;1;39mDocker Socket for the API[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39msshd.socket[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSocket Units[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mBasic System[0m.
+         Starting [0;1;39mAvahi mDNS/DNS-SD Stack[0m...
+[[0;32m  OK  [0m] Started [0;1;39mKernel Logging Service[0m.
+[[0;32m  OK  [0m] Started [0;1;39mSystem Logging Service[0m.
+         Starting [0;1;39mD-Bus System Message Bus[0m...
+[[0;32m  OK  [0m] Started [0;1;39mGetty on tty1[0m.
+         Starting [0;1;39mIPv6 Packet Filtering Framework[0m...
+         Starting [0;1;39mIPv4 Packet Filtering Framework[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSerial Getty on ttyAMA0[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLogin Prompts[0m.
+         Starting [0;1;39mUser Login Management[0m...
+         Starting [0;1;39mOpenSSH Key Generation[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mIPv6 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mIPv4 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mPreparation for Network[0m.
+         Starting [0;1;39mNetwork Configuration[0m...
+[[0;32m  OK  [0m] Started [0;1;39mD-Bus System Message Bus[0m.
+[[0;32m  OK  [0m] Started [0;1;39mAvahi mDNS/DNS-SD Stack[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mOpenSSH Key Generation[0m.
+[[0;32m  OK  [0m] Started [0;1;39mUser Login Management[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Configuration[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mNetwork[0m.
+         Starting [0;1;39mcontainerd container runtime[0m...
+         Starting [0;1;39mWait for Network to be Configured[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mWait for Network to be Configured[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mNetwork is Online[0m.
+[[0;32m  OK  [0m] Started [0;1;39mcontainerd container runtime[0m.
+         Starting [0;1;39mDocker Application Container Engine[0m...
+
+Poky (Yocto Project Reference Distro) 5.0.19 qemuarm64 ttyAMA0
+
+qemuarm64 login:
+[driver] >>> root
+ root
+
+WARNING: Poky is a reference Yocto Project distribution that should be used for
+testing and development purposes only. It is recommended that you create your
+own distribution for production use.
+
+7[r[999;999H[6n[   15.983917] Initializing XFRM netlink socket
+root@qemuarm64:~# 
+[driver] >>> dmesg -n 1
+
+[driver] >>> stty cols 1000 rows 1000 2>/dev/null || true
+
+[driver] >>> export PS1='EGW# '
+dmesg -n 1
+root@qemuarm64:~# stty cols 1000 rows 1000 2>/dev/null || true
+root@qemuarm64:~# export PS1='EGW# 
+[driver] >>> echo 'EGW_CHECK''_BEGIN_0'; uname -a; head -n 3 /etc/os-release; echo 'EGW_CHECK''_DONE_0'
+'
+EGW# echo 'EGW_CHECK''_BEGIN_0'; uname -a; head -n 3 /etc/os-release; echo 'EGW_CHECK''_DONE_0'
+EGW_CHECK_BEGIN_0
+Linux qemuarm64 6.6.142-yocto-standard #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026 aarch64 GNU/Linux
+ID=poky
+NAME="Poky (Yocto Project Reference Distro)"
+VERSION="5.0.19 (scarthgap)"
+EGW_CHECK_DONE_0
+[driver] >>> echo 'EGW_CHECK''_BEGIN_1'; echo STATE=$(systemctl is-system-running --wait 2>&1); echo 'EGW_CHECK''_DONE_1'
+
+EGW# echo 'EGW_CHECK''_BEGIN_1'; echo STATE=$(systemctl is-system-running --wait 2>&1); echo 'EGW_CHECK''_DONE_1'
+EGW_CHECK_BEGIN_1
+STATE=running
+EGW_CHECK_DONE_1
+[driver] >>> echo 'EGW_CHECK''_BEGIN_2'; systemctl list-units --type=target --no-pager --no-legend; systemctl get-default; echo 'EGW_CHECK''_DONE_2'
+
+EGW# echo 'EGW_CHECK''_BEGIN_2'; systemctl list-units --type=target --no-pager --no-legend; systemctl get-default; echo 'EGW_CHECK''_DONE_2'
+EGW_CHECK_BEGIN_2
+  basic.target          loaded active active Basic System
+  getty.target          loaded active active Login Prompts
+  local-fs-pre.target   loaded active active Preparation for Local File Systems
+  local-fs.target       loaded active active Local File Systems
+  multi-user.target     loaded active active Multi-User System
+  network-online.target loaded active active Network is Online
+  network-pre.target    loaded active active Preparation for Network
+  network.target        loaded active active Network
+  nss-lookup.target     loaded active active Host and Network Name Lookups
+  paths.target          loaded active active Path Units
+  remote-fs.target      loaded active active Remote File Systems
+  rpcbind.target        loaded active active RPC Port Mapper
+  slices.target         loaded active active Slice Units
+  sockets.target        loaded active active Socket Units
+  swap.target           loaded active active Swaps
+  sysinit.target        loaded active active System Initialization
+  time-set.target       loaded active active System Time Set
+  timers.target         loaded active active Timer Units
+multi-user.target
+EGW_CHECK_DONE_2
+[driver] >>> echo 'EGW_CHECK''_BEGIN_3'; systemctl --failed --no-pager --no-legend; echo FAILED_UNITS_END; echo 'EGW_CHECK''_DONE_3'
+
+EGW# echo 'EGW_CHECK''_BEGIN_3'; systemctl --failed --no-pager --no-legend; echo FAILED_UNITS_END; echo 'EGW_CHECK''_DONE_3'
+EGW_CHECK_BEGIN_3
+FAILED_UNITS_END
+EGW_CHECK_DONE_3
+[driver] >>> echo 'EGW_CHECK''_BEGIN_4'; ip addr; ip route; echo 'EGW_CHECK''_DONE_4'
+
+EGW# echo 'EGW_CHECK''_BEGIN_4'; ip addr; ip route; echo 'EGW_CHECK''_DONE_4'
+EGW_CHECK_BEGIN_4
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue qlen 1000
+    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    inet 127.0.0.1/8 scope host lo
+       valid_lft forever preferred_lft forever
+    inet6 ::1/128 scope host 
+       valid_lft forever preferred_lft forever
+2: enp0s1: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc pfifo_fast qlen 1000
+    link/ether 52:54:00:12:35:02 brd ff:ff:ff:ff:ff:ff
+    inet 10.0.2.15/24 brd 10.0.2.255 scope global dynamic enp0s1
+       valid_lft 86387sec preferred_lft 86387sec
+    inet6 fec0::5054:ff:fe12:3502/64 scope site dynamic noprefixroute flags 100 
+       valid_lft 86389sec preferred_lft 14389sec
+    inet6 fe80::5054:ff:fe12:3502/64 scope link 
+       valid_lft forever preferred_lft forever
+3: sit0@NONE: <NOARP> mtu 1480 qdisc noop qlen 1000
+    link/sit 0.0.0.0 brd 0.0.0.0
+4: docker0: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue 
+    link/ether 02:42:03:d2:d0:69 brd ff:ff:ff:ff:ff:ff
+    inet 172.17.0.1/16 brd 172.17.255.255 scope global docker0
+       valid_lft forever preferred_lft forever
+default via 10.0.2.2 dev enp0s1  src 10.0.2.15  metric 1024 
+10.0.2.0/24 dev enp0s1 scope link  src 10.0.2.15  metric 1024 
+10.0.2.2 dev enp0s1 scope link  src 10.0.2.15  metric 1024 
+10.0.2.3 dev enp0s1 scope link  src 10.0.2.15  metric 1024 
+172.17.0.0/16 dev docker0 scope link  src 172.17.0.1 
+EGW_CHECK_DONE_4
+[driver] >>> echo 'EGW_CHECK''_BEGIN_5'; ping -c 3 -W 5 10.0.2.2 || true; echo 'EGW_CHECK''_DONE_5'
+
+EGW# echo 'EGW_CHECK''_BEGIN_5'; ping -c 3 -W 5 10.0.2.2 || true; echo 'EGW_CHECK''_DONE_5'
+EGW_CHECK_BEGIN_5
+PING 10.0.2.2 (10.0.2.2): 56 data bytes
+64 bytes from 10.0.2.2: seq=0 ttl=255 time=2.011 ms
+64 bytes from 10.0.2.2: seq=1 ttl=255 time=0.817 ms
+64 bytes from 10.0.2.2: seq=2 ttl=255 time=0.729 ms
+
+--- 10.0.2.2 ping statistics ---
+3 packets transmitted, 3 packets received, 0% packet loss
+round-trip min/avg/max = 0.729/1.185/2.011 ms
+EGW_CHECK_DONE_5
+[driver] >>> echo 'EGW_CHECK''_BEGIN_6'; systemctl start docker || true; sleep 5; docker info 2>&1 | head -n 20; echo 'EGW_CHECK''_DONE_6'
+
+EGW# echo 'EGW_CHECK''_BEGIN_6'; systemctl start docker || true; sleep 5; docker info 2>&1 | head -n 20; echo 'EGW_CHECK''_DONE_6'
+EGW_CHECK_BEGIN_6
+Client:
+ Version:    25.0.9
+ Context:    default
+ Debug Mode: false
+
+Server:
+ Containers: 0
+  Running: 0
+  Paused: 0
+  Stopped: 0
+ Images: 1
+ Server Version: 25.0.9
+ Storage Driver: overlay2
+  Backing Filesystem: extfs
+  Supports d_type: true
+  Using metacopy: false
+  Native Overlay Diff: true
+  userxattr: false
+ Logging Driver: json-file
+ Cgroup Driver: systemd
+EGW_CHECK_DONE_6
+[driver] >>> echo 'EGW_CHECK''_BEGIN_7'; egw-container-smoke.sh; echo SMOKE_EXIT=$?; echo 'EGW_CHECK''_DONE_7'
+
+echo 'EGW_CHECK''_BEGIN_7'; egw-container-smoke.sh; echo SMOKE_EXIT=$?; echo 'EGW_CHECK''_DONE_7'
+EGW# echo 'EGW_CHECK''_BEGIN_7'; egw-container-smoke.sh; echo SMOKE_EXIT=$?; echo 'EGW_CHECK''_DONE_7'
+EGW_CHECK_BEGIN_7
+2026-08-13T23:18:49Z INFO egw-container-smoke start (online=0)
+2026-08-13T23:18:50Z INFO docker info OK
+2026-08-13T23:18:50Z INFO using /bin/busybox for the offline smoke image
+2026-08-13T23:18:50Z INFO bundled 4 object(s) under both /lib and /usr/lib
+2026-08-13T23:19:04Z PASS container executed (docker import + run of local busybox image)
+SMOKE_EXIT=0
+EGW_CHECK_DONE_7
+[driver] >>> echo 'EGW_CHECK''_BEGIN_8'; INTERP=$(strings /bin/busybox 2>/dev/null | grep -m 1 '^/lib/ld-'); [ -n "$INTERP" ] || INTERP=$(tr -c '[:print:]' '\n' < /bin/busybox 2>/dev/null | grep -m 1 '^/lib/ld-'); echo "INTERP=${INTERP:-unavailable}"; ls -l /lib/ld-linux-aarch64.so.1 /lib/libc.so.6 2>&1 | head -n 4; docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | head -n 3; docker run --rm egw-smoke:local /bin/busybox echo BUSYBOX_DIRECT_OK 2>&1 | tail -n 2; echo 'EGW_CHECK''_DONE_8'
+
+EGW# echo 'EGW_CHECK''_BEGIN_8'; INTERP=$(strings /bin/busybox 2>/dev/null | grep -m 1 '^/lib/ld-'); [ -n "$INTERP" ] || INTERP=$(tr -c '[:print:]' '\n' < /bin/busybox 2>/dev/null | grep -m 1 '^/lib/ld-'); echo "INTERP=${INTERP:-unavailable}"; ls -l /lib/ld-linux-aarch64.so.1 /lib/libc.so.6 2>&1 | head -n 4; docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | head -n 3; docker run --rm egw-smoke:local /bin/busybox echo BUSYBOX_DIRECT_OK 2>&1 | tail -n 2; echo 'EGW_CHECK''_DONE_8'
+EGW_CHECK_BEGIN_8
+INTERP=unavailable
+-rwxr-xr-x    1 root     root        202848 Mar  9  2018 /lib/ld-linux-aarch64.so.1
+-rwxr-xr-x    1 root     root       1716520 Mar  9  2018 /lib/libc.so.6
+egw-smoke:local 5.75MB
+BUSYBOX_DIRECT_OK
+EGW_CHECK_DONE_8
+[driver] >>> poweroff
+
+poweroff
+EGW# poweroff
+EGW# [[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/modprobe[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mMulti-User System[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLogin Prompts[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mHost and Network Name Lookups[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mRemote File Systems[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mRPC Port Mapper[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mTimer Units[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mDaily Cleanup of Temporary Directories[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mLoad/Save RF Kill Switch Status /dev/rfkill Watch[0m.
+         Stopping [0;1;39mAvahi mDNS/DNS-SD Stack[0m...
+         Stopping [0;1;39mKernel Logging Service[0m...
+         Stopping [0;1;39mSystem Logging Service[0m...
+         Stopping [0;1;39mDocker Application Container Engine[0m...
+         Stopping [0;1;39mGetty on tty1[0m...
+         Stopping [0;1;39mSerial Getty on ttyAMA0[0m...
+         Stopping [0;1;39mUser Login Management[0m...
+         Stopping [0;1;39mLoad/Save OS Random Seed[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mOpenSSH Key Generation[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mAvahi mDNS/DNS-SD Stack[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mKernel Logging Service[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSystem Logging Service[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mGetty on tty1[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSerial Getty on ttyAMA0[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mUser Login Management[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mDocker Application Container Engine[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/getty[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/serial-getty[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mNetwork is Online[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSystem Time Set[0m.
+         Stopping [0;1;39mcontainerd container runtime[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mWait for Network to be Configured[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mLoad/Save OS Random Seed[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mcontainerd container runtime[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mNetwork[0m.
+         Stopping [0;1;39mD-Bus System Message Bus[0m...
+         Stopping [0;1;39mNetwork Configuration[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mD-Bus System Message Bus[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Configuration[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPreparation for Network[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mIPv6 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mIPv4 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mBasic System[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPath Units[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mDispatch Password Requests to Console Directory Watch[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mForward Password Requests to Wall Directory Watch[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSlice Units[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mUser and Session Slice[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSocket Units[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mAvahi mDNS/DNS-SD Stack Activation Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mD-Bus System Message Bus Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mDocker Socket for the API[0m.
+[[0;32m  OK  [0m] Closed [0;1;39msshd.socket[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mSyslog Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mNetwork Service Netlink Socket[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mGenerate network units from Kernel command line[0m.
+         Stopping [0;1;39mNetwork Name Resolution[0m...
+         Stopping [0;1;39mNetwork Time Synchronization[0m...
+         Stopping [0;1;39mRecord System Boot/Shutdown in UTMP[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Name Resolution[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Time Synchronization[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mApply Kernel Variables[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mLoad Kernel Modules[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mRecord System Boot/Shutdown in UTMP[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate System Files and Directories[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal File Systems[0m.
+         Unmounting [0;1;39mTemporary Directory /tmp[0m...
+         Unmounting [0;1;39m/var/volatile[0m...
+[[0;32m  OK  [0m] Unmounted [0;1;39mTemporary Directory /tmp[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var/volatile[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPreparation for Local File Systems[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSwaps[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mUnmount All Filesystems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mRemount Root and Kernel File Systems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev gracefully[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Shutdown[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLate Shutdown Services[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mSystem Power Off[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Power Off[0m.
+[   63.688681] reboot: Power down

@@ -1,0 +1,20 @@
+egw-controller-1 Up 29 minutes (healthy)
+egw-ditto-things-1 Up 42 minutes (healthy)
+egw-ditto-gateway-1 Up 42 minutes (healthy)
+egw-ditto-policies-1 Up 42 minutes (healthy)
+egw-mongodb-1 Up 9 minutes (healthy)
+egw-mosquitto-1 Up 42 minutes (healthy)
+container egw-controller-1 oomkilled=false restarts=0 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-10-03T13:37:18.698631325Z
+container egw-ditto-things-1 oomkilled=false restarts=0 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-10-03T13:23:54.881438482Z
+container egw-ditto-gateway-1 oomkilled=false restarts=0 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-10-03T13:23:54.864660546Z
+container egw-ditto-policies-1 oomkilled=false restarts=0 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-10-03T13:23:49.518141938Z
+container egw-mongodb-1 oomkilled=false restarts=0 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-10-03T13:57:09.874635529Z
+container egw-mosquitto-1 oomkilled=false restarts=0 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-10-03T13:23:47.165550082Z
+memory-cgroup OOM lines: 0
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1844        5240           7         928        6086
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    469.2M      1.6G  22% /
+/dev/vdb                 31.2G      2.4G     27.1G   8% /var/lib/docker
+tmpfs                     3.9G      2.4M      3.9G   0% /tmp

@@ -1,0 +1,17 @@
+BROKER-CLIENT 20260919T193430Z_live-preflight_attempt01/commands.jsonl:1 seq=1 name=stack-start-interlock started=2026-09-19T19:34:30.967395Z duration_s=154.932 exit=0
+DRAINED 20260919T193915Z_smartwatch-slice-1-hz-60-s_attempt01/commands.jsonl:1 seq=1 name=pre started=2026-09-19T19:39:16.077633Z duration_s=132.438 exit=0
+    console/001-pre.stdout.txt:1 readings=27 span_s=131 last_reading=(0 2026-09-19T19:37:18.802Z 0 0 0 0 0) -> mean reading time in [0.000, 0.077] s ((131-1)/(27-1)-5 .. (131+1)/(27-1)-5)
+DRAINED 20260919T193915Z_smartwatch-slice-1-hz-60-s_attempt01/commands.jsonl:3 seq=3 name=after started=2026-09-19T19:42:27.899632Z duration_s=193.923 exit=0
+    console/003-after.stdout.txt:2 readings=27 span_s=131 last_reading=(0 2026-09-19T19:37:18.802Z 60 0 0 0 0) -> mean reading time in [0.000, 0.077] s ((131-1)/(27-1)-5 .. (131+1)/(27-1)-5)
+DRAINED 20260919T195827Z_nominal-instrumentation-120-600_attempt01/commands.jsonl:3 seq=3 name=pre started=2026-09-19T19:58:30.539332Z duration_s=133.146 exit=0
+    console/003-pre.stdout.txt:1 readings=27 span_s=131 last_reading=(0 2026-09-19T19:37:18.802Z 60 0 0 0 0) -> mean reading time in [0.000, 0.077] s ((131-1)/(27-1)-5 .. (131+1)/(27-1)-5)
+DRAINED 20260919T195827Z_nominal-instrumentation-120-600_attempt01/commands.jsonl:5 seq=5 name=post-drain started=2026-09-19T20:13:58.613400Z duration_s=464.875 exit=0
+    console/005-post-drain.stdout.txt:1 readings=27 span_s=131 last_reading=(0 2026-09-19T19:37:18.802Z 8124 0 0 0 0) -> mean reading time in [0.000, 0.077] s ((131-1)/(27-1)-5 .. (131+1)/(27-1)-5)
+BROKER-CLIENT 20260920T231844Z_live-preflight_attempt02/commands.jsonl:1 seq=1 name=stack-start-interlock started=2026-09-20T23:18:44.492818Z duration_s=154.124 exit=0
+BROKER-CLIENT 20260920T232219Z_live-preflight_attempt03/commands.jsonl:1 seq=1 name=stack-start-interlock started=2026-09-20T23:22:19.923503Z duration_s=13.791 exit=0
+DRAINED 20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/commands.jsonl:1 seq=1 name=pre started=2026-09-20T23:25:28.023550Z duration_s=132.413 exit=0
+    console/001-pre.stdout.txt:1 readings=27 span_s=131 last_reading=(0 2026-09-20T23:21:31.554Z 0 0 0 0 0) -> mean reading time in [0.000, 0.077] s ((131-1)/(27-1)-5 .. (131+1)/(27-1)-5)
+DRAINED 20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/commands.jsonl:3 seq=3 name=after started=2026-09-20T23:28:39.969275Z duration_s=194.146 exit=0
+    console/003-after.stdout.txt:2 readings=27 span_s=132 last_reading=(0 2026-09-20T23:21:31.554Z 60 0 0 0 0) -> mean reading time in [0.038, 0.115] s ((132-1)/(27-1)-5 .. (132+1)/(27-1)-5)
+DRAINED 20260920T233212Z_g2-twin-persistence-restart_attempt01/commands.jsonl:1 seq=1 name=quiesce started=2026-09-20T23:32:12.132984Z duration_s=130.957 exit=0
+    console/001-quiesce.stdout.txt:1 readings=27 span_s=131 last_reading=(0 2026-09-20T23:21:31.554Z 60 0 0 0 0) -> mean reading time in [0.000, 0.077] s ((131-1)/(27-1)-5 .. (131+1)/(27-1)-5)

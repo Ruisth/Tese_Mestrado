@@ -1,0 +1,9 @@
+tunnel: no control socket at /home/ruisth/egw-tcg/tunnel.ctl - nothing to close
+TUNNEL UP
+health: 000
+
+ready: 000
+
+metrics: 000
+
+READY

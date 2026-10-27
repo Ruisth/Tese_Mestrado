@@ -1,0 +1,28 @@
+## 2026-10-05T19:58:57Z bs4_all.sh: pass labels fresh-a fresh-b fresh-c fresh-d fresh-e fresh-f fresh-g id-a id-b id-c id-d pf-1 pf-3 out-h1 out-h2 out-h3 out-gaveup out-delta4 out-eo4 out-eo1 term afterhalt integrity term-pipe-exp; script under test sha256 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+## 2026-10-05T20:03:18Z every scenario ended
+pass        ## 2026-10-05T20:03:18Z SCENARIO pass: PASS (99 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+labels      ## 2026-10-05T19:59:09Z SCENARIO labels: PASS (58 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+fresh-a     ## 2026-10-05T19:59:10Z SCENARIO fresh-a: PASS (52 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+fresh-b     ## 2026-10-05T19:59:10Z SCENARIO fresh-b: PASS (52 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+fresh-c     ## 2026-10-05T19:59:10Z SCENARIO fresh-c: PASS (52 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+fresh-d     ## 2026-10-05T19:59:10Z SCENARIO fresh-d: PASS (52 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+fresh-e     ## 2026-10-05T19:59:10Z SCENARIO fresh-e: PASS (43 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+fresh-f     ## 2026-10-05T19:59:10Z SCENARIO fresh-f: PASS (41 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+fresh-g     ## 2026-10-05T19:59:10Z SCENARIO fresh-g: PASS (38 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+id-a        ## 2026-10-05T19:59:09Z SCENARIO id-a: PASS (40 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+id-b        ## 2026-10-05T19:59:08Z SCENARIO id-b: PASS (33 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+id-c        ## 2026-10-05T19:59:09Z SCENARIO id-c: PASS (35 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+id-d        ## 2026-10-05T19:59:10Z SCENARIO id-d: PASS (43 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+pf-1        ## 2026-10-05T19:59:07Z SCENARIO pf-1: PASS (37 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+pf-3        ## 2026-10-05T19:59:07Z SCENARIO pf-3: PASS (37 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+out-h1      ## 2026-10-05T20:01:15Z SCENARIO out-h1: PASS (50 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+out-h2      ## 2026-10-05T20:01:15Z SCENARIO out-h2: PASS (55 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+out-h3      ## 2026-10-05T20:01:15Z SCENARIO out-h3: PASS (53 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+out-gaveup  ## 2026-10-05T20:01:15Z SCENARIO out-gaveup: PASS (47 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+out-delta4  ## 2026-10-05T20:01:15Z SCENARIO out-delta4: PASS (48 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+out-eo4     ## 2026-10-05T20:01:15Z SCENARIO out-eo4: PASS (48 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+out-eo1     ## 2026-10-05T20:01:15Z SCENARIO out-eo1: PASS (48 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+term        ## 2026-10-05T20:01:16Z SCENARIO term: PASS (47 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+afterhalt   ## 2026-10-05T19:59:11Z SCENARIO afterhalt: PASS (47 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+integrity   ## 2026-10-05T19:59:11Z SCENARIO integrity: PASS (67 checks) | 7a63b361af2f25bd8ab81101ca10ec79fcb05a6e6f0cf0a70bc2ec63f3f8425c
+term-pipe-exp ## 2026-10-05T20:01:15Z SCENARIO term-pipe-exp: PASS (43 checks) | 99ac92650661b07421b334fb02cb3d59ccbae3ef28d3337257ba997aa544b2d6

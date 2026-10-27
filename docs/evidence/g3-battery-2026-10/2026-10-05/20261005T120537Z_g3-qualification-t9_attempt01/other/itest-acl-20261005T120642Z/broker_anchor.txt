@@ -1,0 +1,1 @@
+[2Kmosquitto-1  | 2026-10-05T12:08:39.219902481Z 2026-10-05T12:08:39: Saving in-memory database to /mosquitto/data//mosquitto.db.

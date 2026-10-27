@@ -1,0 +1,135 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+  it differs from the final bytes (g3_battery.sh, sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-05T09:14:18Z scenario s2v; host uptime 123.78 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh affd2cb43b5a4487, bs3_setup.sh 995fab22d656906d, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+bench keepalive: no keepalive client of wsl.exe runs on the host (2026-10-05) and the bench starts none: the steps script's keepalive_check is answered by the bench's ps stub, which adds a SYNTHETIC client (pid 4194301 'sleep 43200', parent 4194300 'Relay(bench)'; no process) to the listing that check reads; processes 'sleep N' with N of 3600 or more now on the host: 0
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED (budget 48 s): after the reboot command the stub guest keeps answering, exit status 0, the SAVED boot id: no poll is counted; HALT 'reboot not shown within the wait', line b not run.
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-05T09:14:21Z up=126 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+## 2026-10-05T09:14:21Z up=126 candidate identities
+## 2026-10-05T09:14:21Z up=127 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:14:22Z up=127 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:14:22Z up=127 guest root file system before the boot
+## 2026-10-05T09:14:22Z up=127 keepalive
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 61 s, about 43139 s left
+keepalive: attached, about 43139 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:14:22Z up=127 UP0=127 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-05T09:14:22Z up=127 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/state/S3-guest_session_open.console.txt)
+## 2026-10-05T09:14:23Z up=128 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-05T09:14:24Z up=129 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/state/S3-gate_health.console.txt)
+TUNNEL UP
+## 2026-10-05T09:14:26Z up=131 run ids of S3 unused on the guest (read-only listing)
+## 2026-10-05T09:14:26Z up=131 session S3 is open: <bench>/egw-exec/attempts/20261005T091422Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S3
+CHECK ok: the session is open
+--- the fake process that stands for QEMU after the open: pid 9256 alive, start tick 12810
+
+=== g3_battery.sh row t8
+-> exit 1
+## 2026-10-05T09:14:26Z up=132 row t8 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 66 s, about 43134 s left
+keepalive: attached, about 43134 s left (needed: 9900 s). The Windows keep-awake stays the operator's own check.
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:14:28Z up=133 row t8: the running images recorded by the gate driver at open, against S2's record
+gate record: <bench>/egw-exec/attempts/20261005T091424Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 ec2196dd97c457efc96c2cfddd76121aa18ef1233fcb74554e7409e6e9f133be)
+gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)
+## 2026-10-05T09:14:28Z up=134 row t8: attempt <bench>/egw-exec/attempts/20261005T091428Z_g3-qualification-t8_attempt02 (ceiling 135 min, counted from the row's start at up=133 and shared by everything the row does: the operator enforces it with 'term t8')
+## 2026-10-05T09:14:29Z up=135 row t8: the gate's read before the row
+## 2026-10-05T09:14:30Z up=135 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+QEMU PROCESS: pid=9256 start=12810 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 14 arguments of pid 9256
+## 2026-10-05T09:14:31Z up=136 row t8: step t8-a-reboot (hx: one shell, the row file is sourced)
+drained: queue_depth 0 and identical counters on 2 consecutive readings over 0 s (0 0 0 true 2026-09-18T10:00:00Z 1 0 0 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 136.70 s, end 136.71 s, el
+reboot command sent (status not tested) 2026-10-05T09:14:32Z: boot id aaaaaaaa-0000-4000-8000-00000000000a, 6 running container ids, 3 event directory names and /var/lib/docker on /dev/vdb saved
+## 2026-10-05T09:14:32Z up=137 row t8: step t8-a-reboot ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-05T09:14:32Z up=137 row t8: waiting at most 48 s from the end of step a (up=137) for the guest to answer over ssh with a boot id other than the saved one aaaaaaaa-0000-4000-8000-00000000000a (read-only polls every 3 s, each a recorded step bounded by 'timeout' to 20 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=
+poll 1 at +1 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 2 at +4 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 3 at +7 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 4 at +10 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 5 at +13 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 6 at +16 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 7 at +19 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 8 at +22 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 9 at +25 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 10 at +29 s (bounded to 20 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 11 at +32 s (bounded to 16 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 12 at +35 s (bounded to 13 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 13 at +38 s (bounded to 10 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 14 at +41 s (bounded to 7 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 15 at +44 s (bounded to 4 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+poll 16 at +47 s (bounded to 1 s): the guest answers with the boot id aaaaaaaa-0000-4000-8000-00000000000a, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+## 2026-10-05T09:15:20Z up=185 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+QEMU PROCESS: pid=9256 start=12810 disks=file=<bench>/rootfs.ext4;file=<bench>/data.img
+QEMU PROCESS UNCHANGED: the same process as before step a (pid 9256, started at tick 12810) with the same disks (file=<bench>/rootfs.ext4;file=<bench>/data.img); whether the guest rebooted inside it is what step b shows
+HALT: row t8: reboot not shown within the wait: in the 48 s after step a ended, none of the 16 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id aaaaaaaa-0000-4000-8000-00000000000a (0 ended with another status - no answer, whatever they printed; 16 answered the saved id; 0 ended 0 without one boot id as the answer); the last poll: answered the saved id (reboot
+## 2026-10-05T09:15:20Z up=185 row t8: the gate after the row
+TUNNEL CHECK: the master answers on <bench>/home/egw-tcg/tunnel.ctl
+## 2026-10-05T09:15:20Z up=186 GATE t8: pass (guest state recorded and NOT compared across the reboot, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-05T09:15:20Z up=186 row t8 ended after 53 s; the attempt is OPEN for the operator's classification
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+HALT recorded for session S3: classify this row, then 'close' (controlled close, hand back to Rui). No further row starts.
+CHECK ok: exit status 1: row t8 (a halt)
+CHECK ok: the halt of row t8
+recorded steps of row t8, in order: guest-state-before t8-qemu-before t8-a-reboot t8-wait-ssh x16 t8-qemu-after guest-state-after gate-healthy gate-units gate-tunnel-check
+CHECK ok: the steps of row t8 are the expected ones
+CHECK ok: the fake QEMU process after the row: pid 9256 alive, start tick 12810
+CHECK ok: commands that start, restart or bring up anything, sent to the stub guest (the test module's own pattern): 0
+CHECK ok: pkill or killall calls: 0
+CHECK ok: what each poll is said to be
+CHECK ok: the halt counts the polls by kind
+CHECK ok: no poll was counted
+  poll 1 (step 004): command starts 'timeout 20', exit status 0, 0.2 s
+  poll 2 (step 005): command starts 'timeout 20', exit status 0, 0.0 s
+  poll 3 (step 006): command starts 'timeout 20', exit status 0, 0.0 s
+  ... (8 more polls)
+  poll 12 (step 015): command starts 'timeout 13', exit status 0, 0.0 s
+  poll 13 (step 016): command starts 'timeout 10', exit status 0, 0.0 s
+  poll 14 (step 017): command starts 'timeout 7', exit status 0, 0.0 s
+  poll 15 (step 018): command starts 'timeout 4', exit status 0, 0.0 s
+  poll 16 (step 019): command starts 'timeout 1', exit status 0, 0.0 s
+polls: 16; run by the host's timeout: 16; bounds used (s): 20 16 13 10 7 4 1; smallest 1, largest 20; exit statuses seen: 0
+
+=== g3_battery.sh classify t8 failed unknown inconclusive bench: scenario s2v bench: none
+-> exit 0
+## 2026-10-05T09:15:20Z up=186 classify t8: inconclusive / not demonstrated (failed, unknown/inconclusive)
+row t8: classified 'inconclusive / not demonstrated'; driver code 3; export: verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 1 registered artefact(s) that were never written and 0 declared expected artefact(s) are NOT in this package -> <bench>/out/runs/2026-10-05/20261005T091428Z_g3-qualification-t8_attempt02
+Next: 'close', then hand back to Rui: session S3 has a recorded halt (or this row's gate did not pass), and no further row starts without his direction.
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-05T09:15:21Z up=186 row t9 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+REFUSED: NOT STARTED: session S3 has a recorded halt (up=185 row=t8 row t8: reboot not shown within the wait: in the 48 s after step a ended, none of the 16 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id aaaaaaaa-0000-4000-8000-00000000000a (0 ended with another status - no answer, whatever they printed; 16 answered the saved id; 0 ended 0 without one boot i
+CHECK ok: exit status 2: row t9 after the halt of row t8 (refused: nothing was started)
+CHECK ok: row t9 is refused because of the recorded halt
+CHECK ok: attempts of row t9 created: 0
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-05T09:15:21Z up=186 close S3: <bench>/egw-exec/attempts/20261005T091422Z_guest-session_attempt01
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 121 s, about 43079 s left
+keepalive: attached, about 43079 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:15:21Z up=187 no recorder or collector unit active (read-only)
+## 2026-10-05T09:15:21Z up=187 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-05T09:15:21Z up=187 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/state/S3-guest_session_close.console.txt)
+## 2026-10-05T09:15:21Z up=187 session S3 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+CHECK ok: the session is closed
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-05T09:15:22Z SCENARIO s2v: PASS (17 checks)

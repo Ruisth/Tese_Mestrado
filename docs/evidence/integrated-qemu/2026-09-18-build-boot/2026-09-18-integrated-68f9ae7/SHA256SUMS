@@ -1,0 +1,15 @@
+c8cc535bcc2c08e613c79163fa2f90d4c7f5d0143d471b0053adbc4d241dfc21  ./attempt-01-68f9ae7/SHA256SUMS
+d382f0f1796f4f8678b44690ba989cf532a13ca18f3dfdcbbaf58a40d4cb479b  ./attempt-01-68f9ae7/build-driver.log
+8adaa4d32150f45d61030ea3b96ca29067d8ea9b82ea7cdd6aea489001e71658  ./attempt-01-68f9ae7/build.started
+1638cd9b4df848143aeaa74b26fc328e3995a707fd3252f48a9aef020a2ad472  ./attempt-01-68f9ae7/build.status
+d6773ea174cff2269634944e669e51318eb269e2c486231159e042cbad248b47  ./attempt-01-68f9ae7/kas-build-integrated-20260918T114819Z.log
+ebb646f715690becc15cfc7a506cace5d28aec5973bfcb0eb3347107688970ca  ./attempt-01-68f9ae7/kas-checkout-integrated-20260918T114819Z.log
+97628989412ebdb6814b2070cf2a90631b6ff0c1e61b24651dda4de3eb0e7f5b  ./attempt-01-68f9ae7/log.do_rootfs.175932
+d382f0f1796f4f8678b44690ba989cf532a13ca18f3dfdcbbaf58a40d4cb479b  ./build-driver.log
+8adaa4d32150f45d61030ea3b96ca29067d8ea9b82ea7cdd6aea489001e71658  ./build.started
+1638cd9b4df848143aeaa74b26fc328e3995a707fd3252f48a9aef020a2ad472  ./build.status
+14ef8858e9d2ae74d9efad7bdcea457d0622ccd07fc7a1a305c884867ebd6f32  ./environment-before.txt
+e649564c6a322d17e6a6e4f92036e1fbbc7b7875d28c43bbae251c7e181263d4  ./g1-deploy-before.ls.txt
+98dafc22d434436bf16af31825dbd9ce26fc49347cc034f95e7ac3b92c71557e  ./g1-deploy-before.sha256
+281ec8d7c73b9b029bb0be0f823fc7676a0e7c5df61f8919785f50e7d1c96442  ./kernel-sigdiff.do_kernel_metadata.txt
+0956ab69078ef0074a55ab1229efc2ee850f00d7138e1ca5b16e7028313274c1  ./kernel-sigdiff.do_prepare_recipe_sysroot.txt

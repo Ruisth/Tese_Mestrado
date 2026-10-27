@@ -1,0 +1,726 @@
+Script started on 2026-09-28 21:54:14+01:00 [COMMAND="./scripts/run-qemu-integrated.sh s1" <not executed on terminal>]
+== run-qemu-integrated: s1
+== date (UTC)   : 2026-09-28T20:54:14Z
+== host         : Linux 6.6.87.2-microsoft-standard-WSL2 x86_64 (WSL2, x86-64; guest is ARM64 EMULATED under QEMU/TCG)
+== host memory  : 31 GiB total, 30 GiB available
+== build dir    : /home/ruisth/yocto/egw/src/yocto/build-integrated
+== image        : egw-gateway-image -> /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4
+== qemuboot     : /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs.qemuboot.conf
+==   qb_cpu = -cpu cortex-a76
+==   qb_machine = -machine virt
+==   qb_mem = -m 8192
+==   qb_opt_append = 
+==   qb_slirp_opt = -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8883-:8883
+==   qb_smp = -smp 4
+==   qb_system_name = qemu-system-aarch64
+== data disk    : /home/ruisth/yocto/egw-integrated/egw-data.img (34359738368 bytes apparent, 32G / 2.6G on disk)
+== runqemu cmd  : runqemu /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs.qemuboot.conf nographic slirp qemuparams="-drive id=disk1,file=/home/ruisth/yocto/egw-integrated/egw-data.img,if=none,format=raw -device virtio-blk-pci,drive=disk1"
+== exit with Ctrl+A then x; keep this log as run evidence ==
+2026-09-28 21:54:14 - INFO     - kas 5.4 started on Ubuntu noble
+2026-09-28 21:54:14 - INFO     - Repository poky already contains bb98354685781296e3b3737e7762412100f359c2 as commit
+2026-09-28 21:54:14 - INFO     - Repository meta-openembedded already contains ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f as commit
+2026-09-28 21:54:14 - INFO     - Repository meta-virtualization already contains 0d9fb7fef86c5cbc177045c7b86bc71948f8657d as commit
+2026-09-28 21:54:14 - INFO     - Repository poky checked out to bb98354685781296e3b3737e7762412100f359c2
+2026-09-28 21:54:14 - INFO     - Repository meta-openembedded checked out to ef3df29f2cfca6a9513b51ebcdccf82b6c8a836f
+2026-09-28 21:54:14 - INFO     - Repository meta-virtualization checked out to 0d9fb7fef86c5cbc177045c7b86bc71948f8657d
+2026-09-28 21:54:14 - INFO     - To start the default build, run: bitbake -c build egw-gateway-image
+runqemu - INFO - Continuing with the following parameters:
+KERNEL: [/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image]
+MACHINE: [qemuarm64]
+FSTYPE: [ext4]
+ROOTFS: [/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4]
+CONFFILE: [/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs.qemuboot.conf]
+
+runqemu - INFO - Network configuration: ip=dhcp
+runqemu - INFO - Port forward: hostfwd=tcp:127.0.0.1:2222-:22 hostfwd=tcp:127.0.0.1:8883-:8883
+runqemu - INFO - Running /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64 -device virtio-net-pci,netdev=net0,mac=52:54:00:12:35:02 -netdev user,id=net0,hostfwd=tcp:127.0.0.1:2222-:22,hostfwd=tcp:127.0.0.1:8883-:8883 -object rng-random,filename=/dev/urandom,id=rng0 -device virtio-rng-pci,rng=rng0 -drive id=disk0,file=/home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.ext4,if=none,format=raw -device virtio-blk-pci,drive=disk0   -machine virt -cpu cortex-a76 -smp 4 -m 8192  -drive id=disk1,file=/home/ruisth/yocto/egw-integrated/egw-data.img,if=none,format=raw -device virtio-blk-pci,drive=disk1 -serial mon:stdio -serial null -nographic -device virtio-gpu-pci -kernel /home/ruisth/yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image -append 'root=/dev/vda rw  mem=8192M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0 '
+
+runqemu - INFO - Host uptime: 92.44
+
+[    0.000000] Booting Linux on physical CPU 0x0000000000 [0x414fd0b1]
+[    0.000000] Linux version 6.6.142-yocto-standard (oe-user@oe-host) (aarch64-poky-linux-gcc (GCC) 13.4.0, GNU ld (GNU Binutils) 2.42.0.20240723) #1 SMP PREEMPT Tue Jun 23 17:26:44 UTC 2026
+[    0.000000] random: crng init done
+[    0.000000] Machine model: linux,dummy-virt
+[    0.000000] Memory limited to 8192MB
+[    0.000000] efi: UEFI not found.
+[    0.000000] Zone ranges:
+[    0.000000]   DMA      [mem 0x0000000040000000-0x00000000ffffffff]
+[    0.000000]   DMA32    empty
+[    0.000000]   Normal   [mem 0x0000000100000000-0x000000023fffffff]
+[    0.000000] Movable zone start for each node
+[    0.000000] Early memory node ranges
+[    0.000000]   node   0: [mem 0x0000000040000000-0x000000023fffffff]
+[    0.000000] Initmem setup node 0 [mem 0x0000000040000000-0x000000023fffffff]
+[    0.000000] psci: probing for conduit method from DT.
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    0.000000] psci: Using standard PSCI v0.2 function IDs
+[    0.000000] psci: Trusted OS migration not required
+[    0.000000] psci: SMC Calling Convention v1.0
+[    0.000000] percpu: Embedded 27 pages/cpu s73320 r8192 d29080 u110592
+[    0.000000] Detected PIPT I-cache on CPU0
+[    0.000000] CPU features: detected: Hardware dirty bit management
+[    0.000000] CPU features: detected: Spectre-v4
+[    0.000000] CPU features: detected: Spectre-BHB
+[    0.000000] CPU features: detected: SSBS not fully self-synchronizing
+[    0.000000] alternatives: applying boot alternatives
+[    0.000000] Kernel command line: root=/dev/vda rw  mem=8192M ip=dhcp console=ttyAMA0 console=hvc0 swiotlb=0 
+[    0.000000] Dentry cache hash table entries: 1048576 (order: 11, 8388608 bytes, linear)
+[    0.000000] Inode-cache hash table entries: 524288 (order: 10, 4194304 bytes, linear)
+[    0.000000] Built 1 zonelists, mobility grouping on.  Total pages: 2064384
+[    0.000000] mem auto-init: stack:all(zero), heap alloc:off, heap free:off
+[    0.000000] software IO TLB: area num 4.
+[    0.000000] software IO TLB: SWIOTLB bounce buffer size roundup to 1MB
+[    0.000000] software IO TLB: mapped [mem 0x00000000ffeff000-0x00000000fffff000] (1MB)
+[    0.000000] Memory: 8199748K/8388608K available (13632K kernel code, 2016K rwdata, 3204K rodata, 4608K init, 557K bss, 188860K reserved, 0K cma-reserved)
+[    0.000000] SLUB: HWalign=64, Order=0-3, MinObjects=0, CPUs=4, Nodes=1
+[    0.000000] ftrace: allocating 41946 entries in 164 pages
+[    0.000000] ftrace: allocated 164 pages with 3 groups
+[    0.000000] rcu: Preemptible hierarchical RCU implementation.
+[    0.000000] rcu: 	RCU event tracing is enabled.
+[    0.000000] rcu: 	RCU restricting CPUs from NR_CPUS=256 to nr_cpu_ids=4.
+[    0.000000] 	Trampoline variant of Tasks RCU enabled.
+[    0.000000] 	Rude variant of Tasks RCU enabled.
+[    0.000000] 	Tracing variant of Tasks RCU enabled.
+[    0.000000] rcu: RCU calculated value of scheduler-enlistment delay is 25 jiffies.
+[    0.000000] rcu: Adjusting geometry for rcu_fanout_leaf=16, nr_cpu_ids=4
+[    0.000000] NR_IRQS: 64, nr_irqs: 64, preallocated irqs: 0
+[    0.000000] Root IRQ handler: gic_handle_irq
+[    0.000000] GICv2m: range[mem 0x08020000-0x08020fff], SPI[80:143]
+[    0.000000] rcu: srcu_init: Setting srcu_struct sizes based on contention.
+[    0.000000] arch_timer: cp15 timer(s) running at 62.50MHz (virt).
+[    0.000000] clocksource: arch_sys_counter: mask: 0x1ffffffffffffff max_cycles: 0x1cd42e208c, max_idle_ns: 881590405314 ns
+[    0.000061] sched_clock: 57 bits at 63MHz, resolution 16ns, wraps every 4398046511096ns
+[    0.016651] kfence: initialized - using 2097152 bytes for 255 objects at 0x(____ptrval____)-0x(____ptrval____)
+[    0.020900] Console: colour dummy device 80x25
+[    0.021706] Calibrating delay loop (skipped), value calculated using timer frequency.. 125.00 BogoMIPS (lpj=250000)
+[    0.021895] pid_max: default: 32768 minimum: 301
+[    0.023545] LSM: initializing lsm=capability,landlock,integrity
+[    0.023878] landlock: Up and running.
+[    0.025307] Mount-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.026344] Mountpoint-cache hash table entries: 16384 (order: 5, 131072 bytes, linear)
+[    0.044001] cacheinfo: Unable to detect cache hierarchy for CPU 0
+[    0.051921] RCU Tasks: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.052316] RCU Tasks Rude: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.052532] RCU Tasks Trace: Setting shift to 2 and lim to 1 rcu_task_cb_adjust=1 rcu_task_cpu_ids=4.
+[    0.053231] rcu: Hierarchical SRCU implementation.
+[    0.053251] rcu: 	Max phase no-delay instances is 1000.
+[    0.055385] EFI services will not be available.
+[    0.055940] smp: Bringing up secondary CPUs ...
+[    0.059922] Detected PIPT I-cache on CPU1
+[    0.060580] CPU1: Booted secondary processor 0x0000000001 [0x414fd0b1]
+[    0.064170] Detected PIPT I-cache on CPU2
+[    0.064360] CPU2: Booted secondary processor 0x0000000002 [0x414fd0b1]
+[    0.065487] Detected PIPT I-cache on CPU3
+[    0.065635] CPU3: Booted secondary processor 0x0000000003 [0x414fd0b1]
+[    0.066150] smp: Brought up 1 node, 4 CPUs
+[    0.066183] SMP: Total of 4 processors activated.
+[    0.066258] CPU features: detected: 32-bit EL0 Support
+[    0.066286] CPU features: detected: Data cache clean to the PoU not required for I/D coherence
+[    0.066303] CPU features: detected: Common not Private translations
+[    0.066307] CPU features: detected: CRC32 instructions
+[    0.066336] CPU features: detected: RCpc load-acquire (LDAPR)
+[    0.066339] CPU features: detected: LSE atomic instructions
+[    0.066345] CPU features: detected: Privileged Access Never
+[    0.066348] CPU features: detected: RAS Extension Support
+[    0.066362] CPU features: detected: Speculative Store Bypassing Safe (SSBS)
+[    0.076364] CPU: All CPU(s) started at EL1
+[    0.079100] alternatives: applying system-wide alternatives
+[    0.118368] devtmpfs: initialized
+[    0.128357] clocksource: jiffies: mask: 0xffffffff max_cycles: 0xffffffff, max_idle_ns: 7645041785100000 ns
+[    0.128785] futex hash table entries: 1024 (order: 4, 65536 bytes, linear)
+[    0.131579] DMI not present or invalid.
+[    0.137354] NET: Registered PF_NETLINK/PF_ROUTE protocol family
+[    0.141719] DMA: preallocated 1024 KiB GFP_KERNEL pool for atomic allocations
+[    0.142208] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA pool for atomic allocations
+[    0.142390] DMA: preallocated 1024 KiB GFP_KERNEL|GFP_DMA32 pool for atomic allocations
+[    0.146761] hw-breakpoint: found 6 breakpoint and 4 watchpoint registers.
+[    0.147583] ASID allocator initialised with 65536 entries
+[    0.147854] Serial: AMBA PL011 UART driver
+[    0.169737] 9000000.pl011: ttyAMA0 at MMIO 0x9000000 (irq = 13, base_baud = 0) is a PL011 rev1
+[    0.170632] printk: console [ttyAMA0] enabled
+[    0.187005] Modules: 26720 pages in range for non-PLT usage
+[    0.187062] Modules: 518240 pages in range for PLT usage
+[    0.272898] raid6: neonx8   gen()  5587 MB/s
+[    0.342974] raid6: neonx4   gen()  4579 MB/s
+[    0.412749] raid6: neonx2   gen()  2858 MB/s
+[    0.483082] raid6: neonx1   gen()  1713 MB/s
+[    0.553143] raid6: int64x8  gen()  3032 MB/s
+[    0.623110] raid6: int64x4  gen()  3795 MB/s
+[    0.693107] raid6: int64x2  gen()  3481 MB/s
+[    0.763200] raid6: int64x1  gen()  2536 MB/s
+[    0.763608] raid6: using algorithm neonx8 gen() 5587 MB/s
+[    0.833065] raid6: .... xor() 2347 MB/s, rmw enabled
+[    0.833370] raid6: using neon recovery algorithm
+[    0.834831] iommu: Default domain type: Translated
+[    0.835000] iommu: DMA domain TLB invalidation policy: strict mode
+[    0.836138] SCSI subsystem initialized
+[    0.836781] usbcore: registered new interface driver usbfs
+[    0.837658] usbcore: registered new interface driver hub
+[    0.837984] usbcore: registered new device driver usb
+[    0.838310] pps_core: LinuxPPS API ver. 1 registered
+[    0.838402] pps_core: Software ver. 5.3.6 - Copyright 2005-2007 Rodolfo Giometti <giometti@linux.it>
+[    0.838541] PTP clock support registered
+[    0.847125] vgaarb: loaded
+[    0.848105] clocksource: Switched to clocksource arch_sys_counter
+[    0.878322] NET: Registered PF_INET protocol family
+[    0.880543] IP idents hash table entries: 131072 (order: 8, 1048576 bytes, linear)
+[    0.887816] tcp_listen_portaddr_hash hash table entries: 4096 (order: 4, 65536 bytes, linear)
+[    0.888772] Table-perturb hash table entries: 65536 (order: 6, 262144 bytes, linear)
+[    0.888987] TCP established hash table entries: 65536 (order: 7, 524288 bytes, linear)
+[    0.889409] TCP bind hash table entries: 65536 (order: 9, 2097152 bytes, linear)
+[    0.892574] TCP: Hash tables configured (established 65536 bind 65536)
+[    0.893393] UDP hash table entries: 4096 (order: 5, 131072 bytes, linear)
+[    0.893707] UDP-Lite hash table entries: 4096 (order: 5, 131072 bytes, linear)
+[    0.895704] NET: Registered PF_UNIX/PF_LOCAL protocol family
+[    0.898826] RPC: Registered named UNIX socket transport module.
+[    0.898961] RPC: Registered udp transport module.
+[    0.899042] RPC: Registered tcp transport module.
+[    0.899120] RPC: Registered tcp-with-tls transport module.
+[    0.899203] RPC: Registered tcp NFSv4.1 backchannel transport module.
+[    0.899406] PCI: CLS 0 bytes, default 64
+[    0.905994] workingset: timestamp_bits=46 max_order=21 bucket_order=0
+[    0.908907] NFS: Registering the id_resolver key type
+[    0.909962] Key type id_resolver registered
+[    0.910093] Key type id_legacy registered
+[    0.914676] Key type cifs.idmap registered
+[    0.951339] xor: measuring software checksum speed
+[    0.952577]    8regs           :  3239 MB/sec
+[    0.953368]    32regs          :  5258 MB/sec
+[    0.954248]    arm64_neon      :  4226 MB/sec
+[    0.954362] xor: using function: 32regs (5258 MB/sec)
+[    0.954681] Block layer SCSI generic (bsg) driver version 0.4 loaded (major 250)
+[    0.954873] io scheduler mq-deadline registered
+[    0.955035] io scheduler kyber registered
+[    0.957769] pci-host-generic 4010000000.pcie: host bridge /pcie@10000000 ranges:
+[    0.958475] pci-host-generic 4010000000.pcie:       IO 0x003eff0000..0x003effffff -> 0x0000000000
+[    0.958908] pci-host-generic 4010000000.pcie:      MEM 0x0010000000..0x003efeffff -> 0x0010000000
+[    0.959123] pci-host-generic 4010000000.pcie:      MEM 0x8000000000..0xffffffffff -> 0x8000000000
+[    0.959726] pci-host-generic 4010000000.pcie: Memory resource size exceeds max for 32 bits
+[    0.960519] pci-host-generic 4010000000.pcie: ECAM at [mem 0x4010000000-0x401fffffff] for [bus 00-ff]
+[    0.961440] pci-host-generic 4010000000.pcie: PCI host bridge to bus 0000:00
+[    0.961710] pci_bus 0000:00: root bus resource [bus 00-ff]
+[    0.961896] pci_bus 0000:00: root bus resource [io  0x0000-0xffff]
+[    0.962058] pci_bus 0000:00: root bus resource [mem 0x10000000-0x3efeffff]
+[    0.962121] pci_bus 0000:00: root bus resource [mem 0x8000000000-0xffffffffff]
+[    0.962903] pci 0000:00:00.0: [1b36:0008] type 00 class 0x060000
+[    0.966588] pci 0000:00:01.0: [1af4:1000] type 00 class 0x020000
+[    0.966922] pci 0000:00:01.0: BAR 0 [io  0x0000-0x001f]
+[    0.967094] pci 0000:00:01.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.967292] pci 0000:00:01.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.967494] pci 0000:00:01.0: ROM [mem 0x00000000-0x0003ffff pref]
+[    0.968326] pci 0000:00:02.0: [1af4:1005] type 00 class 0x00ff00
+[    0.968476] pci 0000:00:02.0: BAR 0 [io  0x0000-0x001f]
+[    0.968580] pci 0000:00:02.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.968687] pci 0000:00:02.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.969018] pci 0000:00:03.0: [1af4:1001] type 00 class 0x010000
+[    0.969140] pci 0000:00:03.0: BAR 0 [io  0x0000-0x007f]
+[    0.969257] pci 0000:00:03.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.969323] pci 0000:00:03.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.969627] pci 0000:00:04.0: [1af4:1001] type 00 class 0x010000
+[    0.969738] pci 0000:00:04.0: BAR 0 [io  0x0000-0x007f]
+[    0.969829] pci 0000:00:04.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.969989] pci 0000:00:04.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.970328] pci 0000:00:05.0: [1af4:1050] type 00 class 0x038000
+[    0.970451] pci 0000:00:05.0: BAR 1 [mem 0x00000000-0x00000fff]
+[    0.970577] pci 0000:00:05.0: BAR 4 [mem 0x00000000-0x00003fff 64bit pref]
+[    0.971923] pci 0000:00:01.0: ROM [mem 0x10000000-0x1003ffff pref]: assigned
+[    0.972898] pci 0000:00:01.0: BAR 4 [mem 0x8000000000-0x8000003fff 64bit pref]: assigned
+[    0.973103] pci 0000:00:02.0: BAR 4 [mem 0x8000004000-0x8000007fff 64bit pref]: assigned
+[    0.973253] pci 0000:00:03.0: BAR 4 [mem 0x8000008000-0x800000bfff 64bit pref]: assigned
+[    0.973379] pci 0000:00:04.0: BAR 4 [mem 0x800000c000-0x800000ffff 64bit pref]: assigned
+[    0.973493] pci 0000:00:05.0: BAR 4 [mem 0x8000010000-0x8000013fff 64bit pref]: assigned
+[    0.973571] pci 0000:00:01.0: BAR 1 [mem 0x10040000-0x10040fff]: assigned
+[    0.973754] pci 0000:00:02.0: BAR 1 [mem 0x10041000-0x10041fff]: assigned
+[    0.973901] pci 0000:00:03.0: BAR 1 [mem 0x10042000-0x10042fff]: assigned
+[    0.974091] pci 0000:00:04.0: BAR 1 [mem 0x10043000-0x10043fff]: assigned
+[    0.974195] pci 0000:00:05.0: BAR 1 [mem 0x10044000-0x10044fff]: assigned
+[    0.974326] pci 0000:00:03.0: BAR 0 [io  0x1000-0x107f]: assigned
+[    0.974492] pci 0000:00:04.0: BAR 0 [io  0x1080-0x10ff]: assigned
+[    0.974614] pci 0000:00:01.0: BAR 0 [io  0x1100-0x111f]: assigned
+[    0.974703] pci 0000:00:02.0: BAR 0 [io  0x1120-0x113f]: assigned
+[    0.982242] virtio-pci 0000:00:01.0: enabling device (0000 -> 0003)
+[    0.986592] virtio-pci 0000:00:02.0: enabling device (0000 -> 0003)
+[    0.988967] virtio-pci 0000:00:03.0: enabling device (0000 -> 0003)
+[    0.990061] virtio-pci 0000:00:04.0: enabling device (0000 -> 0003)
+[    0.991164] virtio-pci 0000:00:05.0: enabling device (0000 -> 0002)
+[    1.001968] [drm] pci: virtio-gpu-pci detected at 0000:00:05.0
+[    1.002484] [drm] features: -virgl +edid -resource_blob -host_visible
+[    1.002510] [drm] features: -context_init
+[    1.003151] [drm] number of scanouts: 1
+[    1.003256] [drm] number of cap sets: 0
+[    1.010604] [drm] Initialized virtio_gpu 0.1.0 0 for 0000:00:05.0 on minor 0
+[    1.047474] Console: switching to colour frame buffer device 160x50
+[    1.055562] virtio-pci 0000:00:05.0: [drm] fb0: virtio_gpudrmfb frame buffer device
+[    1.079736] brd: module loaded
+[    1.090929] loop: module loaded
+[    1.091471] virtio_blk virtio2: 4/0/0 default/read/poll queues
+[    1.094906] virtio_blk virtio2: [vda] 5119852 512-byte logical blocks (2.62 GB/2.44 GiB)
+[    1.098878] virtio_blk virtio3: 4/0/0 default/read/poll queues
+[    1.100393] virtio_blk virtio3: [vdb] 67108864 512-byte logical blocks (34.4 GB/32.0 GiB)
+[    1.110927] rtc-pl031 9010000.pl031: registered as rtc0
+[    1.111393] rtc-pl031 9010000.pl031: setting system clock to 2026-09-28T20:54:21 UTC (1790628861)
+[    1.113787] device-mapper: ioctl: 4.48.0-ioctl (2023-03-01) initialised: dm-devel@redhat.com
+[    1.115818] usbcore: registered new interface driver usbhid
+[    1.116601] usbhid: USB HID core driver
+[    1.119187] hw perfevents: enabled with armv8_pmuv3 PMU driver, 7 counters available
+[    1.119779] u32 classifier
+[    1.119877]     input device check on
+[    1.120452]     Actions configured
+[    1.123920] NET: Registered PF_INET6 protocol family
+[    1.130254] Segment Routing with IPv6
+[    1.130474] In-situ OAM (IOAM) with IPv6
+[    1.131110] sit: IPv6, IPv4 and MPLS over IPv4 tunneling driver
+[    1.133723] NET: Registered PF_PACKET protocol family
+[    1.134312] Bridge firewalling registered
+[    1.134992] Key type dns_resolver registered
+[    1.135563] NET: Registered PF_VSOCK protocol family
+[    1.146267] registered taskstats version 1
+[    1.159722] Key type .fscrypt registered
+[    1.159827] Key type fscrypt-provisioning registered
+[    1.164946] Btrfs loaded, zoned=no, fsverity=no
+[    1.178233] Key type encrypted registered
+[    1.180035] printk: console [netcon0] enabled
+[    1.180808] netconsole: network logging started
+[    1.212772] Sending DHCP requests ., OK
+[    1.229332] IP-Config: Got DHCP answer from 10.0.2.2, my address is 10.0.2.15
+[    1.229747] IP-Config: Complete:
+[    1.229840]      device=eth0, hwaddr=52:54:00:12:35:02, ipaddr=10.0.2.15, mask=255.255.255.0, gw=10.0.2.2
+[    1.230232]      host=10.0.2.15, domain=, nis-domain=(none)
+[    1.230320]      bootserver=10.0.2.2, rootserver=10.0.2.2, rootpath=
+[    1.230348]      nameserver0=10.0.2.3
+[    1.233508] clk: Disabling unused clocks
+[    1.236587] md: Waiting for all devices to be available before autodetect
+[    1.236698] md: If you don't use raid, use raid=noautodetect
+[    1.236856] md: Autodetecting RAID arrays.
+[    1.236975] md: autorun ...
+[    1.237070] md: ... autorun DONE.
+[    1.298497] EXT4-fs (vda): mounted filesystem 6e01c895-f44f-4183-92f5-b61569f9bef8 r/w with ordered data mode. Quota mode: disabled.
+[    1.299111] VFS: Mounted root (ext4 filesystem) on device 253:0.
+[    1.301105] devtmpfs: mounted
+[    1.332464] Freeing unused kernel memory: 4608K
+[    1.333246] Run /sbin/init as init process
+[    1.599370] systemd[1]: systemd 255.21^ running in system mode (-PAM -AUDIT -SELINUX -APPARMOR +IMA -SMACK +SECCOMP -GCRYPT -GNUTLS -OPENSSL +ACL +BLKID -CURL -ELFUTILS -FIDO2 -IDN2 -IDN -IPTC +KMOD -LIBCRYPTSETUP +LIBFDISK -PCRE2 -PWQUALITY -P11KIT -QRENCODE -TPM2 -BZIP2 -LZ4 -XZ -ZLIB +ZSTD -BPF_FRAMEWORK +XKBCOMMON +UTMP +SYSVINIT default-hierarchy=unified)
+[    1.600546] systemd[1]: Detected virtualization qemu.
+[    1.600787] systemd[1]: Detected architecture arm64.
+
+Welcome to [1mPoky (Yocto Project Reference Distro) 5.0.19 (scarthgap)[0m!
+
+[    1.609670] systemd[1]: Hostname set to <egw-qemu-integrated>.
+[    2.616550] systemd[1]: Queued start job for default target Multi-User System.
+[    2.675868] systemd[1]: Created slice Slice /system/getty.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/getty[0m.
+[    2.682461] systemd[1]: Created slice Slice /system/modprobe.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/modprobe[0m.
+[    2.686794] systemd[1]: Created slice Slice /system/serial-getty.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/serial-getty[0m.
+[    2.690372] systemd[1]: Created slice Slice /system/systemd-growfs.
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/systemd-growfs[0m.
+[    2.694364] systemd[1]: Created slice User and Session Slice.
+[[0;32m  OK  [0m] Created slice [0;1;39mUser and Session Slice[0m.
+[    2.697313] systemd[1]: Started Dispatch Password Requests to Console Directory Watch.
+[[0;32m  OK  [0m] Started [0;1;39mDispatch Password Requests to Console Directory Watch[0m.
+[    2.698580] systemd[1]: Started Forward Password Requests to Wall Directory Watch.
+[[0;32m  OK  [0m] Started [0;1;39mForward Password Requests to Wall Directory Watch[0m.
+[    2.699736] systemd[1]: Expecting device /dev/disk/by-label/egw-data...
+         Expecting device [0;1;39m/dev/disk/by-label/egw-data[0m...
+[    2.701047] systemd[1]: Reached target Path Units.
+[[0;32m  OK  [0m] Reached target [0;1;39mPath Units[0m.
+[    2.701637] systemd[1]: Reached target Remote File Systems.
+[[0;32m  OK  [0m] Reached target [0;1;39mRemote File Systems[0m.
+[    2.702274] systemd[1]: Reached target Slice Units.
+[[0;32m  OK  [0m] Reached target [0;1;39mSlice Units[0m.
+[    2.702905] systemd[1]: Reached target Swaps.
+[[0;32m  OK  [0m] Reached target [0;1;39mSwaps[0m.
+[    2.706135] systemd[1]: Listening on initctl Compatibility Named Pipe.
+[[0;32m  OK  [0m] Listening on [0;1;39minitctl Compatibility Named Pipe[0m.
+[    2.750976] systemd[1]: Journal Audit Socket was skipped because of an unmet condition check (ConditionSecurity=audit).
+[    2.754435] systemd[1]: Listening on Journal Socket (/dev/log).
+[[0;32m  OK  [0m] Listening on [0;1;39mJournal Socket (/dev/log)[0m.
+[    2.756619] systemd[1]: Listening on Journal Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mJournal Socket[0m.
+[    2.758579] systemd[1]: Listening on Network Service Netlink Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mNetwork Service Netlink Socket[0m.
+[    2.762413] systemd[1]: Listening on udev Control Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mudev Control Socket[0m.
+[    2.764532] systemd[1]: Listening on udev Kernel Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mudev Kernel Socket[0m.
+[    2.765967] systemd[1]: Listening on User Database Manager Socket.
+[[0;32m  OK  [0m] Listening on [0;1;39mUser Database Manager Socket[0m.
+[    2.768604] systemd[1]: Huge Pages File System was skipped because of an unmet condition check (ConditionPathExists=/sys/kernel/mm/hugepages).
+[    2.802136] systemd[1]: Mounting POSIX Message Queue File System...
+         Mounting [0;1;39mPOSIX Message Queue File System[0m...
+[    2.838682] systemd[1]: Mounting Kernel Debug File System...
+         Mounting [0;1;39mKernel Debug File System[0m...
+[    2.855331] systemd[1]: Mounting Kernel Trace File System...
+         Mounting [0;1;39mKernel Trace File System[0m...
+[    2.905699] systemd[1]: Mounting Temporary Directory /tmp...
+         Mounting [0;1;39mTemporary Directory /tmp[0m...
+[    3.018971] systemd[1]: Starting Create List of Static Device Nodes...
+         Starting [0;1;39mCreate List of Static Device Nodes[0m...
+[    3.047546] systemd[1]: Starting Load Kernel Module configfs...
+         Starting [0;1;39mLoad Kernel Module configfs[0m...
+[    3.137311] systemd[1]: Starting Load Kernel Module drm...
+         Starting [0;1;39mLoad Kernel Module drm[0m...
+[    3.210147] systemd[1]: Starting Load Kernel Module fuse...
+         Starting [0;1;39mLoad Kernel Module fuse[0m...
+[    3.217156] systemd[1]: File System Check on Root Device was skipped because of an unmet condition check (ConditionPathIsReadWrite=!/).
+[    3.319921] systemd[1]: Starting Journal Service...
+         Starting [0;1;39mJournal Service[0m...
+[    3.359048] systemd[1]: Starting Load Kernel Modules...
+         Starting [0;1;39mLoad Kernel Modules[0m...
+[    3.410060] systemd[1]: Starting Generate network units from Kernel command line...
+         Starting [0;1;39mGenerate network units from Kernel command line[0m...
+[    3.485788] systemd[1]: Starting Remount Root and Kernel File Systems...
+         Starting [0;1;39mRemount Root and Kernel File Systems[0m...
+[    3.563286] systemd[1]: Starting Coldplug All udev Devices...
+         Starting [0;1;39mColdplug All udev Devices[0m...
+[    3.598228] systemd[1]: Mounted POSIX Message Queue File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mPOSIX Message Queue File System[0m.
+[    3.601453] systemd[1]: Mounted Kernel Debug File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Debug File System[0m.
+[    3.603312] systemd[1]: Mounted Kernel Trace File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Trace File System[0m.
+[    3.609531] systemd[1]: Mounted Temporary Directory /tmp.
+[[0;32m  OK  [0m] Mounted [0;1;39mTemporary Directory /tmp[0m.
+[    3.625009] systemd[1]: Finished Create List of Static Device Nodes.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate List of Static Device Nodes[0m.
+[    3.662718] systemd[1]: Starting Create Static Device Nodes in /dev gracefully...
+         Starting [0;1;39mCreate Static Device Nodes in /dev gracefully[0m...
+[    3.686875] systemd[1]: modprobe@configfs.service: Deactivated successfully.
+[    3.692653] systemd[1]: Finished Load Kernel Module configfs.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Module configfs[0m.
+[    3.753089] systemd[1]: Mounting Kernel Configuration File System...
+         Mounting [0;1;39mKernel Configuration File System[0m...
+[    3.840531] systemd[1]: modprobe@drm.service: Deactivated successfully.
+[    3.863264] systemd[1]: Finished Load Kernel Module drm.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Module drm[0m.
+[    3.982591] fuse: init (API version 7.39)
+[    4.019737] systemd[1]: modprobe@fuse.service: Deactivated successfully.
+[    4.022077] systemd[1]: Finished Load Kernel Module fuse.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Module fuse[0m.
+[    4.049977] systemd[1]: Mounting FUSE Control File System...
+         Mounting [0;1;39mFUSE Control File System[0m...
+[    4.077640] systemd[1]: Mounted Kernel Configuration File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mKernel Configuration File System[0m.
+[    4.091634] systemd[1]: Finished Generate network units from Kernel command line.
+[[0;32m  OK  [0m] Finished [0;1;39mGenerate network units from Kernel command line[0m.
+[    4.135330] systemd-journald[109]: Collecting audit messages is disabled.
+[    4.297009] openvswitch: Open vSwitch switching datapath
+[    4.347783] systemd[1]: Finished Load Kernel Modules.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad Kernel Modules[0m.
+[    4.374866] systemd[1]: Starting Apply Kernel Variables...
+         Starting [0;1;39mApply Kernel Variables[0m...
+[    4.391438] systemd[1]: Mounted FUSE Control File System.
+[[0;32m  OK  [0m] Mounted [0;1;39mFUSE Control File System[0m.
+[    4.535777] EXT4-fs (vda): re-mounted 6e01c895-f44f-4183-92f5-b61569f9bef8.
+[    4.566973] systemd[1]: Finished Remount Root and Kernel File Systems.
+[[0;32m  OK  [0m] Finished [0;1;39mRemount Root and Kernel File Systems[0m.
+[    4.575151] systemd[1]: Rebuild Hardware Database was skipped because of an unmet condition check (ConditionNeedsUpdate=/etc).
+[    4.593771] systemd[1]: Finished Create Static Device Nodes in /dev gracefully.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Static Device Nodes in /dev gracefully[0m.
+[    4.605222] systemd[1]: Create System Users was skipped because no trigger condition checks were met.
+[    4.653586] systemd[1]: Starting Create Static Device Nodes in /dev...
+         Starting [0;1;39mCreate Static Device Nodes in /dev[0m...
+[    4.657786] systemd[1]: Started Journal Service.
+[[0;32m  OK  [0m] Started [0;1;39mJournal Service[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mApply Kernel Variables[0m.
+         Starting [0;1;39mFlush Journal to Persistent Storage[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mCreate Static Device Nodes in /dev[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mPreparation for Local File Systems[0m.
+         Mounting [0;1;39m/var/volatile[0m...
+[    5.127065] systemd-journald[109]: Received client request to flush runtime journal.
+         Starting [0;1;39mRule-based Manager for Device Events and Files[0m...
+[    5.191314] systemd-journald[109]: /var/log/journal/164be2431eb24037a415dd1641011fa6/system.journal: Journal file uses a different sequence number ID, rotating.
+[    5.192745] systemd-journald[109]: Rotating system journal.
+[[0;32m  OK  [0m] Mounted [0;1;39m/var/volatile[0m.
+         Starting [0;1;39mLoad/Save OS Random Seed[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mColdplug All udev Devices[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mFlush Journal to Persistent Storage[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mLoad/Save OS Random Seed[0m.
+[[0;32m  OK  [0m] Started [0;1;39mRule-based Manager for Device Events and Files[0m.
+[    6.113247] virtio_net virtio0 enp0s1: renamed from eth0 (while UP)
+[[0;32m  OK  [0m] Found device [0;1;39m/dev/disk/by-label/egw-data[0m.
+         Mounting [0;1;39m/var/lib/docker[0m...
+[    6.438550] EXT4-fs (vdb): mounted filesystem 5244d70e-07de-4875-8dea-8291b0a03bf2 r/w with ordered data mode. Quota mode: disabled.
+[[0;32m  OK  [0m] Mounted [0;1;39m/var/lib/docker[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mLoad/Save RF Kill Switch Status /dev/rfkill Watch[0m.
+         Starting [0;1;39mGrow File System on /var/lib/docker[0m...
+         Starting [0;1;39mVirtual Console Setup[0m...
+[    6.739929] EXT4-fs (vdb): resizing filesystem from 8388608 to 8388608 blocks
+[[0;32m  OK  [0m] Finished [0;1;39mGrow File System on /var/lib/docker[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLocal File Systems[0m.
+         Starting [0;1;39mCreate System Files and Directories[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mVirtual Console Setup[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mCreate System Files and Directories[0m.
+         Starting [0;1;39mNetwork Name Resolution[0m...
+         Starting [0;1;39mNetwork Time Synchronization[0m...
+         Starting [0;1;39mRecord System Boot/Shutdown in UTMP[0m...
+         Starting [0;1;39mUser Database Manager[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mRecord System Boot/Shutdown in UTMP[0m.
+[[0;32m  OK  [0m] Started [0;1;39mUser Database Manager[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Time Synchronization[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Time Set[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Name Resolution[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mHost and Network Name Lookups[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Started [0;1;39mDaily Cleanup of Temporary Directories[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mTimer Units[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mAvahi mDNS/DNS-SD Stack Activation Socket[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39mD-Bus System Message Bus Socket[0m.
+         Starting [0;1;39mDocker Socket for the API[0m...
+         Starting [0;1;39msshd.socket[0m...
+[[0;32m  OK  [0m] Listening on [0;1;39mDocker Socket for the API[0m.
+[[0;32m  OK  [0m] Listening on [0;1;39msshd.socket[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSocket Units[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mBasic System[0m.
+         Starting [0;1;39mAvahi mDNS/DNS-SD Stack[0m...
+         Starting [0;1;39mD-Bus System Message Bus[0m...
+[[0;32m  OK  [0m] Started [0;1;39mGetty on tty1[0m.
+         Starting [0;1;39mIPv6 Packet Filtering Framework[0m...
+         Starting [0;1;39mIPv4 Packet Filtering Framework[0m...
+[[0;32m  OK  [0m] Started [0;1;39mSerial Getty on ttyAMA0[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLogin Prompts[0m.
+         Starting [0;1;39mUser Login Management[0m...
+         Starting [0;1;39mOpenSSH Key Generation[0m...
+[[0;32m  OK  [0m] Finished [0;1;39mIPv6 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mIPv4 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mPreparation for Network[0m.
+         Starting [0;1;39mNetwork Configuration[0m...
+[[0;32m  OK  [0m] Started [0;1;39mD-Bus System Message Bus[0m.
+[[0;32m  OK  [0m] Started [0;1;39mAvahi mDNS/DNS-SD Stack[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mOpenSSH Key Generation[0m.
+[[0;32m  OK  [0m] Started [0;1;39mUser Login Management[0m.
+[[0;32m  OK  [0m] Started [0;1;39mNetwork Configuration[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mNetwork[0m.
+         Starting [0;1;39mcontainerd container runtime[0m...
+         Starting [0;1;39mWait for Network to be Configured[0m...
+[[0;32m  OK  [0m] Created slice [0;1;39mSlice /system/sshd[0m.
+[[0;32m  OK  [0m] Started [0;1;39mOpenSSH Per-Connection Daemon (10.0.2.2:36554)[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mWait for Network to be Configured[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mNetwork is Online[0m.
+[   10.881122] systemd-journald[109]: /var/log/journal/164be2431eb24037a415dd1641011fa6/user-1000.journal: Journal file uses a different sequence number ID, rotating.
+[[0;32m  OK  [0m] Started [0;1;39mOpenSSH Per-Connection Daemon (10.0.2.2:36568)[0m.
+[[0;32m  OK  [0m] Started [0;1;39mOpenSSH Per-Connection Daemon (10.0.2.2:36584)[0m.
+[[0;32m  OK  [0m] Started [0;1;39mcontainerd container runtime[0m.
+         Starting [0;1;39mDocker Application Container Engine[0m...
+
+Poky (Yocto Project Reference Distro) 5.0.19 egw-qemu-integrated ttyAMA0
+
+egw-qemu-integrated login: [   15.878205] Initializing XFRM netlink socket
+[   51.518783] br-ff934393b751: port 1(veth02b6c88) entered blocking state
+[   51.520267] br-ff934393b751: port 1(veth02b6c88) entered disabled state
+[   51.520616] veth02b6c88: entered allmulticast mode
+[   51.526722] veth02b6c88: entered promiscuous mode
+[   51.604553] br-ff934393b751: port 2(veth53708f5) entered blocking state
+[   51.611209] br-ff934393b751: port 2(veth53708f5) entered disabled state
+[   51.617691] veth53708f5: entered allmulticast mode
+[   51.619508] veth53708f5: entered promiscuous mode
+[   51.625863] br-ff934393b751: port 2(veth53708f5) entered blocking state
+[   51.626789] br-ff934393b751: port 2(veth53708f5) entered forwarding state
+[   51.630556] br-ff934393b751: port 2(veth53708f5) entered disabled state
+[   54.555697] eth0: renamed from veth185cccc
+[   54.603058] br-ff934393b751: port 1(veth02b6c88) entered blocking state
+[   54.603665] br-ff934393b751: port 1(veth02b6c88) entered forwarding state
+[   55.362383] eth0: renamed from vethe8bcd63
+[   55.381626] br-ff934393b751: port 2(veth53708f5) entered blocking state
+[   55.382365] br-ff934393b751: port 2(veth53708f5) entered forwarding state
+[   55.492891] br-ff934393b751: port 3(veth73f002c) entered blocking state
+[   55.493114] br-ff934393b751: port 3(veth73f002c) entered disabled state
+[   55.495625] veth73f002c: entered allmulticast mode
+[   55.496992] veth73f002c: entered promiscuous mode
+[   55.500761] br-ff934393b751: port 3(veth73f002c) entered blocking state
+[   55.501167] br-ff934393b751: port 3(veth73f002c) entered forwarding state
+[   55.611084] br-ff934393b751: port 3(veth73f002c) entered disabled state
+[   58.223140] eth0: renamed from veth0d46344
+[   58.254359] br-ff934393b751: port 3(veth73f002c) entered blocking state
+[   58.254802] br-ff934393b751: port 3(veth73f002c) entered forwarding state
+[   58.714736] br-ff934393b751: port 4(vethbcd38c7) entered blocking state
+[   58.714981] br-ff934393b751: port 4(vethbcd38c7) entered disabled state
+[   58.715160] vethbcd38c7: entered allmulticast mode
+[   58.715551] vethbcd38c7: entered promiscuous mode
+[   58.716017] br-ff934393b751: port 4(vethbcd38c7) entered blocking state
+[   58.716193] br-ff934393b751: port 4(vethbcd38c7) entered forwarding state
+[   58.827271] br-ff934393b751: port 5(vethe8d5aa5) entered blocking state
+[   58.827523] br-ff934393b751: port 5(vethe8d5aa5) entered disabled state
+[   58.827709] vethe8d5aa5: entered allmulticast mode
+[   58.828126] vethe8d5aa5: entered promiscuous mode
+[   58.828615] br-ff934393b751: port 5(vethe8d5aa5) entered blocking state
+[   58.828926] br-ff934393b751: port 5(vethe8d5aa5) entered forwarding state
+[   59.282328] br-ff934393b751: port 4(vethbcd38c7) entered disabled state
+[   59.283157] br-ff934393b751: port 5(vethe8d5aa5) entered disabled state
+[   63.058515] eth0: renamed from veth4a2e157
+[   63.076611] br-ff934393b751: port 4(vethbcd38c7) entered blocking state
+[   63.076908] br-ff934393b751: port 4(vethbcd38c7) entered forwarding state
+[   63.362758] eth0: renamed from vethfa0ec20
+[   63.388112] br-ff934393b751: port 5(vethe8d5aa5) entered blocking state
+[   63.388269] br-ff934393b751: port 5(vethe8d5aa5) entered forwarding state
+[  227.080293] br-ff934393b751: port 6(veth05b8038) entered blocking state
+[  227.083343] br-ff934393b751: port 6(veth05b8038) entered disabled state
+[  227.084690] veth05b8038: entered allmulticast mode
+[  227.091193] veth05b8038: entered promiscuous mode
+[  231.534587] eth0: renamed from veth217e654
+[  231.559330] br-ff934393b751: port 6(veth05b8038) entered blocking state
+[  231.559669] br-ff934393b751: port 6(veth05b8038) entered forwarding state
+[  234.312361] systemd-journald[109]: Time jumped backwards, rotating.
+[  298.836294] systemd-journald[109]: Time jumped backwards, rotating.
+[  363.335395] systemd-journald[109]: Time jumped backwards, rotating.
+[  782.550675] systemd-journald[109]: Time jumped backwards, rotating.
+[ 1040.569772] systemd-journald[109]: Time jumped backwards, rotating.
+[ 1158.749540] br-ff934393b751: port 6(veth05b8038) entered disabled state
+[ 1158.755509] veth217e654: renamed from eth0
+[ 1158.865680] br-ff934393b751: port 6(veth05b8038) entered disabled state
+[ 1158.870921] veth05b8038 (unregistering): left allmulticast mode
+[ 1158.872046] veth05b8038 (unregistering): left promiscuous mode
+[ 1158.872738] br-ff934393b751: port 6(veth05b8038) entered disabled state
+[ 1161.940663] br-ff934393b751: port 6(veth2c86584) entered blocking state
+[ 1161.942490] br-ff934393b751: port 6(veth2c86584) entered disabled state
+[ 1161.942785] veth2c86584: entered allmulticast mode
+[ 1161.943873] veth2c86584: entered promiscuous mode
+[ 1165.112027] eth0: renamed from veth3c0161f
+[ 1165.160418] br-ff934393b751: port 6(veth2c86584) entered blocking state
+[ 1165.160719] br-ff934393b751: port 6(veth2c86584) entered forwarding state
+[ 1169.544391] systemd-journald[109]: Time jumped backwards, rotating.
+[ 1741.522136] hrtimer: interrupt took 503472 ns
+[ 2008.137863] systemd-journald[109]: Time jumped backwards, rotating.
+[ 2040.308077] systemd-journald[109]: Time jumped backwards, rotating.
+[ 2074.745713] br-ff934393b751: port 6(veth2c86584) entered disabled state
+[ 2074.750756] veth3c0161f: renamed from eth0
+[ 2074.844883] br-ff934393b751: port 6(veth2c86584) entered disabled state
+[ 2074.858765] veth2c86584 (unregistering): left allmulticast mode
+[ 2074.859067] veth2c86584 (unregistering): left promiscuous mode
+[ 2074.859232] br-ff934393b751: port 6(veth2c86584) entered disabled state
+[ 2077.806631] br-ff934393b751: port 2(veth53708f5) entered disabled state
+[ 2077.810860] vethe8bcd63: renamed from eth0
+[ 2077.920441] br-ff934393b751: port 2(veth53708f5) entered disabled state
+[ 2077.927087] veth53708f5 (unregistering): left allmulticast mode
+[ 2077.927391] veth53708f5 (unregistering): left promiscuous mode
+[ 2077.927648] br-ff934393b751: port 2(veth53708f5) entered disabled state
+[ 2080.264044] br-ff934393b751: port 5(vethe8d5aa5) entered disabled state
+[ 2080.265940] vethfa0ec20: renamed from eth0
+[ 2080.367359] br-ff934393b751: port 5(vethe8d5aa5) entered disabled state
+[ 2080.380386] vethe8d5aa5 (unregistering): left allmulticast mode
+[ 2080.381025] vethe8d5aa5 (unregistering): left promiscuous mode
+[ 2080.382941] br-ff934393b751: port 5(vethe8d5aa5) entered disabled state
+[ 2091.602741] br-ff934393b751: port 4(vethbcd38c7) entered disabled state
+[ 2091.603801] veth4a2e157: renamed from eth0
+[ 2091.693971] br-ff934393b751: port 4(vethbcd38c7) entered disabled state
+[ 2091.710967] vethbcd38c7 (unregistering): left allmulticast mode
+[ 2091.711904] vethbcd38c7 (unregistering): left promiscuous mode
+[ 2091.713064] br-ff934393b751: port 4(vethbcd38c7) entered disabled state
+[ 2109.271445] veth0d46344: renamed from eth0
+[ 2109.306698] br-ff934393b751: port 3(veth73f002c) entered disabled state
+[ 2109.361545] br-ff934393b751: port 3(veth73f002c) entered disabled state
+[ 2109.366408] veth73f002c (unregistering): left allmulticast mode
+[ 2109.367270] veth73f002c (unregistering): left promiscuous mode
+[ 2109.367826] br-ff934393b751: port 3(veth73f002c) entered disabled state
+[ 2110.504220] veth185cccc: renamed from eth0
+[ 2110.530224] br-ff934393b751: port 1(veth02b6c88) entered disabled state
+[ 2110.591456] br-ff934393b751: port 1(veth02b6c88) entered disabled state
+[ 2110.596669] veth02b6c88 (unregistering): left allmulticast mode
+[ 2110.597271] veth02b6c88 (unregistering): left promiscuous mode
+[ 2110.600892] br-ff934393b751: port 1(veth02b6c88) entered disabled state
+[[0;32m  OK  [0m] Stopped [0;1;39mOpenSSH Per-Connection Daemon (10.0.2.2:43532)[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/modprobe[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/sshd[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mMulti-User System[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLogin Prompts[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mHost and Network Name Lookups[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mRemote File Systems[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mTimer Units[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mDaily Cleanup of Temporary Directories[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mLoad/Save RF Kill Switch Status /dev/rfkill Watch[0m.
+         Stopping [0;1;39mAvahi mDNS/DNS-SD Stack[0m...
+         Stopping [0;1;39mDocker Application Container Engine[0m...
+         Stopping [0;1;39mGetty on tty1[0m...
+         Stopping [0;1;39mSerial Getty on ttyAMA0[0m...
+         Stopping [0;1;39mUser Login Management[0m...
+         Stopping [0;1;39mLoad/Save OS Random Seed[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mOpenSSH Key Generation[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mGetty on tty1[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mAvahi mDNS/DNS-SD Stack[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mSerial Getty on ttyAMA0[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mUser Login Management[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mDocker Application Container Engine[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/getty[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/serial-getty[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mNetwork is Online[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSystem Time Set[0m.
+         Stopping [0;1;39mcontainerd container runtime[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mWait for Network to be Configured[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mcontainerd container runtime[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mLoad/Save OS Random Seed[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mNetwork[0m.
+         Stopping [0;1;39mD-Bus System Message Bus[0m...
+         Stopping [0;1;39mNetwork Configuration[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mD-Bus System Message Bus[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Configuration[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPreparation for Network[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mIPv6 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mIPv4 Packet Filtering Framework[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mBasic System[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPath Units[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mDispatch Password Requests to Console Directory Watch[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mForward Password Requests to Wall Directory Watch[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSlice Units[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mUser and Session Slice[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSocket Units[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mAvahi mDNS/DNS-SD Stack Activation Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mD-Bus System Message Bus Socket[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mDocker Socket for the API[0m.
+[[0;32m  OK  [0m] Closed [0;1;39msshd.socket[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSystem Initialization[0m.
+[[0;32m  OK  [0m] Closed [0;1;39mNetwork Service Netlink Socket[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mGenerate network units from Kernel command line[0m.
+         Stopping [0;1;39mNetwork Name Resolution[0m...
+         Stopping [0;1;39mNetwork Time Synchronization[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Name Resolution[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mNetwork Time Synchronization[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mApply Kernel Variables[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mLoad Kernel Modules[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate System Files and Directories[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mLocal File Systems[0m.
+         Unmounting [0;1;39mTemporary Directory /tmp[0m...
+         Unmounting [0;1;39m/var/volatile[0m...
+[[0;32m  OK  [0m] Stopped [0;1;39mGrow File System on /var/lib/docker[0m.
+[[0;32m  OK  [0m] Removed slice [0;1;39mSlice /system/systemd-growfs[0m.
+         Unmounting [0;1;39m/var/lib/docker[0m...
+[[0;32m  OK  [0m] Unmounted [0;1;39mTemporary Directory /tmp[0m.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var/volatile[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mSwaps[0m.
+[ 2120.580608] EXT4-fs (vdb): unmounting filesystem 5244d70e-07de-4875-8dea-8291b0a03bf2.
+[[0;32m  OK  [0m] Unmounted [0;1;39m/var/lib/docker[0m.
+[[0;32m  OK  [0m] Stopped target [0;1;39mPreparation for Local File Systems[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mUnmount All Filesystems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mRemount Root and Kernel File Systems[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev[0m.
+[[0;32m  OK  [0m] Stopped [0;1;39mCreate Static Device Nodes in /dev gracefully[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Shutdown[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mLate Shutdown Services[0m.
+[[0;32m  OK  [0m] Finished [0;1;39mSystem Power Off[0m.
+[[0;32m  OK  [0m] Reached target [0;1;39mSystem Power Off[0m.
+[ 2120.877309] systemd-shutdown[1]: Syncing filesystems and block devices.
+[ 2120.927860] systemd-shutdown[1]: Sending SIGTERM to remaining processes...
+[ 2120.971565] systemd-journald[109]: Received SIGTERM from PID 1 (systemd-shutdow).
+[ 2121.051419] systemd-shutdown[1]: Sending SIGKILL to remaining processes...
+[ 2121.074898] systemd-shutdown[1]: Unmounting file systems.
+[ 2121.085145] (sd-remount)[14714]: Remounting '/' read-only with options ''.
+[ 2121.123562] EXT4-fs (vda): re-mounted 6e01c895-f44f-4183-92f5-b61569f9bef8 ro.
+[ 2121.134327] systemd-shutdown[1]: All filesystems unmounted.
+[ 2121.134498] systemd-shutdown[1]: Deactivating swaps.
+[ 2121.135596] systemd-shutdown[1]: All swaps deactivated.
+[ 2121.135744] systemd-shutdown[1]: Detaching loop devices.
+[ 2121.160920] systemd-shutdown[1]: All loop devices detached.
+[ 2121.161081] systemd-shutdown[1]: Stopping MD devices.
+[ 2121.162255] systemd-shutdown[1]: All MD devices stopped.
+[ 2121.162406] systemd-shutdown[1]: Detaching DM devices.
+[ 2121.162939] systemd-shutdown[1]: All DM devices detached.
+[ 2121.163141] systemd-shutdown[1]: All filesystems, swaps, loop devices, MD devices and DM devices detached.
+[ 2121.168784] systemd-shutdown[1]: Syncing filesystems and block devices.
+[ 2121.172053] systemd-shutdown[1]: Powering off.
+[ 2121.174101] reboot: Power down
+runqemu - INFO - Cleaning up
+runqemu - INFO - Host uptime: 2219.01
+
+[?7h== QEMU session ended; console log: /home/ruisth/egw-exec/attempts/20260928T205412Z_guest-session_attempt06/boot/s1.log ==
+
+Script done on 2026-09-28 22:28:16+01:00 [COMMAND_EXIT_CODE="0"]

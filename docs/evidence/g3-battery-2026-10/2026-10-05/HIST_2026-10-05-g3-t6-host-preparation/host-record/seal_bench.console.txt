@@ -1,0 +1,287 @@
+bench tree: /tmp/g3-s4-host-seal-5jei13 (HOME=/tmp/g3-s4-host-seal-5jei13/home); UTC date 2026-10-05; grep on PATH: /tmp/g3-s4-host-seal-5jei13/bin/grep
+scripts under test:
+8ea6f7040c6e492bb5aaec4f7a9bb025adf5058b537d932384214075801a3fff  seal_prep.sh
+d8b3de3cff5bfc210f64b4f0eb91d630812194f6e63875d4bf1a8048d4d72044  ops/seal_ops.sh
+97f50ceb4ae8e0319e34b6d7c064b88dc40f54b591032ae9083c5edf3b99b51b  ops/seal_ops_finish.sh
+cb77af8965ba00d844c40328944f3a16d4b5a9ba07b953368bf663f2cfe10625  ops/g3_go.sh
+28dc98ce620b80f677b3e13e20a0292b62419f1a711c5810bebeb290f8ee2415  ops/g3_wait.sh
+
+===== A. seal_prep.sh =====
+--- A1 a complete preparation folder is sealed
+    | of the preparation folder, not copied: base preflight.1fd9792.sh scratch.tmp stray-dir test_runbook_itest_helpers.1fd9792.py; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 44 files; seal ba787067b37e; record outcome: outcome=prepared (at 2026-10-05T00:00:00.000Z)
+    exit=0
+PASS: A1 exit (0)
+PASS: A1 sha256sum -c of the sealed package
+PASS: A1 every file is in SHA256SUMS (44)
+PASS: A1 4 files of the package hold the sweep's pattern text (the sealing scripts, their diffs, this bench) and the sweep counted 0
+PASS: A1 the private-key sweep does not match its own pattern line
+PASS: A1 secret-named variables swept (the 3-character one is skipped, the plain ones are not secrets) (2)
+PASS: A1 fake secret values on a grep command line (0)
+PASS: A1 fake secret values in the sealing console (0)
+PASS: A1 notes (the request draft included) in verification/; the two briefs as prep_brief.md and prep_bench_brief.md; the runbook blob and the procedure at the top
+PASS: A1 diffs against base/ (11 scripts and the operator procedure) (12)
+PASS: A1 scripts, ops/, part1-record/, bench/, host-record/ present; base/ not copied
+PASS: A1 every *-record folder is copied; base/, the two repository copies and the strays are named in the console and in the README, and not copied
+PASS: A1 README quotes the S4 lines of the record (collector, data disk, plan before/after, plan-supplement)
+    README (first 34 lines):
+    | # G3, session S4 (test 6 only): host preparation (sealed 2026-10-05T18:49:06Z)
+    | 
+    | Authority: the request of 2026-10-05 (output_test/decisions/2026-10-05_g3-t6-session-request.md), made on the
+    | Project Manager's register entry of 2026-10-05 after the merges of pull requests #55, #56 and #57. This package
+    | authorises nothing and is not a G3 result: session S4 starts only on Rui's explicit authorisation and his go in
+    | the attended window. The host-preparation script starts no guest and does not touch the controller image, the
+    | guest deployment or the data disk; besides the execution clone and the helper file, the one file it changes is
+    | the pilot plan, by the merged plan-supplement (entry controller_restart-r04; the predecessor is kept in
+    | part1-record/ when this record added the entry).
+    | 
+    | ## Part 1 - identities, freshness and the plan entry (part1-record/console.txt)
+    | 
+    | Outcome line of the record: `outcome=prepared (at 2026-10-05T00:00:00.000Z)`. STOP lines in the record: 0.
+    | Lines of the record, verbatim (the first HEAD= line is the clone before the fetch, the one that carries tree= right
+    | after it the clone after the checkout, the last one the clone at the end):
+    | 
+    |     HEAD=8e492613d36490a560ae56beabd6d5c2c01a8696 branch=(detached)
+    |     HEAD=1fd9792bb76f02c6948f33887207dba4837202db tree=14f89c4d3692aea8ef4f8f1fe29c333a9a7192ec
+    |     collector: 9e678b024bde66bacc65fea936d05ca226a82e73c86d1cc23a9cf9f8fe8d9b97  /fake/collect-resources.sh
+    |     rootfs-ext4: 6fce1688284b5d5af2d72991176f0fc7a0b4c8d9c7bcd833c2427437cdac6de4  /fake/rootfs.ext4
+    |     row t6: fake
+    |     data disk size: 34359738368 B
+    |     plan before: c195bd3faa9607aae7c091b1e7e59b451b74afe484fa179cfa2aad7af8f28a60  /fake/campaign_plan.json
+    |     added controller_restart-r04 (fake)
+    |     plan-supplement exit=0
+    |     plan after: 61d55940fcccdb942ff508ab6fc920b0fa163837ef7459438d789a1879b1eaac  /fake/campaign_plan.json
+    |     plan check: OK (fake)
+    |     HEAD=1fd9792bb76f02c6948f33887207dba4837202db tree=14f89c4d3692aea8ef4f8f1fe29c333a9a7192ec porcelain lines: 0
+    | 
+    | Identifier reported fresh on the host: 1 line(s); on the guest root file system
+    | (read offline with debugfs -c): 1 line(s).
+    | 
+    | ## Part 2 - the row file, the operator's steps script and the session tools
+    | 
+--- A2 a second sealing on the same name is refused, changes nothing, and names the next free name
+    | STOP: <bench>/out/runs/2026-10-05/HIST_2026-10-05-g3-t6-host-preparation exists - never overwritten (the next free name is HIST_2026-10-05-g3-t6-host-preparation-attempt02)
+    exit=2
+PASS: A2 exit (2)
+PASS: A2 says the package is never overwritten and names -attempt02
+PASS: A2 SHA256SUMS unchanged (ba787067b37e2f6fc724af8d761798140abfe43bb8c814982e5ca9616f31a964)
+PASS: A2 the package still verifies
+--- A3 S3's package name, a wrong date folder, missing inputs, a record with no outcome, no .env, an .env with no secret name: refused, nothing created
+    | STOP: the package must be named HIST_<UTC date>-g3-t6-host-preparation[-attemptNN], not HIST_2026-10-05-g3-t8t9-host-preparation-attempt02 - nothing was created
+    exit=2
+PASS: A3a S3's name (2)
+    | STOP: HIST_2026-10-05-g3-t6-host-preparation-attempt02 is not under a directory named after its own date (it is under 2026-01-01) - nothing was created
+    exit=2
+PASS: A3b date folder that is not the name's date (2)
+    | STOP: <bench>/prep-missing/bench-notes.md is missing - nothing was created
+    exit=2
+PASS: A3c missing bench-notes.md (2)
+    | STOP: <bench>/prep-missing2/bench-brief.md is missing - nothing was created
+    exit=2
+PASS: A3c2 missing bench brief and runbook blob (2)
+    | STOP: <bench>/prep-noend/record/console.txt holds no outcome= line: the host preparation did not end - nothing was created
+    exit=2
+PASS: A3d record without an outcome line (2)
+    | STOP: <bench>/home/egw-tcg/.env could not be read: the secret sweep cannot be made - nothing was created
+    exit=2
+PASS: A3e no .env (2)
+    | STOP: <bench>/home/egw-tcg/.env names no secret variable: the sweep would be empty - nothing was created
+    exit=2
+PASS: A3f .env without a secret-named variable (2)
+PASS: A3 nothing was created under the bench output_test by the seven refusals (a412e9a63c511965)
+--- A4 a secret value in a record: STOP, not sealed, the value not printed
+    | of the preparation folder, not copied: base preflight.1fd9792.sh scratch.tmp stray-dir test_runbook_itest_helpers.1fd9792.py; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 1 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: A4 exit (1)
+PASS: A4 the variable is named, the package is left without SHA256SUMS
+PASS: A4 the value in the sealing console (0)
+PASS: A4 the value on a grep command line (0)
+--- A5 a private-key header in a record: STOP, not sealed
+    | of the preparation folder, not copied: base preflight.1fd9792.sh scratch.tmp stray-dir test_runbook_itest_helpers.1fd9792.py; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 1 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: A5 exit (1)
+PASS: A5 one file with a header, not sealed
+--- A6 a record whose outcome is not 'prepared': sealed, exit 3, the README's title says so; the suffix -attemptNN and a record directory given as the fourth argument
+    | of the preparation folder, not copied: base preflight.1fd9792.sh scratch.tmp stray-dir test_runbook_itest_helpers.1fd9792.py; of ops/, only the four scripts are copied
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 44 files; seal 1d8366f47ce9; record outcome: outcome=failed (at 2026-10-05T00:00:01.000Z)
+    exit=3
+PASS: A6 exit (3)
+PASS: A6 sealed and verifiable, title and STOP count say it was not prepared
+--- A7 the next free name skips every suffix that exists (attempt02 to attempt04 exist now)
+    | STOP: <bench>/out/runs/2026-10-05/HIST_2026-10-05-g3-t6-host-preparation-attempt04 exists - never overwritten (the next free name is HIST_2026-10-05-g3-t6-host-preparation-attempt05)
+    exit=2
+PASS: A7 exit (2)
+PASS: A7 names -attempt05
+
+===== B. ops/seal_ops.sh =====
+--- B1 the S4 script: sealed, state directory by default under HOME (g3-t6-s4)
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 12 files; seal 8d1ea8565fb2
+    exit=0
+PASS: B1 exit (0)
+PASS: B1 sha256sum -c of the sealed package
+PASS: B1 the copy of seal_ops.sh holds the pattern text and the sweep counted 0
+PASS: B1 fake secret values on a grep command line (0)
+PASS: B1 state copied without the turn lock, notes copied, finish script not copied
+PASS: B1 README: steps script and manifest as opened (S4-*) equal the preparation package's (2)
+    README:
+    | # G3, session S4 (test 6 only): operator records (sealed 2026-10-05T18:49:08Z)
+    | 
+    | state/: the steps script's state directory as it stood when this package was sealed (session and row state
+    | files, one console per invocation, the frozen drivers' consoles, the environment copy record, the script and
+    | manifest as opened). operator/: the operator's launcher and waiter (read-only helpers that start one
+    | subcommand detached and wait for it), this sealing script, and the classification notes given to 'classify'
+    | (one reason and one next-action file per classified row).
+    | The session, preflight, gate and row packages are under output_test/runs/, each under its own UTC date;
+    | state/session-S4.env and state/row-*.env name them. Nothing here is a G3 result.
+    | 
+    | The steps script, the row file and their verification are in HIST_2026-10-05-g3-t6-host-preparation
+    | (its SHA256SUMS: sha256 ba787067b37e2f6fc724af8d761798140abfe43bb8c814982e5ca9616f31a964).
+    | - steps script as opened (state/S4-g3_battery.sh): sha256 bb086f6a6e211bf39365539af0e69ae07fe0e2c4c97c6804399175d3d1e9f8ea, equal to the preparation package's
+    | - manifest as opened (state/S4-rows.manifest.json): sha256 f75d4643cd2a6ef26df0a277d03ff3d97215153d39576d421b2296e5ac43633b, equal to the preparation package's
+--- B2 refusals: the same name again (next free name named), label S3, S3's name, an unsealed preparation package, S3's preparation package, a state directory that is missing
+    | STOP: <bench>/out/runs/2026-10-05/HIST_2026-10-05-g3-t6-s4-operator-records exists - never overwritten (the next free name is HIST_2026-10-05-g3-t6-s4-operator-records-attempt02)
+    exit=2
+PASS: B2a same name (2)
+PASS: B2a names -attempt02
+PASS: B2a SHA256SUMS unchanged (8d1ea8565fb29b078f5c0a7384154021bbef876c7be2204ae0ceceebc1258fd3)
+    | STOP: the label must be S4 (the records of S1, S2 and S3 are sealed), not S3 - nothing was created
+    exit=2
+PASS: B2b label S3 (2)
+PASS: B2b the refusal says the earlier records are sealed
+    | STOP: the package must be named HIST_<UTC date>-g3-t6-s4-operator-records[-attemptNN], not HIST_2026-10-05-g3-t8t9-s3-operator-records-attempt03 - nothing was created
+    exit=2
+PASS: B2c S3's package name (2)
+    | STOP: <bench>/out/runs/2026-10-05/HIST_2026-10-05-g3-t6-host-preparation-attempt02 is not a sealed host-preparation package (no SHA256SUMS or no g3_battery.sh) - nothing was created
+    exit=2
+PASS: B2d preparation package without SHA256SUMS (2)
+    | STOP: <bench>/out/runs/2026-01-02/HIST_2026-01-02-g3-t8t9-host-preparation is not a host-preparation package of S4 - nothing was created
+    exit=2
+PASS: B2e S3's preparation package (2)
+    | STOP: the state directory <bench>/no-such-state is missing or empty - nothing was created
+    exit=2
+PASS: B2f missing state directory (2)
+PASS: B2 nothing was created by the refusals (dc2eefad3686294b)
+--- B3 a secret value in a state console: STOP, unsealed; seal_ops_finish.sh is not a way round
+    | secret sweep: EGW_MQTT_PASSWORD -> 1 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: B3 exit (state directory from EGW_G3_STATE) (1)
+PASS: B3 not sealed
+PASS: B3 the value in the sealing console (0)
+    | secret sweep: EGW_MQTT_PASSWORD -> 1 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: B3f finish exit (1)
+PASS: B3f still unsealed, no README written
+--- B4 a private-key header in a state file: STOP; no notes directory: sealed, the README says there are none
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 1 file(s)
+    | STOP: a secret value is in the package - NOT sealed
+    exit=1
+PASS: B4a exit (1)
+PASS: B4a one file with a header
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 10 files; seal 60d1d6b8c942
+    exit=0
+PASS: B4b exit (0)
+PASS: B4b sealed without notes, said so
+
+===== C. ops/seal_ops_finish.sh =====
+--- C1 an interrupted package (copy done, turn lock still in the copy, no README, no SHA256SUMS) is finished in place
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | sealed 13 files; seal 7bab64363f7b
+    exit=0
+PASS: C1 exit (0)
+PASS: C1 sha256sum -c of the finished package
+PASS: C1 the files that were there are unchanged (ddbaab8fc5324277)
+PASS: C1 sealing note, completeness and the lock's removal stated; the finish script kept in operator/
+PASS: C1 fake secret values on a grep command line (0)
+--- C2 refusals: already sealed; an incomplete copy; label S3; S3's package name
+    | STOP: <bench>/out/runs/2026-01-06/HIST_2026-01-06-g3-t6-s4-operator-records is already sealed - nothing was written
+    exit=2
+PASS: C2a already sealed (2)
+    | STOP: <bench>/out/runs/2026-01-07/HIST_2026-01-07-g3-t6-s4-operator-records/operator/seal_ops.sh is missing: the copy did not finish - nothing was written
+    exit=2
+PASS: C2b operator/seal_ops.sh missing (2)
+PASS: C2b nothing written
+    | STOP: the label must be S4 (the records of S1, S2 and S3 are sealed), not S3 - nothing was written
+    exit=2
+PASS: C2c label S3 (2)
+    | STOP: <bench>/out/runs/2026-01-07/HIST_2026-01-07-g3-t8t9-s3-operator-records-attempt03 is not named HIST_<UTC date>-g3-t6-s4-operator-records[-attemptNN] - nothing was written
+    exit=2
+PASS: C2d S3's package name (2)
+--- C3 the state directory changed after the copy: sealed, and the README says the copy differs
+    | secret sweep: EGW_MQTT_PASSWORD -> 0 file(s)
+    | secret sweep: EGW_DITTO_TOKEN -> 0 file(s)
+    | secret sweep: PEM private-key headers -> 0 file(s)
+    | NOTE: state/ DIFFERS from the state directory as it stood at finishing (1 line(s) of diff -rq, kept in operator/state-compare-at-finish.txt): the copy was incomplete, or the state directory changed after it
+    | sealed 14 files; seal 3a1c9b13770c
+    exit=0
+PASS: C3 exit (0)
+PASS: C3 the difference is stated and listed; the package verifies
+
+===== D. ops/g3_go.sh and ops/g3_wait.sh =====
+PASS: D0 the folder that holds ops/ (where the launcher and the waiter look for the steps script) holds g3_battery.sh
+PASS: D0 no S3 path, and no fixed path, is left in the launcher or the waiter
+--- D1 'open S4' is launched detached with the clone named, waited for, and its console (S4 state directory) and the status are shown
+    | launched 'open S4' detached at 2026-10-05T18:49:08Z
+    | WAITER: 'g3_battery.sh open' ended or the waiter timed out after 5 s (host uptime)
+    | == last console: <bench>/home/egw-exec/g3-t6-s4/console/900-open-S4.txt
+    | stub console of [open S4]
+    | == status
+    | your 131072x1 screen size is bogus. expect trouble
+    | your 131072x1 screen size is bogus. expect trouble
+    | stub status: no session
+    exit=0
+PASS: D1 exit (0)
+PASS: D1 the stub was started with 'open S4' and EGW_EXEC_REPO=$HOME/egw-exec/repo
+PASS: D1 the stub led its own session (sid = pid: setsid)
+PASS: D1 the waiter read the S4 state directory and ran 'status'
+--- D2 'row t6' is launched and waited for in the same way
+    | launched 'row t6' detached at 2026-10-05T18:49:12Z
+    | WAITER: 'g3_battery.sh row t6' ended or the waiter timed out after 6 s (host uptime)
+    | == last console: <bench>/home/egw-exec/g3-t6-s4/console/900-row-t6.txt
+    | stub console of [row t6]
+    | == status
+    | your 131072x1 screen size is bogus. expect trouble
+    | your 131072x1 screen size is bogus. expect trouble
+    | stub status: no session
+    exit=0
+PASS: D2 exit (0)
+PASS: D2 'row t6' started, its console read
+--- D3 usage
+    | usage: g3_go.sh <open S4|row t6|close> [max minutes]
+    exit=2
+PASS: D3 'row' without a slug (2)
+PASS: D3 the usage names S4 and t6
+PASS: no stub process of the bench is left
+
+===== summary: 83 PASS, 0 FAIL =====
+bench tree removed
+exit=0

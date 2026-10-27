@@ -1,0 +1,35 @@
+1000:1000 data/events
+OK: image id sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46
+OK: architecture arm64
+OK: os linux
+OK: revision label 489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+OK: source commit 489bc9e5b5b0660026ea2630b8d1d124049ba2ce, clean build context
+INFO: archive sha256 in the record: 9d347be45e886da09bb30d1029f30f7c5a70fd15ff75343856f0b3368bce841d; built 2026-09-26T17:30:30Z
+INFO: python dependencies: LOCKED (requirements-runtime.lock installed with --require-hashes; lock sha256 c43c761a646c09b086c9b05efeac5d2b6bb2d9b9ea08a37a709c175c16c2eb45)
+CONTROLLER IMAGE IDENTITY: verified (egw-controller:0.1.0 = sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46)
+OK: .env present, no placeholders
+OK: TLS material present (ca.crt, server.crt, server.key)
+OK: Mosquitto password file present
+OK: passwd closed to others (1883:1883 600)
+OK: certs/server.key closed to others (1883:1883 600)
+OK: certs/ca.key closed to others (1000:1000 600)
+Read test as uid:gid 1883:1883 in a one-shot container of: docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+OK: 1883:1883 is the image user "mosquitto" (uid:gid)
+OK: uid 1883 reads mosquitto.conf
+OK: uid 1883 reads acl
+OK: uid 1883 reads passwd
+OK: uid 1883 reads certs/ca.crt
+OK: uid 1883 reads certs/server.crt
+OK: uid 1883 reads certs/server.key
+
+OK: the broker user (1883:1883) can read its key, certificates, password file and ACL;
+    no secret is open to others.
+OK: broker user can read its secrets; none is open to others
+OK: all 5 image(s) in images.lock.env pinned by @sha256 digest
+OK: data/events directory ready (bind mount for events.jsonl)
+OK: docker compose config accepted
+OK: controller image egw-controller:0.1.0 present (identity: scripts/verify-controller-image.sh)
+
+OK: configuration is complete and consistent. Safe to run:
+    docker compose --env-file .env --env-file images.lock.env up -d
+up exit=0

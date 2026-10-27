@@ -1,0 +1,959 @@
+--- base/g3_battery.sh
++++ g3_battery.sh
+@@ -1,19 +1,28 @@
+ #!/bin/bash
+-# G3 qualifying battery - the operator's steps script (host preparation, part 2).
++# G3 qualification, session S3 (test 8 and test 9 only) - the operator's steps script.
+ #
+-# Authority: Rui's authorisation of 2026-10-02 under the decision packet of
+-# 2026-10-01 (revision 2) and the operator procedure of the host-preparation
+-# package. The candidate is FROZEN at 80e833f (tree dad725d): this script edits
+-# nothing of it. It sources the frozen tools/session/common.sh and
+-# guest_common.sh and records ONLY through their functions (new_attempt, ex, gx,
+-# gcp, hx, healthy_wait, headline, driver_code, driver_interrupt) and through
+-# local_export (set, add-source, finish).
++# S3: this is the battery's steps script (sessions S1 and S2 of 2026-10-02/03) finished
++# for ONE further session. Each change of behaviour made for S3 stands under a comment
++# that names S3 and the point of the preparation's brief it answers.
++#
++# Authority: the request of 2026-10-04 and its decision summary
++# (output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md: four choices, two
++# conditions). The session itself starts only on Rui's explicit authorisation and his go
++# in the attended window. The authority of 2026-10-02 (S1, S2, the -q1 identifiers) is
++# consumed: 'open' accepts S3 only. Procedure and tools: the merged commit 8e49261 (tree
++# 2f05148). The candidate (controller image, pinned images, deployment, guest OS) is
++# unchanged and this script edits nothing of it. It sources the frozen
++# tools/session/common.sh and guest_common.sh and records ONLY through their functions
++# (new_attempt, ex, gx, gcp, hx, healthy_wait, headline, driver_code, driver_interrupt)
++# and through local_export (set, add-source, finish). One place does not use gx: the
++# polls of test 8's wait run gx's own recorded command behind the host's 'timeout'
++# (t8_wait_ssh), because a shell function cannot be bounded by 'timeout'.
+ #
+ # The operator runs ONE subcommand per invocation and classifies between rows:
+-#   open S1|S2     checks, UP0, then the frozen drivers guest_session_open.sh,
++#   open S3        checks, UP0, then the frozen drivers guest_session_open.sh,
+ #                  preflight.sh, the environment copy (PM condition 2), gate_health.sh
+-#   row <slug>     one attempt (purpose official), the row's step files through hx,
+-#                  the gate before and after; the attempt is left OPEN
++#   row <slug>     t8, then t9: one attempt (purpose official), the row's step files
++#                  through hx, the gate before and after; the attempt is left OPEN
+ #   classify <slug> <status> <validity> <outcome> <reason> <next-action>
+ #   term <slug>    TERM (never KILL) to the recorded process group of a row
+ #   close          no unit active, the recorded 'compose stop -t 130', then the
+@@ -24,6 +33,10 @@
+ #
+ # Nothing in it kills QEMU, deletes anything, repeats a row, retries a failed
+ # step, or uses ACCEPT_UNACCOUNTED, --force or 'local_export set run_id=...'.
++# S3 (point 12): it never runs 'compose up', 'start' or 'restart', nor 'docker start',
++# never re-launches QEMU and never signals it. The one stack start of S3 is the frozen
++# preflight driver's, at 'open' (decision summary, condition B); after test 8's reboot
++# nothing on the guest is started, restarted or recreated by this script.
+ # Every halt prints 'HALT: ...' and leaves the decision to the operator.
+ #
+ # Usage (WSL, login shell; ONE subcommand per wsl.exe invocation, so that a row's
+@@ -31,8 +44,9 @@
+ #   EGW_EXEC_REPO=$HOME/egw-exec/repo bash g3_battery.sh <subcommand> [arguments]
+ # Exit: 0 done; 1 a HALT; 2 refused (nothing was started or changed); 130 (or the
+ # code driver_status.py derives) after an interrupt.
+-# State: ${EGW_G3_STATE:-$EXEC/g3-battery} (session-<S1|S2>.env, row-<slug>.env, the
+-# consoles of every invocation and of the four drivers). Row files: the rows/ folder
++# State: ${EGW_G3_STATE:-$EXEC/g3-t8t9-s3} (session-S3.env, row-<slug>.env, the
++# consoles of every invocation and of the four drivers); the battery's own state
++# directory, $EXEC/g3-battery, is never written. Row files: the rows/ folder
+ # beside this script, checked against rows/rows.manifest.json before anything runs.
+ # The script is never edited while a session is open (a row refuses a changed script).
+ # One changing subcommand at a time: open, row, classify and close each take the turn
+@@ -55,26 +69,42 @@
+ DRIVERS=$REPO/tools/session     # common.sh derives DRIVERS from $0, which is this script
+ S=$SESSION                      # the open session's attempt directory, or empty
+ 
+-# --- the frozen candidate (packet section 1) ------------------------------------------
+-TOOLS=80e833f44f647fe9cd8f5e99d3abf3c444de95aa
+-TREE=dad725d0bebc25c91712af2aa2705d5eeb92044f
++# --- the procedure and tools, and the unchanged candidate (request of 2026-10-04, section 2) ---
++# S3 (point 2): TOOLS and TREE are the merged commit and its tree, RUNBOOK_SHA the runbook
++# blob at that commit (1,623 lines). The drivers, the export tool, the helper heredoc,
++# tunnel.sh and ca.crt did not change against 80e833f: their values are the battery's.
++TOOLS=8e492613d36490a560ae56beabd6d5c2c01a8696
++TREE=2f0514837f267d8975f7071041aad14a5c18dcab
+ DRIVERS_SHA=4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5
+ EXPORT_TOOL_SHA=544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b
+-RUNBOOK_SHA=c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae
++RUNBOOK_SHA=4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+ HELPER_SHA=e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb
+ HELPER_LINES=545
+ TUNNEL_SHA=38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1
+ CA_SHA=556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff
+-ROOTFS_BEFORE_S1=c49500a9a7751a8753b8af44e2d76bd1d2d0e694b29524142cabf896f85e7260
++# S3 (point 2): the guest root file system expected before S3's boot is the value S2's
++# close recorded (rootfs_after_close of session-S2.env, in the sealed S2 operator records
++# output_test/runs/2026-10-03/HIST_2026-10-03-g3-battery-s2-operator-records/state/).
++ROOTFS_BEFORE_S3=22e9da8533541582a2e4549f4c37f2b80f0f6a9bd3a5f0dd5e13605d7269efcd
++# S3 (point 3): four identities the frozen open driver only records (guest_session_open.sh
++# lines 112-119), compared here with what S2's open recorded (console
++# 001-identities-before-boot of 20261003T132249Z_guest-session_attempt09): the kernel,
++# qemuboot.conf, the QEMU binary and the commit of the Yocto checkout (clean status).
++KERNEL_SHA=4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037
++QEMUBOOT_SHA=7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4
++QEMU_BIN_SHA=5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061
++YOCTO_COMMIT=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+ CUTOFF_S=10800                  # PM condition 3: no row STARTS after 3 h of session time
+ GATE_HEALTHY_S=900              # the gate: six services healthy within 900 s
+ T8_SSH_WAIT_S=900               # T8: at most 15 min for the rebooted guest to answer over ssh
+ T8_SSH_POLL_S=10                # T8: one read-only poll every 10 s during that wait
++T8_SSH_READ_S=20                # S3 (point 6): every poll ends within 20 s, or within what is left of the wait
+ KEEPALIVE_OPEN_S=21600          # a keepalive client with at least 6 h left at the open
+ KEEPALIVE_MARGIN_S=1800         # and, before a row, the row's ceiling plus 30 min
+ 
+ # --- paths ----------------------------------------------------------------------------
+-STATE=${EGW_G3_STATE:-$EXEC/g3-battery}
++# S3 (point 1): a state directory of its own; the battery's ($EXEC/g3-battery) is never written.
++STATE=${EGW_G3_STATE:-$EXEC/g3-t8t9-s3}
+ ROWS_DIR=${EGW_G3_ROWS:-$SELF_DIR/rows}
+ MANIFEST=$ROWS_DIR/rows.manifest.json
+ HELPER=$HOME/egw-tcg/itest-helpers.sh
+@@ -84,16 +114,23 @@
+ RAWD=$HOME/egw-tcg/pilot/results/raw
+ PROCESSED=$HOME/egw-tcg/pilot/results/processed
+ SUT_ENV=$HOME/egw-tcg/sut_environment.json
++# S3 (point 3): where the frozen open driver reads the three files (DEP, BUILD and
++# ROOTFS_EXT4 are guest_common.sh's; the Yocto checkout is its OLD).
++KERNEL=$DEP/Image-qemuarm64.bin
++QEMUBOOT=${ROOTFS_EXT4%.ext4}.qemuboot.conf
++QEMU_BIN=$BUILD/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
++
++# --- the rows (request of 2026-10-04, section 4) ----------------------------------------
++# S3 (point 1): the one session is S3 and its rows are t8, then t9. The battery's other
++# rows (t1-smokes to t7-ditto) belong to no session of this script: 'row', 'classify' and
++# 'term' refuse them as unknown. Their entries in the tables below are the battery's,
++# left as they were and reached by nothing.
++ROWS_S3="t8 t9"
+ 
+-# --- the twelve rows (packet section 2; the brief's table of step files) ---------------
+-ROWS_S1="t1-smokes t1-harness t2 t3 t4-replay t4-reset t5"
+-ROWS_S2="t6 t7-mongo t7-ditto t8 t9"
+-
+-session_rows() { case $1 in S1) echo "$ROWS_S1" ;; S2) echo "$ROWS_S2" ;; esac; }
++session_rows() { case $1 in S3) echo "$ROWS_S3" ;; esac; }
+ 
+ row_session() {
+-    case " $ROWS_S1 " in *" $1 "*) echo S1; return 0 ;; esac
+-    case " $ROWS_S2 " in *" $1 "*) echo S2; return 0 ;; esac
++    case " $ROWS_S3 " in *" $1 "*) echo S3; return 0 ;; esac
+     return 1
+ }
+ 
+@@ -136,11 +173,18 @@
+         t5) echo "itest-dropout-01-q1" ;;
+         t7-mongo) echo "itest-mongo-fault-01-q1" ;;
+         t7-ditto) echo "itest-ditto-fault-01-q1" ;;
+-        t8) echo "itest-post-reboot-01-q1" ;;
++        t8) echo "itest-post-reboot-01-q2" ;;      # S3 (point 2): the fresh smoke run id
+     esac
+ }
+-T8_PREFIX=itest-reboot-q1
+-T9_IDS="itest-tls-wrongca-q1 itest-auth-wrongpw-q1 itest-notls-q1"
++# S3 (point 2): the fresh -q2 identifiers of the request's section 3 (itest-acl-<UTC stamp>
++# is taken by the row itself and is never changed). No -q1 identifier is used by S3.
++T8_PREFIX=itest-reboot-q2
++T9_IDS="itest-tls-wrongca-q2 itest-auth-wrongpw-q2 itest-notls-q2"
++# S3 (point 9): the one earlier attempt of row t8 that is admitted (S2's halted one, kept
++# as sealed), and the name the export tool is expected to give each row's new attempt (it
++# numbers by scenario slug: the next number after the highest one found).
++T8_ADMITTED=20261003T142310Z_g3-qualification-t8_attempt01
++row_attempt_suffix() { case $1 in t8) echo _g3-qualification-t8_attempt02 ;; t9) echo _g3-qualification-t9_attempt01 ;; esac; }
+ 
+ row_harness_id() { case $1 in t1-harness) echo nominal-r02 ;; t6) echo controller_restart-r03 ;; esac; }
+ 
+@@ -229,6 +273,13 @@
+ # another launcher is not this procedure, and a re-launch through 3.3 is a recorded
+ # operator decision, never automatic. Arguments: before|after, the executable pattern
+ # of guest_common.sh, then (after) the recorded pid, start instant and disks.
++# S3 (point 5): 'before' also reads the whole command line of that process for
++# -no-reboot (QEMU accepts --no-reboot as well, and documents the option as a shortcut
++# for '-action reboot=shutdown': the three spellings of the one setting are looked for,
++# each as a whole argument). With it QEMU EXITS at a guest reboot instead of rebooting
++# inside the process, which is not the procedure of test 8: exit 3, and the caller halts
++# before the reboot is issued (step a is not run). A command line that cannot be read
++# is a STOP too (exit 1): the absence of the option was not shown.
+ T8_QEMU_IDENT='
+ mode=$1; re=$2; pid0=${3:-}; start0=${4:-}; disks0=${5:-}
+ listing=$(pgrep -af "$re"); q=$?
+@@ -248,7 +299,17 @@
+ [ -n "$start" ] || { echo "STOP: the start instant of pid $pid could not be read from /proc/$pid/stat"; exit 1; }
+ disks=$(tr "\0" "\n" < "/proc/$pid/cmdline" 2> /dev/null | grep -o "file=[^,]*" | paste -sd ";" -)
+ echo "QEMU PROCESS: pid=$pid start=$start disks=$disks"
+-[ "$mode" = after ] || exit 0
++if [ "$mode" != after ]; then
++    args=$(tr "\0" "\n" < "/proc/$pid/cmdline" 2> /dev/null)
++    [ -n "$args" ] || { echo "STOP: the command line of pid $pid (/proc/$pid/cmdline) could not be read: whether -no-reboot is on it is UNKNOWN - the reboot is NOT issued"; exit 1; }
++    found=$(printf "%s\n" "$args" | grep -n -x -E -e "--?no-reboot" -e "(.*,)?reboot=shutdown(,.*)?")
++    if [ -n "$found" ]; then
++        echo "STOP: -no-reboot (or its equivalent) is on the command line of the QEMU process $pid, as argument number:text $(printf "%s" "$found" | tr "\n" " "): this QEMU exits at a guest reboot instead of rebooting inside the same process - the reboot is NOT issued, and nothing was signalled"
++        exit 3
++    fi
++    echo "QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the $(printf "%s\n" "$args" | grep -c "") arguments of pid $pid"
++    exit 0
++fi
+ if [ "$pid" = "$pid0" ] && [ "$start" = "$start0" ] && [ "$disks" = "$disks0" ]; then
+     echo "QEMU PROCESS UNCHANGED: the same process as before step a (pid $pid, started at tick $start) with the same disks ($disks); whether the guest rebooted inside it is what step b shows"
+     exit 0
+@@ -339,7 +400,8 @@
+     # slug session-basename label ceiling up0 now steps-sha helper-sha clone itest-ids harness-id id-note file...
+     (slug, session, label, ceiling, up0, now, steps_sha, helper_sha, clone, ids, harness, note) = sys.argv[4:16]
+     names = sys.argv[16:]
+-    w = {"battery": "G3 qualifying battery (decision packet of 2026-10-01, revision 2; authorised 2026-10-02)",
++    # S3 (point 2): the authority of this session, in the field that named the battery (the key is kept).
++    w = {"battery": "G3 qualification, session S3: tests 8 and 9 only (request of 2026-10-04; decision summary output_test/decisions/2026-10-04_g3-t8-t9-s3-decision-summary.md)",
+          "row": slug, "session": session, "session_label": label,
+          "itest_run_ids": [i for i in ids.split(",") if i], "harness_run_id": harness or None,
+          "ids_note": note or None,
+@@ -533,12 +595,14 @@
+     exec 9>&-
+ }
+ 
+-# open_label: the label (S1, S2) of the session whose state file names the session that
+-# is open now, or nothing.
++# open_label: the label (S3; point 1) of the session whose state file names the session
++# that is open now, or nothing.
+ open_label() {
+     local l f
+     [ -n "$SESSION" ] || return 1
+-    for l in S1 S2; do
++    # S3 (point 1): one label; the battery's loop over its labels is kept in its form.
++    # shellcheck disable=SC2043
++    for l in S3; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || continue
+         if [ "$(state_get "$f" session_attempt)" = "$SESSION" ]; then
+@@ -564,14 +628,15 @@
+     local got
+     got=$(sha_of "$3") || got=unreadable
+     echo "$1: $got  $3"
+-    [ "$got" = "$2" ] || { WHY="$1 ($3) is $got, the packet names $2"; return 1; }
++    [ "$got" = "$2" ] || { WHY="$1 ($3) is $got, the recorded identity is $2"; return 1; }
+ }
+ 
+-# verify_candidate: the identities of packet section 1 this host holds. Non-zero, with
+-# WHY, at the first that differs.
++# verify_candidate: the identities this host holds (request of 2026-10-04, section 2: the
++# merged procedure and tools, and the unchanged candidate). Non-zero, with WHY, at the
++# first that differs.
+ WHY=""
+ verify_candidate() {
+-    local head tree porcelain ids n
++    local head tree porcelain ids n yhead yporcelain
+     head=$(git -C "$REPO" rev-parse HEAD 2> /dev/null) || head=unreadable
+     tree=$(git -C "$REPO" rev-parse 'HEAD^{tree}' 2> /dev/null) || tree=unreadable
+     echo "clone $REPO: HEAD=$head tree=$tree"
+@@ -591,9 +656,66 @@
+     echo "helpers: $HELPER_LINES lines, bash -n clean"
+     want_sha tunnel.sh "$TUNNEL_SHA" "$HOME/egw-tcg/tunnel.sh" || return 1
+     want_sha ca.crt "$CA_SHA" "$HOME/egw-tcg/ca.crt" || return 1
++    # S3 (point 3): the kernel, qemuboot.conf, the QEMU binary and the Yocto checkout
++    # (commit and clean status), which the frozen open driver records and compares with
++    # nothing. A difference is a halt of the same kind as the identities above.
++    want_sha kernel "$KERNEL_SHA" "$KERNEL" || return 1
++    want_sha qemuboot.conf "$QEMUBOOT_SHA" "$QEMUBOOT" || return 1
++    want_sha qemu-system-aarch64 "$QEMU_BIN_SHA" "$QEMU_BIN" || return 1
++    yhead=$(git -C "$OLD" rev-parse HEAD 2> /dev/null) || yhead=unreadable
++    echo "Yocto checkout $OLD: HEAD=$yhead"
++    [ "$yhead" = "$YOCTO_COMMIT" ] || { WHY="the Yocto checkout $OLD is at $yhead, the recorded identity is $YOCTO_COMMIT"; return 1; }
++    yporcelain=$(git -C "$OLD" status --porcelain 2> /dev/null) || { WHY="git status failed in the Yocto checkout $OLD"; return 1; }
++    [ -z "$yporcelain" ] || { WHY="the Yocto checkout $OLD is not clean ($(printf '%s\n' "$yporcelain" | wc -l) porcelain line(s))"; return 1; }
++    echo "Yocto checkout: clean (0 porcelain lines)"
+     check_guest_state || return 1
+ }
+ 
++# S3 (point 4): the images the gate driver found running, against S2's record. The frozen
++# gate_health.sh writes environment/container_identities.txt in its attempt (one line
++# 'identity <container> image=... image_id=... repo_digest=... container_id=... started=...'
++# for each of the six containers, then the controller build identity copied from the
++# guest) and compares it with nothing. What identifies the running images, for each
++# container, is the image reference, the image id and the repo digest: those three are
++# compared. The container id names a container object, not an image, and the start
++# instant changes at every boot: neither is compared (S1's and S2's gate records hold the
++# same six container ids and different start instants; in the three compared fields they
++# are equal). The six lines below are those of S2's gate package, file
++# output_test/runs/2026-10-03/20261003T132836Z_g2-gate-preconditions_attempt06/environment/container_identities.txt
++# (sha256 60f7e99b604bc78a7e176cae7dcefef2ffb2ba549e33cdbf05ad1313bb7073d1), lines 1 to 6,
++# each cut before ' container_id='. The build-identity lines that follow them in that
++# file are not compared here: the frozen preflight compares the controller image id with
++# the guest's record.
++GATE_IDENTITIES_S2='identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c image_id=sha256:5fef2509a20f85341b1e5c4dd7864e1a4a15fba155b88afa025cbcd5b5611ce9 repo_digest=eclipse-mosquitto@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
++identity egw-mongodb-1 image=docker.io/library/mongo:7.0.39@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d image_id=sha256:d58a07b4b2ecaff800c05ed786685d18dcbb5b31a801fdc57bdfb819a9f46c8f repo_digest=mongo@sha256:35a5926f71f8b6cb19206bee928c5a85f241a8be99f20c81abe35ae78a73415d
++identity egw-ditto-policies-1 image=docker.io/eclipse/ditto-policies:3.9.4@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb image_id=sha256:0e93f53bed2734b7ef83a59054b61077612cc40bbe47c4b6753d12eaefa3e99c repo_digest=eclipse/ditto-policies@sha256:652f75b9accfc1da8cbc228bcede0f7778e732b9625225dafad4a2930903d4bb
++identity egw-ditto-things-1 image=docker.io/eclipse/ditto-things:3.9.4@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0 image_id=sha256:38fef6b7598be0513532c227271c124437a54eb759c2a05f34305832d91b7122 repo_digest=eclipse/ditto-things@sha256:a1cc8a12d167ae5a22a31c9163913736ca14dcef4b544e6270265965089247b0
++identity egw-ditto-gateway-1 image=docker.io/eclipse/ditto-gateway:3.9.4@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b image_id=sha256:aeb24de31e2de444e767afe7bfbb8a70928c0527d8e6736bcb4813a5407fec7a repo_digest=eclipse/ditto-gateway@sha256:fc9102b5ed18e5ee402fd5a1a023c5d93c215dce6fd3f24d7efb4a9f6e08682b
++identity egw-controller-1 image=egw-controller:0.1.0 image_id=sha256:9a293fe13b1a020560d43fee328632a9ef8d91dec830899f18d3e2d964aa5f46 repo_digest=none'
++
++# gate_images_check: 0 only when the gate package of this session's open holds exactly six
++# 'identity' lines and they equal S2's in the three compared fields. Non-zero, with WHY,
++# otherwise - also when the package or its file cannot be read (a record that was not
++# read is not a record that matches). Read-only.
++gate_images_check() {
++    local g f n got want
++    g=$(state_get "$SESSION_FILE" gate_attempt)
++    f=$g/environment/container_identities.txt
++    [ -n "$g" ] && [ -s "$f" ] \
++        || { WHY="the gate package's record of the running images could not be read (gate attempt '${g:-not recorded at open}', file environment/container_identities.txt)"; return 1; }
++    echo "gate record: $f (sha256 $(sha_of "$f"))"
++    n=$(grep -c '^identity ' "$f")
++    got=$(sed -n 's/^\(identity [^ ]* image=[^ ]* image_id=[^ ]* repo_digest=[^ ]*\) container_id=[^ ]* started=[^ ]*$/\1/p' "$f" | LC_ALL=C sort)
++    want=$(printf '%s\n' "$GATE_IDENTITIES_S2" | LC_ALL=C sort)
++    printf '%s\n' "$got" | sed 's/^/  now: /'
++    if [ "$n" != 6 ] || [ "$got" != "$want" ]; then
++        printf '%s\n' "$want" | sed 's/^/  S2:  /'
++        WHY="the gate package's record of the running images ($f: $n identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form"
++        return 1
++    fi
++    echo "gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared)"
++}
++
+ # verify_row_files LABEL SLUG: the row's step files against rows.manifest.json.
+ verify_row_files() {
+     local files
+@@ -645,6 +767,10 @@
+ }
+ 
+ # fresh_row SLUG: every id of the row, and no earlier attempt of the row.
++# S3 (point 9): for t8 exactly ONE earlier attempt is admitted, S2's halted one
++# (T8_ADMITTED), where it is kept: in the WSL attempts directory and under
++# output_test/runs/2026-10-03/. Any other earlier attempt of t8, that one found anywhere
++# else, and any earlier attempt of t9, is NOT FRESH.
+ fresh_row() {
+     local slug=$1 bad=0 h f
+     # shellcheck disable=SC2046
+@@ -653,7 +779,13 @@
+     [ -z "$h" ] || fresh_plan "$h" || bad=1
+     for f in "$ATTEMPTS"/*_g3-qualification-"$slug"_attempt* "$OUT"/runs/*/*_g3-qualification-"$slug"_attempt* \
+         "$OUT"/incomplete/*_g3-qualification-"$slug"_attempt*; do
+-        [ ! -e "$f" ] || { echo "NOT FRESH: an earlier attempt of row $slug exists: $f"; bad=1; }
++        [ -e "$f" ] || continue
++        if [ "$slug" = t8 ] && { [ "$f" = "$ATTEMPTS/$T8_ADMITTED" ] || [ "$f" = "$OUT/runs/2026-10-03/$T8_ADMITTED" ]; }; then
++            echo "admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): $f"
++            continue
++        fi
++        echo "NOT FRESH: an earlier attempt of row $slug exists: $f"
++        bad=1
+     done
+     return "$bad"
+ }
+@@ -774,19 +906,28 @@
+ }
+ 
+ cmd_open() {
+-    local slug l f st expect rootfs listing id pre_id pre rc bad
+-    [ "$#" -eq 1 ] || refuse "usage: g3_battery.sh open S1|S2"
++    local slug l f st expect rootfs listing id pre_id pre gate_id rc bad
++    [ "$#" -eq 1 ] || refuse "usage: g3_battery.sh open S3"
+     LABEL=$1
+-    case $LABEL in S1 | S2) ;; *) refuse "usage: g3_battery.sh open S1|S2" ;; esac
++    # S3 (point 1): S3 only. S1 and S2 are the battery's sessions: nothing of them is re-run.
++    case $LABEL in
++        S3) ;;
++        S1 | S2) refuse "session $LABEL is a session of the battery of 2026-10-02/03, whose authority is consumed (request of 2026-10-04): nothing of S1 or S2 is re-run or replaced. This script opens S3 only: g3_battery.sh open S3" ;;
++        *) refuse "usage: g3_battery.sh open S3" ;;
++    esac
+     start_log "open-$LABEL"
+     take_turn "open $LABEL"
+     say "open $LABEL: steps script $SELF sha256 $(sha_of "$SELF")"
+     echo "EGW_EXEC_REPO=$EGW_EXEC_REPO EXEC=$EXEC SESSION=${SESSION:-<none>} (the three values of the operator procedure); STATE=$STATE ROWS=$ROWS_DIR OUT=$OUT"
+ 
+     # Refusals: nothing has been started and nothing is recorded.
++    # S3 (point 1): the preconditions of S3 are no open session and no QEMU process (the two
++    # refusals here) and the root file system at the expected value (a HALT of the checks
++    # below). The battery's S2-only precondition (S1 ended without a halt) is gone with S2.
+     [ ! -e "$EXEC/current_session" ] || refuse "a session is open ($EXEC/current_session names '${SESSION}')"
+     [ ! -e "$STATE/session-$LABEL.env" ] || refuse "$STATE/session-$LABEL.env exists: session $LABEL was already opened (a session is opened once; after a halt Rui directs what happens next)"
+-    for l in S1 S2; do
++    # shellcheck disable=SC2043
++    for l in S3; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || continue
+         st=$(state_get "$f" state)
+@@ -798,25 +939,8 @@
+         0) refuse "a qemu-system-aarch64 process is already running" ;;
+         *) refuse "whether a qemu-system-aarch64 process is running could not be determined" ;;
+     esac
+-    if [ "$LABEL" = S2 ]; then
+-        # The authorisation: S2 only if S1 reached its planned end without a halt condition.
+-        f=$STATE/session-S1.env
+-        bad=""
+-        [ -f "$f" ] || bad="no record of S1 ($f)"
+-        [ -n "$bad" ] || [ "$(state_get "$f" guest_session_close_exit)" = 0 ] || bad="S1's close driver did not end 0"
+-        [ -n "$bad" ] || [ -z "$(state_get "$f" halt)" ] || bad="S1 recorded a halt: $(state_get "$f" halt)"
+-        if [ -z "$bad" ]; then
+-            for slug in $ROWS_S1; do
+-                [ "$(state_get "$STATE/row-$slug.env" state)" = classified ] || { bad="S1's row $slug is not classified"; break; }
+-            done
+-        fi
+-        if [ -n "$bad" ]; then
+-            [ -n "${EGW_G3_RUI_GO:-}" ] || refuse "S2 is authorised only if S1 reached its planned end without a halt condition, and: $bad. With Rui's explicit direction, set EGW_G3_RUI_GO to his words (they are recorded)"
+-            echo "S1 did not reach its planned end without a halt ($bad); EGW_G3_RUI_GO is set and is recorded: $EGW_G3_RUI_GO"
+-        fi
+-    fi
+ 
+-    # Checks (packet section 7: S1 starts only if every check matches section 1).
++    # Checks (request of 2026-10-04, section 5 item 1: S3 starts only if every identity matches).
+     say "candidate identities"
+     verify_candidate || { echo "HALT: $WHY (packet section 4, halt 6); nothing was started"; exit 1; }
+     say "row files of $LABEL against $MANIFEST"
+@@ -831,14 +955,11 @@
+     done
+     [ "$bad" -eq 0 ] || { echo "HALT: an id of $LABEL is not fresh on the host; nothing was started"; exit 1; }
+     say "guest root file system before the boot"
+-    if [ "$LABEL" = S1 ]; then
+-        expect=$ROOTFS_BEFORE_S1
+-    else
+-        expect=$(state_get "$STATE/session-S1.env" rootfs_after_close)
+-    fi
++    # S3 (point 2): the expected value is the one S2's close recorded (ROOTFS_BEFORE_S3).
++    expect=$ROOTFS_BEFORE_S3
+     rootfs=$(sha_of "$ROOTFS_EXT4") || rootfs=unreadable
+     echo "rootfs ext4: $rootfs  $ROOTFS_EXT4"
+-    echo "expected:    ${expect:-<not recorded>} ($([ "$LABEL" = S1 ] && echo 'packet section 1' || echo "S1's post-close value"))"
++    echo "expected:    ${expect:-<not recorded>} (the value S2's close recorded)"
+     [ -n "$expect" ] && [ "$rootfs" = "$expect" ] || { echo "HALT: the guest root file system is not the expected one, or the expected value is not recorded (packet section 4, halt 6); nothing was started"; exit 1; }
+     say "keepalive"
+     keepalive_check "$KEEPALIVE_OPEN_S" || refuse "the keepalive client is not attached (see above); nothing was started"
+@@ -887,6 +1008,10 @@
+ 
+     run_driver "$LABEL" gate_health
+     rc=$?
++    # S3 (point 4): the gate package is named in the session's state file, as the
++    # preflight's is: 'row t8' compares its record of the running images with S2's.
++    gate_id=$(driver_run_id "$DRIVER_CONSOLE")
++    [ -z "$gate_id" ] || state_set "$SESSION_FILE" gate_attempt "$ATTEMPTS/$gate_id"
+     [ "$rc" -eq 0 ] || open_halt "gate_health.sh exited $rc; see $DRIVER_CONSOLE"
+ 
+     # One read-only listing of the guest's event directories (a step of the session
+@@ -1048,68 +1173,130 @@
+ # The launcher runs QEMU without -no-reboot: 'sudo systemctl reboot' (step a) reboots the
+ # guest INSIDE the same qemu-system-aarch64 process, which never exits and is never
+ # re-launched. Between step a and step b this script only WAITS, read-only, for the
+-# rebooted guest to answer over ssh (t8_wait_ssh, through gx on the row's attempt: every
+-# poll is a recorded step; nothing is signalled; a QEMU exit, another process or none is
+-# a STOP of t8-qemu-after, and a re-launch through 3.3 is a recorded operator decision,
+-# never automatic). Steps b to f are hx steps, each only if the one before printed no
+-# STOP: and showed what the runbook line names; a STOP in b, c, d or e is a halt (T9 is
+-# not started); the status of f, the fresh timed smoke, is the operator's classification.
++# rebooted guest to answer over ssh (t8_wait_ssh, on the row's attempt: every poll is a
++# recorded step, bounded by the host's 'timeout'; nothing is signalled; a QEMU exit,
++# another process or none is a STOP of t8-qemu-after, and a re-launch through 3.3 is a
++# recorded operator decision, never automatic). Steps b to f are hx steps, each only if
++# the one before printed no STOP: and showed what the runbook line names; a STOP in b, c,
++# d or e is a halt (T9 is not started). S3 (point 8): step f, the fresh timed smoke, is a
++# halt as well unless its console shows the helper's 'TEST STATUS <id>: ... PROCEDURE
++# COMPLETE' line and no STOP:; with that line and no STOP: the values the smoke printed
++# (lost, late_confirmations) are the operator's classification, never a halt.
++# S3 (condition B of the decision summary): after the reboot this script starts,
++# restarts and recreates nothing on the guest - it holds no 'compose up', 'start' or
++# 'restart' and no 'docker start' - so that the containers' return (line c) is unaided.
++# Line d's tunnel step and the close's stop are the prescribed ones, and are not a
++# recovery of the containers.
+ T8_ANSWERED=0
+ T8_WAIT_WHY=""
+ 
+-# t8_wait_ssh PRE_ID: polls 'cat /proc/sys/kernel/random/boot_id' on the guest through gx
+-# every T8_SSH_POLL_S s for at most T8_SSH_WAIT_S s (timed on /proc/uptime, as the whole
+-# session is). 0 as soon as the guest answers with a boot id OTHER than PRE_ID, the one
+-# step a saved: the hx preamble of step b (tunnel_check || tunnel_up) then reaches the
+-# REBOOTED guest's sshd, not the one that is going down. An answer with the saved id is
+-# printed and the wait goes on (the guest has not gone down yet, or did not reboot);
+-# step b, the runbook's own line, judges and records REBOOT SHOWN. 1 at the limit, with
+-# T8_WAIT_WHY saying whether the guest never answered or answered only with the saved
+-# id; 1 at once when a poll's console capture was lost (74).
++# S3 (point 6): the command of ONE poll of the wait. gx (guest_common.sh) is a shell
++# function, which the host's 'timeout' cannot run. What gx records through ex is
++# 'env E=<session> bash -c <text> _ <guest command>'; the wait records the same command,
++# through the same ex, with 'timeout <seconds>' in front of it. The text below is gx's
++# own, character for character (guest_common.sh, lines 49-50): the session's ssh helpers
++# are loaded (97 when they cannot be) and gssh runs the guest command.
++T8_POLL_SH='. "$E/scripts/session_common.sh" || { echo "STOP: the session ssh helpers ($E/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest" >&2; exit 97; }
++gssh "$1"'
++# The kernel's form of a boot id (/proc/sys/kernel/random/boot_id): a UUID in lower case.
++T8_BOOT_ID_RE='^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
++
++# t8_wait_ssh PRE_ID T0: the wait before line b (S3, point 6; decision summary, condition
++# A). It polls 'cat /proc/sys/kernel/random/boot_id' on the guest, one poll every
++# T8_SSH_POLL_S s, for at most T8_SSH_WAIT_S s measured on /proc/uptime (whole seconds,
++# as the whole session is) from T0, the instant step a ended.
++#   - EVERY poll is one recorded step of the row's attempt (ex, name t8-wait-ssh) and is
++#     run by the host's 'timeout' with a duration of min(T8_SSH_READ_S, what is left of
++#     the budget) seconds: never 0, never without 'timeout'. With less than 1 s left no
++#     further poll is made: the wait has expired.
++#   - A poll COUNTS only when it ended with exit status 0 AND its whole answer is one
++#     boot id of the kernel's form AND that id is not PRE_ID, the one step a saved. A poll
++#     that printed such an id and then ended 124 (the timeout), 255 (ssh) or any other
++#     non-zero status is no answer whatever it printed: it is said so, its console stays
++#     in the attempt as the recorded step it is, and the wait goes on. This is the rule of
++#     the merged line b, not a weaker one.
++#   - 0 as soon as a poll counts: the hx preamble of step b (tunnel_check || tunnel_up)
++#     then reaches the REBOOTED guest's sshd, not the one that is going down. An answer
++#     with the saved id is printed and the wait goes on (the guest has not gone down yet,
++#     or did not reboot); step b, the runbook's own line, judges and records REBOOT SHOWN.
++#   - 1 when the budget is spent: T8_WAIT_WHY says 'reboot not shown' within the wait
++#     (inconclusive / not demonstrated: an operational cut-off, not by itself a failure
++#     of the system), and line b is not run.
++#   - 74 at once when a poll's console capture was lost: a halt of its own.
++#   - 3, before any poll, when PRE_ID is not a boot id: nothing could be compared with it.
++# Nothing here writes the row's start instant or its ceiling: the wait, what ran before
++# it and the steps after it share the row's ceiling, counted from the row's start.
+ t8_wait_ssh() {
+-    local pre=$1 t0 now n=0 n_none=0 n_same=0 last=none rc id f
+-    t0=$(up_now)
++    local pre=$1 t0=$2 now left d s n=0 n_none=0 n_same=0 n_other=0 last="no poll was made" rc id f prev="" start ceiling
+     row_set step t8-wait-ssh
+-    say "row t8: waiting at most $T8_SSH_WAIT_S s for the guest to answer over ssh with a boot id other than the saved one ${pre:-<none>} (read-only polls every $T8_SSH_POLL_S s through gx, each recorded; QEMU is never signalled; nothing is re-launched)"
++    now=$(up_now)
++    if ! [[ $pre =~ $T8_BOOT_ID_RE ]]; then
++        T8_WAIT_WHY="the boot id step a saved ($P/$T8_PREFIX.boot_id.pre) is not a boot id of the kernel's form ('$pre'), although step a printed no STOP: - no answer of the guest can be compared with it, so no poll was made (invalid instrumentation; packet section 4, halt 2)"
++        return 3
++    fi
++    # Read, never written: the row's start instant and its ceiling stay what 'row' recorded.
++    start=$(state_get "$ROW_FILE" start_up)
++    ceiling=$(state_get "$ROW_FILE" ceiling_min)
++    state_add "$ROW_FILE" t8_wait "started up=$now, $((now - t0)) s after step a ended (up=$t0); budget $T8_SSH_WAIT_S s from that instant; the row's start (up=$start) and its ceiling ($ceiling min) are not reset"
++    say "row t8: waiting at most $T8_SSH_WAIT_S s from the end of step a (up=$t0) for the guest to answer over ssh with a boot id other than the saved one $pre (read-only polls every $T8_SSH_POLL_S s, each a recorded step bounded by 'timeout' to $T8_SSH_READ_S s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of $ceiling min keeps counting from the row's start (up=$start): $(((now - ${start:-$now}) / 60)) min of it are used"
+     while :; do
++        now=$(up_now)
++        left=$((T8_SSH_WAIT_S - (now - t0)))
++        if [ "$left" -lt 1 ]; then
++            T8_WAIT_WHY="reboot not shown within the wait: in the $T8_SSH_WAIT_S s after step a ended, none of the $n poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id $pre ($n_none ended with another status - no answer, whatever they printed; $n_same answered the saved id; $n_other ended 0 without one boot id as the answer); the last poll: $last. An operational cut-off: inconclusive / not demonstrated, not by itself a failure of the system (decision summary, choice 3; packet section 4, halt 5)"
++            return 1
++        fi
++        d=$T8_SSH_READ_S
++        [ "$left" -ge "$d" ] || d=$left
+         n=$((n + 1))
+-        gx "$A" t8-wait-ssh "cat /proc/sys/kernel/random/boot_id"
++        ex "$A" t8-wait-ssh timeout "$d" env E="$SESSION" bash -c "$T8_POLL_SH" _ "cat /proc/sys/kernel/random/boot_id"
+         rc=$?
+         now=$(up_now)
+         if [ "$rc" -eq "$EXIT_CAPTURE_LOST" ]; then
+-            T8_WAIT_WHY="poll $n of the wait answered 74: its console capture was lost (packet section 4, halt 2)"
+-            return 1
++            T8_WAIT_WHY="poll $n of the wait answered 74: its console capture was lost, so what the guest answered is not on record (invalid instrumentation; packet section 4, halt 2)"
++            return "$EXIT_CAPTURE_LOST"
+         fi
+-        if [ "$rc" -eq 0 ]; then
+-            f=$(console_of t8-wait-ssh)
+-            id=$(grep -m 1 -oE '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' "$f" 2> /dev/null)
++        # The poll's own console: a new file for every poll (a file already read belongs
++        # to an earlier poll and is never read again as this one's answer).
++        f=$(console_of t8-wait-ssh)
++        id=""
++        [ -z "$f" ] || [ "$f" = "$prev" ] || id=$(cat "$f" 2> /dev/null)
++        prev=$f
++        [[ $id =~ $T8_BOOT_ID_RE ]] || id=""
++        if [ "$rc" -eq 0 ] && [ -n "$id" ] && [ "$id" != "$pre" ]; then
++            echo "poll $n at +$((now - t0)) s (bounded to $d s): exit status 0 and the answer is the boot id $id, not the saved pre-reboot id $pre: the guest answers from another boot (step b judges and records the reboot)"
++            state_add "$ROW_FILE" t8_ssh_answered "poll=$n at=+$((now - t0))s up=$now boot_id=$id"
++            return 0
++        fi
++        if [ "$rc" -ne 0 ]; then
++            n_none=$((n_none + 1))
++            last="exit status $rc (124: ended by its timeout of $d s; 255: ssh did not connect or lost its connection; 97: the session's ssh helpers were not loaded)"
+             if [ -n "$id" ] && [ "$id" != "$pre" ]; then
+-                echo "poll $n at +$((now - t0)) s: the guest answers with the boot id $id, not the saved pre-reboot id $pre (step b judges and records the reboot)"
+-                state_add "$ROW_FILE" t8_ssh_answered "poll=$n at=+$((now - t0))s up=$now boot_id=$id"
+-                return 0
+-            fi
+-            n_same=$((n_same + 1))
+-            last=same
+-            if [ -n "$id" ]; then
+-                echo "poll $n at +$((now - t0)) s: the guest answers with the boot id $id, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on"
++                last="$last after printing the boot id $id, which is NOT counted"
++                echo "poll $n at +$((now - t0)) s (bounded to $d s): NOT counted - it printed the boot id $id, other than the saved one, and then ended with exit status $rc: a read that does not end with exit status 0 is no answer whatever it printed (kept as a diagnostic: $f) - waiting on"
+             else
+-                echo "poll $n at +$((now - t0)) s: the guest answers, but no boot id could be read from the answer (see the step's console) - waiting on"
++                echo "poll $n at +$((now - t0)) s (bounded to $d s): no answer (exit status $rc; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on"
+             fi
++        elif [ -n "$id" ]; then
++            n_same=$((n_same + 1))
++            last="answered the saved id (reboot not shown)"
++            echo "poll $n at +$((now - t0)) s (bounded to $d s): the guest answers with the boot id $id, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on"
+         else
+-            n_none=$((n_none + 1))
+-            last=none
+-            echo "poll $n at +$((now - t0)) s: no answer (gx exit $rc; 97: ssh did not connect)"
+-        fi
+-        if [ $((now - t0)) -ge "$T8_SSH_WAIT_S" ]; then
+-            T8_WAIT_WHY="within $T8_SSH_WAIT_S s after step a the guest did not answer over ssh $n_none time(s) and answered $n_same time(s), never with a boot id other than the saved pre-reboot id ${pre:-<none>}; the last poll: $([ "$last" = same ] && echo 'answered with the saved id (reboot not shown)' || echo 'no answer')"
+-            return 1
++            n_other=$((n_other + 1))
++            last="exit status 0, but the answer is not one boot id of the kernel's form"
++            echo "poll $n at +$((now - t0)) s (bounded to $d s): exit status 0, but the answer is not one boot id of the kernel's form (see the step's console: $f) - NOT counted, waiting on"
+         fi
+-        sleep "$T8_SSH_POLL_S"
++        left=$((T8_SSH_WAIT_S - (now - t0)))
++        [ "$left" -ge 1 ] || continue
++        s=$T8_SSH_POLL_S
++        [ "$left" -ge "$s" ] || s=$left
++        sleep "$s"
+     done
+ }
+ 
+ # t8_qemu before|after: the recorded QEMU process reading (T8_QEMU_IDENT); 'before' keeps
+ # the pid, start instant and disks in T8_QEMU_* for 'after' to compare with.
++# S3 (point 5): 'before' returns 3 when the reading found -no-reboot on the command line.
+ T8_QEMU_PID=""
+ T8_QEMU_START=""
+ T8_QEMU_DISKS=""
+@@ -1119,6 +1306,10 @@
+     if [ "$1" = before ]; then
+         ex "$A" t8-qemu-before bash -c "$T8_QEMU_IDENT" _ before "$QEMU_EXE_RE"
+         rc=$?
++        if [ "$rc" -eq 3 ]; then
++            row_set t8_qemu_before "exit=3: -no-reboot (or its equivalent) is on the command line of the QEMU process"
++            return 3
++        fi
+         line=$(sed -n 's/^QEMU PROCESS: pid=\([0-9][0-9]*\) start=\([0-9][0-9]*\) disks=\(.*\)$/\1 \2 \3/p' "$(console_of t8-qemu-before)" 2> /dev/null | tail -n 1)
+         [ "$rc" -eq 0 ] && [ -n "$line" ] || return 1
+         read -r T8_QEMU_PID T8_QEMU_START T8_QEMU_DISKS <<< "$line"
+@@ -1139,25 +1330,41 @@
+ }
+ 
+ steps_t8() {
+-    local run1 rc qrc pre_id
++    local run1 rc qrc pre_id a_end missing smoke f
+     run1=$(cat "$SESSION/.current_run" 2> /dev/null)
+     row_set t8_run "$run1"
+     if [ -z "$run1" ] || [ -e "$SESSION/boot/$run1.status" ]; then
+         halt "row t8: the session's boot records are not those of a boot still running (.current_run='$run1'; boot/$run1.status exists: that QEMU exited): step a was NOT run"
+         return
+     fi
+-    say "row t8: the QEMU process before step a (recorded: pid, start instant, disks)"
+-    if ! t8_qemu before; then
+-        halt "row t8: one qemu-system-aarch64 process could not be recorded before step a (t8-qemu-before; packet section 4, halt 6): step a was NOT run"
++    # S3 (point 6): the wait after step a, and the runbook's lines b and c, bound every
++    # read with the host's 'timeout'. Without it the reboot is not issued.
++    if ! command -v timeout > /dev/null 2>&1; then
++        halt "row t8: the host's 'timeout' is not on PATH: the wait after step a and lines b and c bound every read with it. Step a was NOT run: the reboot was NOT issued (class: not started)"
+         return
+     fi
++    say "row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)"
++    t8_qemu before
++    case $? in
++        0) ;;
++        3)
++            # S3 (point 5): halt before the reboot is issued; line a is not run.
++            halt "row t8: -no-reboot (or its equivalent) is on the command line of the running QEMU process (step t8-qemu-before): with it QEMU exits at a guest reboot instead of rebooting inside the same process, which is not the procedure of test 8. Step a was NOT run: the reboot was NOT issued (class: not started; request of 2026-10-04, section 5 item 4). Nothing was signalled, and T9 is not run"
++            return
++            ;;
++        *)
++            halt "row t8: one qemu-system-aarch64 process could not be recorded before step a, or its command line could not be read (t8-qemu-before; packet section 4, halt 6): step a was NOT run"
++            return
++            ;;
++    esac
+     run_step t8-a-reboot || return
++    a_end=$(up_now)     # S3 (point 6): the instant step a ended, from which the wait's budget counts
+     if ! no_stop t8-a-reboot; then
+-        halt "row t8: step a printed STOP: (no pre-reboot snapshot, no boot id or no container set) - the guest was NOT rebooted, and nothing further of T8 was run"
++        halt "row t8: step a printed STOP: (no pre-reboot /metrics reading or snapshot, no boot id, not six running containers, no event directory or no mount source) - the guest was NOT rebooted, and nothing further of T8 was run"
+         return
+     fi
+     pre_id=$(cat "$P/$T8_PREFIX.boot_id.pre" 2> /dev/null)
+-    t8_wait_ssh "$pre_id"
++    t8_wait_ssh "$pre_id" "$a_end"
+     rc=$?
+     # The QEMU process after the wait, whatever the wait answered: a reading for the
+     # record in either case, and the comparison with the process recorded before step a.
+@@ -1165,7 +1372,10 @@
+     t8_qemu after
+     qrc=$?
+     if [ "$rc" -ne 0 ]; then
+-        halt "row t8: $T8_WAIT_WHY (packet section 4, halt 5). QEMU was NOT signalled and is NOT killed, and nothing is re-launched (a re-launch through 3.3 is a recorded operator decision, never automatic: the data disk is at stake); its reading after the wait is the step t8-qemu-after (exit $qrc). Steps b to f were NOT run, and T9 is not run"
++        # S3 (point 6): the wait expired ("reboot not shown" within the wait), a poll's
++        # capture was lost (74), or the saved id could not be compared: T8_WAIT_WHY says
++        # which. Line b is not run in any of them.
++        halt "row t8: $T8_WAIT_WHY. Line b was NOT run, nor steps c to f, and T9 is not run. QEMU was NOT signalled and is NOT killed, and nothing is re-launched, started or restarted (a re-launch through 3.3 is a recorded operator decision, never automatic: the data disk is at stake); its reading after the wait is the step t8-qemu-after (exit $qrc)"
+         return
+     fi
+     if [ "$qrc" -ne 0 ]; then
+@@ -1179,8 +1389,17 @@
+         return
+     fi
+     run_step t8-c-unaided T8=rebooted || return
+-    if ! t8_shown t8-c-unaided '^CONTAINERS RETURNED UNAIDED'; then
+-        halt "row t8: step c does not show CONTAINERS RETURNED UNAIDED with no STOP: (the six container objects running before the reboot are not all running again by themselves, or a read-only observation stopped; packet section 4, halt 5). This script runs no 'compose up' and no 'start': steps d to f were NOT run, and T9 is not run"
++    # S3 (point 7): the merged line c prints TWO markers, each at the start of a line, and
++    # sets T8=returned only after both: the container set, then the event directories and
++    # the mount source of /var/lib/docker. Both are required, with no STOP:; the halt
++    # names what is missing.
++    f=$(console_of t8-c-unaided)
++    missing=""
++    no_stop t8-c-unaided || missing="a STOP: line was printed (or the step left no console)"
++    grep -q '^CONTAINERS RETURNED UNAIDED' "$f" 2> /dev/null || missing="${missing:+$missing; }no line CONTAINERS RETURNED UNAIDED"
++    grep -q '^PERSISTENCE SHOWN' "$f" 2> /dev/null || missing="${missing:+$missing; }no line PERSISTENCE SHOWN"
++    if [ -n "$missing" ]; then
++        halt "row t8: step c does not show both CONTAINERS RETURNED UNAIDED and PERSISTENCE SHOWN with no STOP: - $missing (the six container objects running before the reboot are not all running again by themselves, an event directory or the mount source of /var/lib/docker is not as before the reboot, or a judged read did not end with exit status 0; packet section 4, halt 5). This script runs no 'compose up' and no 'start': steps d to f were NOT run, and T9 is not run"
+         return
+     fi
+     run_step t8-d-tunnel T8=returned || return
+@@ -1196,16 +1415,54 @@
+         return
+     fi
+     run_step t8-e-state T8=reconnected || return
++    # S3 (bounded check of 2026-10-05, O2): after line d only the preamble of hx can print
++    # 'TUNNEL UP' (no later step line calls tunnel_up): the tunnel line d reopened and the
++    # check above confirmed was lost and restored - a halt (request, section 5, items 7, 9).
++    if grep -q '^TUNNEL UP$' "$(console_of t8-e-state)" 2> /dev/null; then
++        halt "row t8: the preamble of hx reopened a lost tunnel before step e (TUNNEL UP in its console; request, section 5, items 7 and 9): step f was NOT run, and T9 is not run"
++        return
++    fi
+     if ! no_stop t8-e-state; then
+         halt "row t8: step e printed STOP: (stack not ready, the post-reboot snapshot, 'same' or the controller's new process not shown; packet section 4, halt 5): step f, the post-reboot smoke, was NOT run, and T9 is not run"
+         return
+     fi
+     run_step t8-f-smoke T8=ok || return
+-    row_set t8_reached_smoke "yes (T9 may start after this row's classification, with its gate passed)"
++    # The key keeps its meaning: step f, the smoke line, was reached and ran.
++    row_set t8_reached_smoke "yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classification)"
++    # S3 (point 8; request of 2026-10-04, section 5 item 5): a halt unless the smoke's
++    # console shows the helper's status line of a completed procedure - sim_post's
++    # 'TEST STATUS <id>: simulator exit=0 transcript (tee) exit=0 post=0 -> PROCEDURE
++    # COMPLETE. ...' (runbook line 881), at the start of a line - and no STOP:. With that
++    # line and no STOP: nothing is halted here, whatever lost and late_confirmations read:
++    # a value above 0 is a failure of T8 that the operator classifies, after which T9 may
++    # start with this row's gate passed.
++    smoke=$(row_itest_ids t8)
++    f=$(console_of t8-f-smoke)
++    if grep -q '^TUNNEL UP$' "$f" 2> /dev/null; then   # S3 (O2), as after step e
++        row_set t8_smoke "halt: the preamble of hx reopened a lost tunnel before the smoke"
++        halt "row t8: the preamble of hx reopened a lost tunnel before step f (TUNNEL UP in its console; request, section 5, items 7 and 9): T9 is not run; the row is classified by what its consoles show"
++        return
++    fi
++    if ! no_stop t8-f-smoke; then
++        row_set t8_smoke "halt: a STOP: line in the smoke's console"
++        halt "row t8: step f, the post-reboot smoke $smoke, printed STOP: (or left no console): its procedure did not complete (request of 2026-10-04, section 5 item 5). T9 is not run; the row is classified by the cause its console shows"
++        return
++    fi
++    if ! grep -Eq "^TEST STATUS $smoke: .* -> PROCEDURE COMPLETE\." "$f" 2> /dev/null; then
++        row_set t8_smoke "halt: no 'TEST STATUS $smoke: ... -> PROCEDURE COMPLETE' line in the smoke's console"
++        halt "row t8: step f printed no STOP: but its console does not show the line 'TEST STATUS $smoke: ... -> PROCEDURE COMPLETE': the smoke is not shown to have completed its procedure (request of 2026-10-04, section 5 item 5). T9 is not run; the row is classified by the cause its console shows"
++        return
++    fi
++    row_set t8_smoke "procedure complete: 'TEST STATUS $smoke: ... -> PROCEDURE COMPLETE' and no STOP: (not a verdict)"
++    echo "row t8: step f shows 'TEST STATUS $smoke: ... -> PROCEDURE COMPLETE' and no STOP: - this script records no halt for the smoke. That is NOT a verdict: lost and late_confirmations are read by the operator, and a value above 0 is a classified FAILURE of T8, not a halt (T9 may then start, with this row's gate passed)"
+ }
+ 
+ # The evidence-only reads of the packet's execution choices for T8: the previous boot's
+ # journal and its kernel OOM lines. Read-only, after the row's own steps.
++# S3 (point 10): unchanged, as is the gate's rule for T8 in gate_after (the guest state
++# after the row is recorded and compared with nothing across the reboot). The operator
++# reads both before T8 is classified: an OOM kill found in either, or a restart after the
++# reboot, is a halt of the operator's own (this script records none for it).
+ t8_evidence() {
+     row_set step t8-previous-boot-journal
+     gx "$A" t8-previous-boot-journal "sudo -n journalctl -b -1 --no-pager" \
+@@ -1223,6 +1480,13 @@
+             return
+         fi
+         run_step "$st" || return
++        # S3 (bounded check of 2026-10-05, O2): no line of test 9 calls tunnel_up, so a
++        # 'TUNNEL UP' is the preamble of hx restoring a lost tunnel - a halt (request,
++        # section 5, items 7 and 9); no later step of T9 is run.
++        if grep -q '^TUNNEL UP$' "$(console_of "$st")" 2> /dev/null; then
++            halt "row t9: the preamble of hx reopened a lost tunnel before step $st (TUNNEL UP in its console; request, section 5, items 7 and 9): every later step of T9 was NOT run"
++            return
++        fi
+         prev=$st
+     done
+ }
+@@ -1302,9 +1566,13 @@
+     rc=$?
+     [ "$rc" -eq 0 ] || GATE_BAD+=("tunnel_check through hx ended $rc")
+     # The preamble of hx reopens a tunnel that is down before the check runs: say so.
++    # S3 (bounded check of 2026-10-05, O2): that reopening is a restoration of a lost tunnel
++    # (request, section 5, items 7 and 9): the gate fails, so a halt is recorded and no
++    # further row starts.
+     if grep -q '^TUNNEL UP$' "$(console_of gate-tunnel-check)" 2> /dev/null; then
+-        echo "NOTE: the tunnel was DOWN after the row and the preamble of hx reopened it (TUNNEL UP in the gate's console): name it in the classification"
++        echo "NOTE: the tunnel was DOWN after the row and the preamble of hx reopened it (TUNNEL UP in the gate's console): a restoration, and in S3 a halt"
+         row_set gate_tunnel "found down after the row and reopened by the preamble of hx"
++        GATE_BAD+=("the tunnel was found down after the row and reopened by the preamble of hx (request, section 5, items 7 and 9)")
+     fi
+ }
+ 
+@@ -1379,7 +1647,8 @@
+     local prev slug f sf st files now elapsed ceiling need ids json rc go=""
+     [ "$#" -eq 1 ] || refuse "usage: g3_battery.sh row <slug>"
+     ROW_SLUG=$1
+-    LABEL=$(row_session "$ROW_SLUG") || refuse "unknown row '$ROW_SLUG' (S1: $ROWS_S1; S2: $ROWS_S2)"
++    # S3 (point 1): the rows of S3 only; the battery's other rows are not rows of this script.
++    LABEL=$(row_session "$ROW_SLUG") || refuse "unknown row '$ROW_SLUG' (S3: $ROWS_S3, in that order; the rows of the battery's S1 and S2 are not run again)"
+     start_log "row-$ROW_SLUG"
+     # The turn comes before the first check: "this row was not started yet" is tested
+     # below and made true only when the attempt exists, seconds later.
+@@ -1410,10 +1679,12 @@
+         || refuse "this steps script is not the one session $LABEL was opened with (sha256 $(state_get "$f" steps_script_sha256))"
+     [ "$(manifest_tool sha "$MANIFEST" "$ROWS_DIR")" = "$(state_get "$f" rows_manifest_sha256)" ] \
+         || refuse "rows.manifest.json is not the one session $LABEL was opened with"
++    # S3 (bounded check of 2026-10-05, O1): a recorded halt ends the session. No variable
++    # lets a further row start after it (decision summary, choice 2: a procedural,
++    # instrumentation or safe-state halt does not permit continuation; request, section 5:
++    # "Test 9 is then not run"). EGW_G3_RUI_GO is read by 'close' outside the script only.
+     if [ -n "$(state_get "$f" halt)" ]; then
+-        [ -n "${EGW_G3_RUI_GO:-}" ] || refuse "NOT STARTED: session $LABEL has a recorded halt ($(state_get "$f" halt)). A halt cancels further progress until Rui directs otherwise; with his explicit go, set EGW_G3_RUI_GO to his words (they are recorded)"
+-        go=$EGW_G3_RUI_GO
+-        echo "session $LABEL has a recorded halt; EGW_G3_RUI_GO is set and is recorded: $go"
++        refuse "NOT STARTED: session $LABEL has a recorded halt ($(state_get "$f" halt)). In S3 a halt ends the session (decision summary, choice 2; request, section 5): classify the row if it awaits classification, then 'close', then hand back to Rui"
+     fi
+     ceiling=$(row_ceiling_min "$ROW_SLUG")
+     need=$((ceiling * 60 + KEEPALIVE_MARGIN_S))
+@@ -1455,9 +1726,19 @@
+     fi
+     echo "tunnel: the master answers"
+     if ! fresh_row "$ROW_SLUG"; then
+-        halt "an id of row $ROW_SLUG is not fresh on the host: the row was NOT started and no attempt was created (packet section 4, halt 1)"
++        halt "an id of row $ROW_SLUG is not fresh on the host, or an earlier attempt of the row that is not admitted exists: the row was NOT started and no attempt was created (packet section 4, halt 1)"
+         exit 1
+     fi
++    # S3 (point 4): before row t8, the gate package's record of the running images against
++    # S2's (gate_images_check). A difference, or a record that cannot be read, is a halt of
++    # the same kind as an identity that differs: row t8 is not started.
++    if [ "$ROW_SLUG" = t8 ]; then
++        say "row t8: the running images recorded by the gate driver at open, against S2's record"
++        if ! gate_images_check; then
++            halt "$WHY: row t8 was NOT started and no attempt was created (packet section 4, halt 6: an identity differing from the recorded candidate)"
++            exit 1
++        fi
++    fi
+ 
+     # The attempt.
+     A=$(new_attempt "G3 qualification $ROW_SLUG" official) || { A=""; halt "the attempt of row $ROW_SLUG could not be created: the row was NOT started"; exit 1; }
+@@ -1465,6 +1746,7 @@
+     row_set slug "$ROW_SLUG"
+     row_set session_label "$LABEL"
+     row_set attempt "$A"
++    row_set attempt_name "$(basename "$A")"      # S3 (point 9): the new attempt's name, recorded
+     row_set start_up "$now"
+     row_set start_wall "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+     row_set session_elapsed_at_start_s "$elapsed"
+@@ -1480,7 +1762,18 @@
+     trap 'on_signal INT' INT
+     trap 'on_signal TERM' TERM
+     trap 'on_signal HUP' HUP
+-    say "row $ROW_SLUG: attempt $A (ceiling $ceiling min from now: the operator enforces it with 'term $ROW_SLUG')"
++    say "row $ROW_SLUG: attempt $A (ceiling $ceiling min, counted from the row's start at up=$now and shared by everything the row does: the operator enforces it with 'term $ROW_SLUG')"
++    # S3 (point 9): the export tool numbers an attempt by its scenario slug. T8's new attempt
++    # must be attempt02 (attempt01 is S2's halted one) and T9's attempt01; under any other
++    # name the row halts here, before any step (nothing of the row is run or recorded
++    # further; the attempt is classified 'not started' as it stands).
++    case $(basename "$A") in
++        *"$(row_attempt_suffix "$ROW_SLUG")") ;;
++        *)
++            halt "row $ROW_SLUG: the new attempt is named $(basename "$A"), which does not end '$(row_attempt_suffix "$ROW_SLUG")' (the name the request of 2026-10-04, section 3, expects): an attempt of this row exists that was not accounted for, or the admitted one is not where it is kept. No step of the row was run"
++            LATE_DONE=1     # no step ran: there is nothing of this row to register after it
++            ;;
++    esac
+ 
+     files=$(row_files "$ROW_SLUG")
+     ids=$(repo_identity) || halt "row $ROW_SLUG: the identity of the clean clone could not be read: $ids"
+@@ -1621,13 +1914,15 @@
+     fi
+     case $class in
+         "not started") halt "row $ROW_SLUG is classified not started (packet section 4, halt 1): it is not attempted again under this approval" ;;
+-        "invalid instrumentation") echo "NOTE: invalid instrumentation of the shared chain is a halt condition (packet section 4, halt 2). If this is one, do not run a further row: 'close' and hand back to Rui." ;;
++        # S3 (bounded check of 2026-10-05, O3): recorded as a halt, so that no further row starts.
++        "invalid instrumentation") halt "row $ROW_SLUG is classified invalid instrumentation (request, section 5 item 2; decision summary, choice 2): no further row of S3 starts" ;;
+     esac
+     case $(state_get "$ROW_FILE" gate) in
+         pass) ;;
+         *) echo "NOTE: this row's gate did not pass ($(state_get "$ROW_FILE" gate)): no further row starts; 'close' and hand back to Rui." ;;
+     esac
+-    [ "$HALTED" -eq 0 ] || exit 1
++    # S3 (bench s18, 2026-10-05): a halt of classify's own still names the next step.
++    [ "$HALTED" -eq 0 ] || { echo "Next: 'close', then hand back to Rui: session $LABEL has a recorded halt, and no further row starts."; exit 1; }
+     # The halts of the 'row' invocation (a failed gate, a step status 97 or 74) are in the
+     # session's state file, not in this invocation's HALTED.
+     if [ "$(state_get "$ROW_FILE" gate)" = pass ] && [ -z "$(state_get "$SESSION_FILE" halt)" ]; then
+@@ -1638,6 +1933,12 @@
+ }
+ 
+ # --- term -----------------------------------------------------------------------------
++# S3 (point 11): 'term' (TERM to the row's group, never KILL; nothing is signalled when
++# QEMU or the keepalive client is in that group), 'close' (the recorded stop with both
++# env files and -t 130, then the frozen close driver; its paths for a guest that does not
++# answer and for no QEMU process left), the turn, the keepalive checks, the cut-off,
++# 'classify' and its six pairs, and the environment copy at open are the battery's,
++# unchanged but for the label and the names of S3's records.
+ cmd_term() {
+     local pgid members mpid margs
+     [ "$#" -eq 1 ] || refuse "usage: g3_battery.sh term <slug>"
+@@ -1746,7 +2047,8 @@
+ 
+ # rootfs_after_close SESSION_DIR: the root file system hash the frozen close driver
+ # recorded after the power-off (its 'artefacts-after-poweroff' step), kept in the
+-# session's state file: S2 opens only on this value.
++# session's state file. S3 (point 1): no session of this script opens after S3; the
++# value is the one a later boot of this image would have to expect.
+ rootfs_after_close() {
+     local line
+     line=$(ls "$1"/console/*-artefacts-after-poweroff.stdout.txt 2> /dev/null | tail -n 1)
+@@ -1754,7 +2056,7 @@
+         line=$(sed -n 's/^\([0-9a-f]\{64\}\)  .*\.ext4$/\1/p' "$line" | head -n 1)
+         [ -z "$line" ] || state_set "$SESSION_FILE" rootfs_after_close "$line"
+     fi
+-    echo "rootfs ext4 after the close: ${line:-NOT READ} (S2 opens only on this value)"
++    echo "rootfs ext4 after the close: ${line:-NOT READ} (the image is mutable: a later boot expects this value)"
+ }
+ 
+ # data_disk_header: packet section 1 lists the data disk's ext4 header "before each boot
+@@ -1781,16 +2083,17 @@
+ 
+ # close_outside: 'close' with no open session. A session this script opened and did not
+ # close itself (the frozen guest_session_close.sh was run by hand after a lost guest, or
+-# an 'open' halted before any session existed) stays recorded 'open' or 'halted', and
+-# 'open S2' refuses on that record. This script changes the record only on Rui's
+-# explicit direction (EGW_G3_RUI_GO, recorded) and only when nothing is left to close:
+-# no current_session, no qemu-system-aarch64 process, no row running or unfinished. The
+-# halt it records keeps S2 behind his direction as well. It never returns.
++# an 'open' halted before any session existed) stays recorded 'open' or 'halted'. This
++# script changes the record only on Rui's explicit direction (EGW_G3_RUI_GO, recorded)
++# and only when nothing is left to close: no current_session, no qemu-system-aarch64
++# process, no row running or unfinished. It records a halt with the change. It never
++# returns. S3 (point 1): the one label is S3.
+ close_outside() {
+     local l f st="" found=""
+     [ ! -e "$EXEC/current_session" ] \
+         || refuse "no open session: $EXEC/current_session names '${SESSION}', which is not a session directory. Nothing was changed; hand back to Rui"
+-    for l in S1 S2; do
++    # shellcheck disable=SC2043
++    for l in S3; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || continue
+         st=$(state_get "$f" state)
+@@ -1899,8 +2202,9 @@
+         halt "guest_session_close.sh exited $rc and $EXEC/current_session is kept: the session is NOT closed. Read $DRIVER_CONSOLE; check for a qemu-system-aarch64 process by hand, never kill it"
+     fi
+     echo "What remains for the operator:"
+-    echo "  1. seal the operator records ($STATE: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<date>-g3-battery-operator-records;"
+-    echo "  2. write output_test/decisions/<date>_g3-battery-$(echo "$LABEL" | tr 'S' 's')-results.md (every row and its class; no G3 claim);"
++    # S3 (point 1): the names of S3's operator records and of its result note.
++    echo "  1. verify every export (the export tool's own verification, then 'sha256sum -c' in each package), then seal the operator records ($STATE: the session and row state files, console/, the driver consoles, the classification notes) as HIST_<UTC date>-g3-t8t9-s3-operator-records;"
++    echo "  2. write output_test/decisions/<date>_g3-t8-t9-results.md (each row's validity, functional outcome and timed delivery stated apart; no G3 claim);"
+     echo "  3. release the keepalive client and the Windows keep-awake."
+     [ "$HALTED" -eq 0 ] || exit 1
+ }
+@@ -1921,7 +2225,9 @@
+             || [ "$(proc_start "$(state_get "$f" pid)")" != "$(state_get "$f" pid_start)" ] || st="STILL RUNNING: open, row, classify and close are refused until it ends"
+         echo "turn of the changing subcommands: last taken by '$(state_get "$f" what)' (pid $(state_get "$f" pid), $(state_get "$f" taken_wall)); that invocation: $st"
+     fi
+-    for l in S1 S2; do
++    # S3 (point 1): the one session of this script.
++    # shellcheck disable=SC2043
++    for l in S3; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || { echo "session $l: not opened"; continue; }
+         up0=$(state_get "$f" up0)
+@@ -1971,7 +2277,7 @@
+         close) cmd_close "$@" ;;
+         status) cmd_status ;;
+         *)
+-            echo "usage: EGW_EXEC_REPO=\$HOME/egw-exec/repo bash g3_battery.sh open S1|S2 | row <slug> | classify <slug> <status> <validity> <outcome> <reason> <next-action> | term <slug> | close | status" >&2
++            echo "usage: EGW_EXEC_REPO=\$HOME/egw-exec/repo bash g3_battery.sh open S3 | row <t8|t9> | classify <slug> <status> <validity> <outcome> <reason> <next-action> | term <slug> | close | status" >&2
+             return 2
+             ;;
+     esac

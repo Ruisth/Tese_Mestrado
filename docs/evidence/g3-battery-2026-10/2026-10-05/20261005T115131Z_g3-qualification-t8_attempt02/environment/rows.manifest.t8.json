@@ -1,0 +1,346 @@
+{
+  "rows_manifest_sha256": "678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d",
+  "schema": "g3-battery-rows-manifest/1",
+  "generated_by": "g3_extract_rows.py",
+  "generator_sha256": "11c19af75faf43994c6f68f1ca7b6bdfc1aa7c0e56e1939b7c8dc52173604598",
+  "runbook": {
+    "commit": "8e492613d36490a560ae56beabd6d5c2c01a8696",
+    "path": "docs/setup/qemu_integrated_gateway.md",
+    "sha256": "4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db",
+    "lines": 1623
+  },
+  "extraction_rule": {
+    "text": "the host$ commands of the fenced blocks under each heading, the 'host$ ' prompt removed and the continuation lines kept as they are: _section and _host_commands of src/tests/test_runbook_itest_helpers.py",
+    "rule_source_sha256": "fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1",
+    "checked_against_the_frozen_functions": true,
+    "how": "the two functions were taken from the frozen file's own source text and executed on the blob; their output equals this script's extraction for each of the two headings"
+  },
+  "substitution_rule": {
+    "suffix": "-q2",
+    "ids": [
+      {
+        "old": "itest-reboot",
+        "new": "itest-reboot-q2",
+        "occurrences": 60
+      },
+      {
+        "old": "itest-post-reboot-01",
+        "new": "itest-post-reboot-01-q2",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-tls-wrongca",
+        "new": "itest-tls-wrongca-q2",
+        "occurrences": 1
+      },
+      {
+        "old": "itest-auth-wrongpw",
+        "new": "itest-auth-wrongpw-q2",
+        "occurrences": 4
+      },
+      {
+        "old": "itest-notls",
+        "new": "itest-notls-q2",
+        "occurrences": 3
+      }
+    ],
+    "unchanged": [
+      "itest-acl-$T"
+    ],
+    "token": "an id not preceded by [A-Za-z0-9_] and not followed by [A-Za-z0-9_-]; every occurrence of each id as a plain string is such a token (asserted), so none is left behind and none is matched inside a longer id",
+    "asserted": "per file the count of each id; the text after the substitution with every '-q2' removed is the extracted text; the unchanged literals are untouched; the extracted text held no '-q2' and no '-q1' (the suffix of the battery's ids, which are not reused)"
+  },
+  "row": {
+    "row": "t8",
+    "session": "S3",
+    "steps": [
+      "t8-a-reboot.sh",
+      "t8-b-wait-boot-id.sh",
+      "t8-c-unaided.sh",
+      "t8-d-tunnel.sh",
+      "t8-e-state.sh",
+      "t8-f-smoke.sh"
+    ],
+    "note": "The corrected flow of the merged runbook (lines a to f, one host$ line per step file): the guest reboots inside the same QEMU process. The steps script waits for no QEMU exit and re-launches nothing; between t8-a-reboot.sh and t8-b-wait-boot-id.sh it only waits, read-only, for the same guest to answer with another boot id (no row file). Each step file is sourced in its own shell, so the steps script sets T8 to the value the step before left (rebooting, rebooted, returned, reconnected, ok), and only when that step printed no STOP: (runbook lines 1493-1495); each of the five later step files, sourced without it, refuses and runs nothing. A STOP: in a step ends the row there: no later step file is run, and t9 is not run."
+  },
+  "files": {
+    "t8-a-reboot.sh": {
+      "row": "t8",
+      "session": "S3",
+      "step_order": 1,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1486,
+        1487,
+        1488,
+        1489,
+        1490,
+        1491,
+        1492,
+        1493,
+        1494,
+        1495
+      ],
+      "source_line_ranges": "1486-1495",
+      "host_command_starts": [
+        1486
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 10,
+      "sha256_before": "9798ae61f69fb86563b62db6ce9332c57b74f598ad9f86c424a1697ad958c410",
+      "sha256_after": "00ff23db999e4ad5460c93010721e393d60c34fd4e596666cef9fd35fda8aa43",
+      "bytes_before": 3188,
+      "bytes_after": 3233,
+      "substitutions": [
+        {
+          "old": "itest-reboot",
+          "new": "itest-reboot-q2",
+          "count": 15,
+          "source_lines": [
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486,
+            1486
+          ]
+        }
+      ],
+      "diff": "t8-a-reboot.sh.diff",
+      "diff_sha256": "60784efd0af97084dd6d70291c20c9a4f789933eb00f4553d7ae1e4ec62f6bd9",
+      "diff_bytes": 4348,
+      "bash_n": "ok",
+      "range_note": "Line a: the command of line 1486 with its nine continuation lines 1487-1495, which the rule keeps: they are comments (QEMU runs without -no-reboot and the guest reboots inside the same QEMU process; nothing is re-launched; T8 carries the test's state between its lines) and run nothing. The prefix stands 15 times, all on line 1486."
+    },
+    "t8-b-wait-boot-id.sh": {
+      "row": "t8",
+      "session": "S3",
+      "step_order": 2,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1496
+      ],
+      "source_line_ranges": "1496",
+      "host_command_starts": [
+        1496
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "f42e3fcb3715df71ea6b4c7d2a76aff62cfb5163352098138027db8f4c19c656",
+      "sha256_after": "f38f7fad40980359b6f3ea59142f8a2f0199a3d80a942e7b36826ddfdd9cade7",
+      "bytes_before": 3059,
+      "bytes_after": 3083,
+      "substitutions": [
+        {
+          "old": "itest-reboot",
+          "new": "itest-reboot-q2",
+          "count": 8,
+          "source_lines": [
+            1496,
+            1496,
+            1496,
+            1496,
+            1496,
+            1496,
+            1496,
+            1496
+          ]
+        }
+      ],
+      "diff": "t8-b-wait-boot-id.sh.diff",
+      "diff_sha256": "3df5f8b0b3f7b0c07e6d887fa8fc9bd05968f150f4973a14ea104c077474569b",
+      "diff_bytes": 6268,
+      "bash_n": "ok",
+      "range_note": "Line b, line 1496: the boot id read again and again, each read bounded by 'timeout 20' and counted only at exit status 0, until it differs from the saved one (REBOOT SHOWN). It refuses unless T8=rebooting, the value line a leaves in its own shell."
+    },
+    "t8-c-unaided.sh": {
+      "row": "t8",
+      "session": "S3",
+      "step_order": 3,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1497
+      ],
+      "source_line_ranges": "1497",
+      "host_command_starts": [
+        1497
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "92826e477d8b162443c8b6845fedad1106e9bb037b90b3fcd15f227e2206768a",
+      "sha256_after": "df4ff611057b4f5a7df40b8b8f0fb2818eed43011c2c10109d7cc0881a7da39d",
+      "bytes_before": 4811,
+      "bytes_after": 4907,
+      "substitutions": [
+        {
+          "old": "itest-reboot",
+          "new": "itest-reboot-q2",
+          "count": 32,
+          "source_lines": [
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497,
+            1497
+          ]
+        }
+      ],
+      "diff": "t8-c-unaided.sh.diff",
+      "diff_sha256": "c9b2ae06962748ccb62016ae485f5437a1cbc914717dc7bbad28f93608edb0a7",
+      "diff_bytes": 9839,
+      "bash_n": "ok",
+      "range_note": "Line c, line 1497: the saved container set listed running again (CONTAINERS RETURNED UNAIDED), then the event directories and the mount source of /var/lib/docker judged (PERSISTENCE SHOWN), then read-only observations. It refuses unless T8=rebooted."
+    },
+    "t8-d-tunnel.sh": {
+      "row": "t8",
+      "session": "S3",
+      "step_order": 4,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1498
+      ],
+      "source_line_ranges": "1498",
+      "host_command_starts": [
+        1498
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "dbffd3defbdfbbadce3218bde6c4562d77b0e1813bd70a0562e6f921844809f5",
+      "sha256_after": "dbffd3defbdfbbadce3218bde6c4562d77b0e1813bd70a0562e6f921844809f5",
+      "bytes_before": 252,
+      "bytes_after": 252,
+      "substitutions": [],
+      "diff": "t8-d-tunnel.sh.diff",
+      "diff_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff_bytes": 0,
+      "bash_n": "ok",
+      "range_note": "Line d, line 1498: tunnel_down and tunnel_up. It refuses unless T8=returned. Nothing is substituted: the line holds no id."
+    },
+    "t8-e-state.sh": {
+      "row": "t8",
+      "session": "S3",
+      "step_order": 5,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1499
+      ],
+      "source_line_ranges": "1499",
+      "host_command_starts": [
+        1499
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "ba95574eaa7d1754f139975093afdd7c373dbe7d2e94b12f292f97f0d2eb8fea",
+      "sha256_after": "00d100f7232b93fe5e425f603b7915514b24e67258b692603fa335b99293f593",
+      "bytes_before": 1001,
+      "bytes_after": 1016,
+      "substitutions": [
+        {
+          "old": "itest-reboot",
+          "new": "itest-reboot-q2",
+          "count": 5,
+          "source_lines": [
+            1499,
+            1499,
+            1499,
+            1499,
+            1499
+          ]
+        }
+      ],
+      "diff": "t8-e-state.sh.diff",
+      "diff_sha256": "8b88bbd8c8ace5f472242599187fa4c040215c4e74f604a7691177471abc3d5f",
+      "diff_bytes": 2136,
+      "bash_n": "ok",
+      "range_note": "Line e, line 1499: wait_ready 3600, the post-reboot /metrics reading and twin snapshot, 'same', CONTROLLER PROCESS NEW. It refuses unless T8=reconnected. With the 15, 8 and 32 of lines 1486, 1496 and 1497 these are the sixty literals of T8's prefix, changed together."
+    },
+    "t8-f-smoke.sh": {
+      "row": "t8",
+      "session": "S3",
+      "step_order": 6,
+      "kind": "runbook",
+      "headings": [
+        "### Test 8"
+      ],
+      "source_line_numbers": [
+        1500
+      ],
+      "source_line_ranges": "1500",
+      "host_command_starts": [
+        1500
+      ],
+      "comment_lines_of_a_command_begun_in_another_file": [],
+      "lines": 1,
+      "sha256_before": "3ebdac904a7f50258821af49a990e9b01f50081f962c03d98451da3125a2c75c",
+      "sha256_after": "874ef658228e30e19b561a6f5306b698e0665f3701c2fb28ab0d13feddb6dc76",
+      "bytes_before": 296,
+      "bytes_after": 299,
+      "substitutions": [
+        {
+          "old": "itest-post-reboot-01",
+          "new": "itest-post-reboot-01-q2",
+          "count": 1,
+          "source_lines": [
+            1500
+          ]
+        }
+      ],
+      "diff": "t8-f-smoke.sh.diff",
+      "diff_sha256": "a52e5794df568565d5c49a59c2c40c165fd14a4ac0a61ad0cd7c8460c6275f95",
+      "diff_bytes": 714,
+      "bash_n": "ok",
+      "range_note": "Line f, line 1500: the post-reboot smoke, started only when T8=ok."
+    }
+  }
+}

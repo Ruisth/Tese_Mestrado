@@ -1,0 +1,29 @@
+## 2026-10-05T18:44:05Z the real trees of the execution host: listing times before and after this record (stat only; nothing here names them otherwise)
+## before
+2026-10-05 13:12:44.252121461 +0100 /home/ruisth/egw-exec
+2026-10-05 09:41:14.016779388 +0100 /home/ruisth/egw-exec/repo
+2026-10-05 19:20:04.339166788 +0100 /home/ruisth/egw-exec/repo/.git
+2026-10-05 09:41:14.020869345 +0100 /home/ruisth/egw-exec/repo/.git/HEAD
+2026-10-05 09:41:50.061530256 +0100 /home/ruisth/egw-exec/repo/.git/index
+2026-10-05 13:05:37.960695254 +0100 /home/ruisth/egw-exec/attempts
+2026-10-05 13:12:27.123192201 +0100 /home/ruisth/egw-tcg
+2026-10-05 13:10:30.729297858 +0100 /home/ruisth/egw-tcg/itest
+2026-09-18 22:06:17.924064942 +0100 /home/ruisth/egw-tcg/pilot
+2026-10-03 14:48:53.683842858 +0100 /home/ruisth/egw-tcg/pilot/campaign_plan.json
+## after
+2026-10-05 13:12:44.252121461 +0100 /home/ruisth/egw-exec
+2026-10-05 09:41:14.016779388 +0100 /home/ruisth/egw-exec/repo
+2026-10-05 19:20:04.339166788 +0100 /home/ruisth/egw-exec/repo/.git
+2026-10-05 09:41:14.020869345 +0100 /home/ruisth/egw-exec/repo/.git/HEAD
+2026-10-05 09:41:50.061530256 +0100 /home/ruisth/egw-exec/repo/.git/index
+2026-10-05 13:05:37.960695254 +0100 /home/ruisth/egw-exec/attempts
+2026-10-05 13:12:27.123192201 +0100 /home/ruisth/egw-tcg
+2026-10-05 13:10:30.729297858 +0100 /home/ruisth/egw-tcg/itest
+2026-09-18 22:06:17.924064942 +0100 /home/ruisth/egw-tcg/pilot
+2026-10-03 14:48:53.683842858 +0100 /home/ruisth/egw-tcg/pilot/campaign_plan.json
+UNCHANGED: the two listings are identical
+## no process is started in the background by this record; /tmp/g3-s4-* directories now (this record's own is removed when it ends):
+/tmp/g3-s4-host-plan
+/tmp/g3-s4-host-sc
+/tmp/g3-s4-op-src
+/tmp/g3-s4-rows-record.B5FNm4

@@ -1,0 +1,132 @@
+
+==============================================================================
+A. Offered rate (sent_events.jsonl, harness monotonic)
+==============================================================================
+n 6720, first +0.155604 s, last +600.055411 s
+offered rate (n-1)/span                : 11.200204 msg/s (plan 11.2)
+per 60 s block from the window start   : [671, 672, 672, 672, 672, 672, 672, 672, 672, 672]
+  -> 11.1833 .. 11.2000 msg/s
+intended_invalid                       : 0
+
+==============================================================================
+B. Arrivals at the controller (controller monotonic)
+==============================================================================
+measured arrivals (n-1)/span           : 11.201088 msg/s
+first / last measured arrival el       : +0.193468 / +600.045903 s
+first warm-up arrival el               : -119.879781 s
+
+==============================================================================
+C. Served rate by phase
+==============================================================================
+metric samples: before window 122, in window 599, after 0, total 721
+counters, warm-up  : d_accepted 593 over 120.047 s = 4.939732 msg/s
+counters, window   : d_accepted 3863 over 598.261 s = 6.457048 msg/s
+event log, warm-up : 593 acks between the first arrival and el 0 (119.880 s) = 4.946622 msg/s
+event log, window  : 3878 acks in (el 0, el 600.107] = 6.462185 msg/s
+event log, drain   : 3593 acks after the window end, last at el +1005.469 s; 3593 / (last ack - window end) = 8.863682 msg/s
+event log vs counters, window: +0.0796 %
+utilisation offered/served(counters, window) = 1.734570; net accumulation = 4.743156 msg/s
+
+==============================================================================
+D. Served rate in fixed blocks (lowest block matters for sizing)
+==============================================================================
+-- 60 s blocks, aligned at el 0, from el -120 to el 600 --
+     block (s)  arrivals  acks(ev)  ev msg/s ctr msg/s
+  -120..-60          671       276    4.6000    4.6009
+   -60..0            672       317    5.2833    5.2899
+     0..60           672       393    6.5500    6.5428
+    60..120          672       334    5.5667    5.5650
+   120..180          672       319    5.3167    5.3158
+   180..240          671       360    6.0000    6.0130
+   240..300          673       369    6.1500    6.1400
+   300..360          672       370    6.1667    6.1520
+   360..420          672       392    6.5333    6.5527
+   420..480          672       413    6.8833    6.8607
+   480..540          672       414    6.9000    6.9094
+   540..600          672       513    8.5500    8.4576
+lowest 60 s block: event log 4.6000 msg/s at el -120..-60; counters 4.6009 msg/s at el -120..-60
+in-window 60 s blocks (event log): min 5.3167, max 8.5500 msg/s
+-- 30 s blocks, aligned at el 0, from el -120 to el 600 --
+     block (s)  arrivals  acks(ev)  ev msg/s ctr msg/s
+  -120..-90          335       115    3.8333    3.8436
+   -90..-60          336       161    5.3667    5.3581
+   -60..-30          336       139    4.6333    4.6449
+   -30..0            336       178    5.9333    5.9349
+     0..30           336       189    6.3000    6.2907
+    30..60           336       204    6.8000    6.7950
+    60..90           335       172    5.7333    5.7590
+    90..120          337       162    5.4000    5.3709
+   120..150          336       153    5.1000    5.1257
+   150..180          336       166    5.5333    5.5060
+   180..210          336       180    6.0000    5.9965
+   210..240          335       180    6.0000    6.0295
+   240..270          337       183    6.1000    6.0864
+   270..300          336       186    6.2000    6.1935
+   300..330          336       191    6.3667    6.3720
+   330..360          336       179    5.9667    5.9321
+   360..390          336       200    6.6667    6.6949
+   390..420          336       192    6.4000    6.4106
+   420..450          336       196    6.5333    6.5233
+   450..480          336       217    7.2333    7.1982
+   480..510          336       198    6.6000    6.6472
+   510..540          336       216    7.2000    7.1717
+   540..570          336       229    7.6333    7.6430
+   570..600          336       284    9.4667    9.2723
+lowest 30 s block: event log 3.8333 msg/s at el -120..-90; counters 3.8436 msg/s at el -120..-90
+in-window 30 s blocks (event log): min 5.1000, max 9.4667 msg/s
+-- 10 s blocks inside the window: blocks where acks >= arrivals --
+0 of 60 ten-second blocks
+1 s bins in the window with zero acks  : 12 of 600
+
+==============================================================================
+E. The queue
+==============================================================================
+samples 721; samples with queue_depth 0: 2 at ['2026-09-19T20:00:45.540Z', '2026-09-19T20:00:45.566Z']
+first arrival (harness wall)           : 2026-09-19T20:00:45.763Z
+'dropped' non-zero in any sample       : False; rejected/duplicate/failed non-zero: False
+in-window samples 599: first 752, last 3590, min 752, max 3590, mean 2284.99
+in-window consecutive-sample decreases : 6, largest 3
+reconstructed in system at window start: 750 (749 waiting + 1 in service)
+reconstructed in system at window end  : 3593 (3592 waiting + 1 in service)
+reconstructed in system at deadline    : 2926 (2925 waiting + 1 in service)
+growth, sampled first->last in-window  : 752 -> 3590 = 2838 over 598.261 s
+growth predicted by the deficit        : 4.743156 x 598.261 = 2837.65
+growth, reconstruction el 0 -> window end: 2843 over 600.107 s = 4.7375 msg/s
+
+==============================================================================
+F. Around the window end (event log, all acks)
+==============================================================================
+el 540..600: 513 acks = 8.5500 msg/s
+el 600..630: 347 acks = 11.5667 msg/s
+el 600..660: 667 acks = 11.1167 msg/s
+first 30 s after the window end: 348 acks = 11.6000 msg/s; / window counter rate = 1.7965
+10 s blocks from el 560 to el 640:
+  el 560..570: 7.5 msg/s
+  el 570..580: 9.4 msg/s
+  el 580..590: 10.0 msg/s
+  el 590..600: 9.0 msg/s
+  el 600..610: 10.1 msg/s
+  el 610..620: 12.9 msg/s
+  el 620..630: 11.7 msg/s
+  el 630..640: 10.6 msg/s
+metric samples end at 2026-09-19T20:12:44.846Z; resource collector stop hook 2026-09-19T20:12:45.769Z; last publish el +600.055 s (harness)
+
+==============================================================================
+G. The drain in 30 s blocks after the window end (no ingress), event log
+==============================================================================
+  window end +  0..+30  s (harness wall from 2026-09-19T20:12:45.750Z): 348 acks = 11.600 msg/s
+  window end + 30..+60  s (harness wall from 2026-09-19T20:13:15.750Z): 319 acks = 10.633 msg/s
+  window end + 60..+90  s (harness wall from 2026-09-19T20:13:45.750Z): 207 acks =  6.900 msg/s
+  window end + 90..+120 s (harness wall from 2026-09-19T20:14:15.750Z): 237 acks =  7.900 msg/s
+  window end +120..+150 s (harness wall from 2026-09-19T20:14:45.750Z): 238 acks =  7.933 msg/s
+  window end +150..+180 s (harness wall from 2026-09-19T20:15:15.750Z): 259 acks =  8.633 msg/s
+  window end +180..+210 s (harness wall from 2026-09-19T20:15:45.750Z): 251 acks =  8.367 msg/s
+  window end +210..+240 s (harness wall from 2026-09-19T20:16:15.750Z): 239 acks =  7.967 msg/s
+  window end +240..+270 s (harness wall from 2026-09-19T20:16:45.750Z): 248 acks =  8.267 msg/s
+  window end +270..+300 s (harness wall from 2026-09-19T20:17:15.750Z): 286 acks =  9.533 msg/s
+  window end +300..+330 s (harness wall from 2026-09-19T20:17:45.750Z): 272 acks =  9.067 msg/s
+  window end +330..+360 s (harness wall from 2026-09-19T20:18:15.750Z): 252 acks =  8.400 msg/s
+  window end +360..+390 s (harness wall from 2026-09-19T20:18:45.750Z): 279 acks =  9.300 msg/s
+  window end +390..+420 s (harness wall from 2026-09-19T20:19:15.750Z): 158 acks = 10.285 msg/s
+after the deadline: 2926 acks over 345.362 s = 8.4723 msg/s
+collector fetch hook 2026-09-19T20:13:48.078Z -> 2026-09-19T20:13:57.285Z; events scp 2026-09-19T20:13:57.289Z

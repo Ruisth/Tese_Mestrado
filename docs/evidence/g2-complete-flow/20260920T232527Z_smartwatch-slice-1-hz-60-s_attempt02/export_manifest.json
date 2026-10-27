@@ -1,0 +1,263 @@
+{
+  "capture_failures": [],
+  "capture_reconciliation": "",
+  "console_extra_files": [],
+  "copy_verification": "verified",
+  "destination": {
+    "package": "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-09-20/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02",
+    "windows_path": "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\output_test\\runs\\2026-09-20\\20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02"
+  },
+  "excluded": [],
+  "expected_artefacts_missing": [],
+  "exported_utc": "2026-09-20T23:31:57.737232Z",
+  "failed_copies": [],
+  "files": [
+    {
+      "package_path": "attempt.json",
+      "sha256": "351fdae3547cdc986109f70e7b1cf37ddafa5cd1ae0c5a2a0dfebd6633cf83a6",
+      "size": 1469,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/attempt.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "commands.jsonl",
+      "sha256": "9b20fe7513d027a8564b2b17fdfd9f460f0f5a79714140bcd6ef0045bd92810a",
+      "size": 8317,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/commands.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-pre.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/001-pre.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-pre.stdout.txt",
+      "sha256": "598ee10325066269231de4240bbad49aebc160cf650658a6e86eee9e426988f8",
+      "size": 527,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/001-pre.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-simulator-and-mark.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/002-simulator-and-mark.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-simulator-and-mark.stdout.txt",
+      "sha256": "55ea123c55fb57f8818518ac4a26b4f3c31a6c21f436949f1c8c539ac2ccff63",
+      "size": 398,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/002-simulator-and-mark.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-after.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/003-after.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-after.stdout.txt",
+      "sha256": "884554a02fd7321c5a152081444fd9a2c554a471965a50c15fb88c51c98d16b8",
+      "size": 1021,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/003-after.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-twin-readback.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/004-twin-readback.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-twin-readback.stdout.txt",
+      "sha256": "70409d6ed1bd8bab38cb5d8314f8a74f61cdb35998d78c46016e3b876d6aa9ba",
+      "size": 857,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/004-twin-readback.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-check.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/005-check.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-check.stdout.txt",
+      "sha256": "1b80119ffa3954e73615e127c105670467980223bf07748853dc9ca1ecb90907",
+      "size": 847,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/005-check.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-delta.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/006-delta.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-delta.stdout.txt",
+      "sha256": "761f2b2665bb7f459ccb408c0c1591f00891d8a8d29a30af81b5f55d59da625c",
+      "size": 446,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/006-delta.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-verdict.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/007-verdict.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-verdict.stdout.txt",
+      "sha256": "2db970cf0d2cfa54a587b0d8c4c35da86f8d17893413b491e1f6133e3f5f7bca",
+      "size": 269,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/console/007-verdict.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "sources.json",
+      "sha256": "f5e00b738d5c53ecf93f57311653600c681c3cdfc9cd7839774fb7abb175b7a5",
+      "size": 289,
+      "source": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02/sources.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01/events.jsonl",
+      "sha256": "f87543324475a874bf351d336738079e6611bc8c3e694bd723084480767ef234",
+      "size": 18719,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01/events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01/manifest.json",
+      "sha256": "4e5120a3f144d74b856d76ac1984a6cff989851770d82e1a47c7435cdfaf2e28",
+      "size": 840,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01/sent_events.jsonl",
+      "sha256": "de2bb39629f0aba141a10d537084c94019553afaae1cea883161710c8b949d3e",
+      "size": 15821,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.marker.json",
+      "sha256": "881d8df57fcefac28a97592ebe4456fad1999fd20fc55719fae882f2357f2ca2",
+      "size": 374,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.marker.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.metrics.after.json",
+      "sha256": "664da06b690d6fc820ec43793c428153e680ad0d1a551991fbf6cf76958945bc",
+      "size": 268,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.metrics.after.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.metrics.before.json",
+      "sha256": "9c96617e23f1fa68e2b03aefd10720f047d8aab512fbd5e22b486e9303b74147",
+      "size": 267,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.metrics.before.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.reconcile/events.jsonl",
+      "sha256": "f87543324475a874bf351d336738079e6611bc8c3e694bd723084480767ef234",
+      "size": 18719,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.reconcile/events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.reconcile/manifest.json",
+      "sha256": "4407081df882a74558f8c00f9d0491eec78557a118a8c5a098ad0744b39c3f4b",
+      "size": 752,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.reconcile/manifest.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.reconcile/sent_events.jsonl",
+      "sha256": "de2bb39629f0aba141a10d537084c94019553afaae1cea883161710c8b949d3e",
+      "size": 15821,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.reconcile/sent_events.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.reconcile.json",
+      "sha256": "1b80119ffa3954e73615e127c105670467980223bf07748853dc9ca1ecb90907",
+      "size": 847,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.reconcile.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.stderr.txt",
+      "sha256": "f84c1f6a6ed7637a1a9c9bd0f86286f582e7634fb50803f372068a1c10c5a0fc",
+      "size": 275,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.twin.62da1188-4cd1-434b-a9c7-236a8c211f84.json",
+      "sha256": "b09ee42596959bcd9e193d64478346679eb9a0c6e11aa597966a85cb965cc624",
+      "size": 509,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.twin.62da1188-4cd1-434b-a9c7-236a8c211f84.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.twins.after.json",
+      "sha256": "88acb334307457c33972a20d1d0db00d25541a592fa86b4f9a7dce50ea072801",
+      "size": 402,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.twins.after.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.twins.before.json",
+      "sha256": "56afaee6b9dfcd15501d2f9d13c83438ce3acc1ca6076191c389598bd996ef35",
+      "size": 347,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.twins.before.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "simulator/itest-g2-01.window-closed.json",
+      "sha256": "b4fd4b58748a48c5ae0dda18c1c8b9e4af7356251b25894514511d0a9dd7f3ae",
+      "size": 194,
+      "source": "/home/ruisth/egw-tcg/itest/itest-g2-01.window-closed.json",
+      "state": "verified"
+    }
+  ],
+  "missing_sources": [],
+  "package_completeness": "complete",
+  "path_mapping": "sources are WSL paths; sealed files inside raw/ keep their original absolute paths",
+  "run_id": "20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02",
+  "sanitized_derivatives": [],
+  "secret_scan": {
+    "note": "values of the listed variables (names only) and PEM private keys were searched in every file",
+    "private_keys": true,
+    "secret_values": [
+      "DITTO_DEVOPS_PASSWORD",
+      "EGW_MQTT_PASSWORD",
+      "MOSQUITTO_CONTROLLER_PASSWORD",
+      "MOSQUITTO_SIMULATOR_PASSWORD"
+    ]
+  },
+  "skipped_attempt_entries": [],
+  "skipped_registered_artefacts": [],
+  "skipped_source_roots": [],
+  "skipped_special": [],
+  "source_attempt_dir": "/home/ruisth/egw-exec/attempts/20260920T232527Z_smartwatch-slice-1-hz-60-s_attempt02",
+  "tool": "egw_experiments.local_export",
+  "tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+  "tool_version": "1"
+}

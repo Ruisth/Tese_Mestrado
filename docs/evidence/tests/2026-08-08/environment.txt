@@ -1,0 +1,11 @@
+Test evidence record
+====================
+Date (UTC): 2026-08-08T15:18:57Z
+Command: python -m pytest tests -q --junitxml=junit.xml  (cwd: Claude/src)
+Git commit at execution: 25b7eeaaaae0705f05ef3ea8385f1cdff406ae55  (NOTE: working tree contained the audit-correction
+  changes about to be committed; see LOG.md entry C004 and the commits that follow)
+Python: Python 3.14.3
+OS: Microsoft Windows NT 10.0.26200.0 (Windows 11 Pro)
+Venv lock: src/requirements.lock (pip freeze of this venv, 2026-08-08)
+Markers: 'integration' deselected by default (addopts); zero integration tests exist yet.
+Scope: unit tests with fakes only - M2 evidence (audit scale); closes no gate.

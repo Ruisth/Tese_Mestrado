@@ -1,0 +1,5 @@
+basehash changed from 67ff4d6fcf2619bbed249ac6fb07e50f8eeef5eec294ec1c37d5b08f71cddb87 to 3b0387baa6da5ca3e3c0c7f6087f90a197bfd7032afbe66d66ca9114559244ff
+Variable DISTRO_FEATURES value changed:
+@@ -1 +1,2 @@
+ ${DISTRO_FEATURES_DEFAULT} ${POKY_DEFAULT_DISTRO_FEATURES} virtualization systemd systemd usrmerge pulseaudio gobject-introspection-data ldconfig
++_remove of nfs

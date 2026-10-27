@@ -1,0 +1,461 @@
+--- fix/g3_battery.before.sh	2026-10-02 13:26:19.661110600 +0100
++++ g3_battery.sh	2026-10-02 14:32:32.454694300 +0100
+@@ -17,7 +17,9 @@
+ #   classify <slug> <status> <validity> <outcome> <reason> <next-action>
+ #   term <slug>    TERM (never KILL) to the recorded process group of a row
+ #   close          no unit active, the recorded 'compose stop -t 130', then the
+-#                  frozen guest_session_close.sh
++#                  frozen guest_session_close.sh (with no QEMU process left there is
++#                  nothing to read or stop: a HALT, then that driver alone, which
++#                  finishes and exports the session attempt as it stands)
+ #   status         the session, the clock, the rows
+ #
+ # Nothing in it kills QEMU, deletes anything, repeats a row, retries a failed
+@@ -33,6 +35,10 @@
+ # consoles of every invocation and of the four drivers). Row files: the rows/ folder
+ # beside this script, checked against rows/rows.manifest.json before anything runs.
+ # The script is never edited while a session is open (a row refuses a changed script).
++# One changing subcommand at a time: open, row, classify and close each take the turn
++# (take_turn) and are refused while another of them is still running; 'status' and
++# 'term' take none. A listing of processes is printed and kept only with the value
++# after every '--password' hidden (mask_argv).
+ set -u
+ SELF=$(readlink -f "$0")
+ SELF_DIR=$(dirname "$SELF")
+@@ -358,6 +364,14 @@
+ wsl_boot_id() { cat /proc/sys/kernel/random/boot_id 2> /dev/null; }
+ own_pgid() { ps -o pgid= -p "$$" 2> /dev/null | tr -d ' '; }    # (ps complains of the pty's size on stderr)
+ 
++# mask_argv: a 'pid command line' listing with the value after every --password hidden.
++# The simulator, the replay, the harness and T9's probes carry the broker password on
++# their argv (the reason for 'set -v', never 'set -x'): a listing of a row's processes
++# is printed, or written to the state directory, only through this filter, and cut at
++# 90 columns besides. The state directory is sealed as the operator records, which the
++# frozen export's secret scan never reads.
++mask_argv() { sed -E 's/(--password)([= ]+)[^ ]+/\1\2<hidden>/g'; }
++
+ # proc_start PID: when that process started (clock ticks since the boot, field 22 of
+ # /proc/PID/stat), or nothing. A pid is a number that can be given again; a pid with
+ # its start instant names one process.
+@@ -442,10 +456,13 @@
+     local n
+     mkdir -p "$STATE/console" || refuse "the state directory $STATE/console could not be created"
+     n=$(find "$STATE/console" -maxdepth 1 -type f -name '[0-9][0-9][0-9]-*.txt' | wc -l)
+-    LOG=$STATE/console/$(printf '%03d' $((n + 1)))-$1.txt
+-    while [ -e "$LOG" ]; do
++    # The file is claimed as it is named (noclobber: created only if absent), so two
++    # invocations started at the same moment never write one console.
++    while :; do
+         n=$((n + 1))
+-        LOG=$STATE/console/$(printf '%03d' $((n + 1)))-$1.txt
++        LOG=$STATE/console/$(printf '%03d' "$n")-$1.txt
++        (set -o noclobber && : > "$LOG") 2> /dev/null && break
++        [ "$n" -lt 5000 ] || refuse "no console file could be created in $STATE/console"
+     done
+     exec > >(trap '' INT TERM HUP; exec tee -p -a "$LOG") 2>&1
+     TEE_PID=$!
+@@ -465,6 +482,47 @@
+     done
+ }
+ 
++# take_turn WHAT: one changing subcommand (open, row, classify, close) at a time. A
++# check followed, seconds later, by the write it tests for is not a guard: two 'row
++# <slug>' started together both passed "this row was not started yet" and both ran the
++# row; a 'close' issued while 'open' was still in its preflight powered the guest off
++# under it. The turn is a record in the state directory of who holds it (the pid, its
++# start instant, the WSL boot), read and rewritten under a short flock; its holder is
++# the process that record names for as long as that process lives. The lock itself is
++# released before anything else runs, so no child inherits it (QEMU and a row's own
++# jobs outlive this script); nothing is deleted: the turn of a holder that is gone is
++# simply taken. A refusal here is exit 2: nothing was started or changed. 'status'
++# (read-only) and 'term' (which must reach a running row) take no turn.
++take_turn() {
++    local f=$STATE/turn.env pid start boot what tmp
++    mkdir -p "$STATE" || refuse "the state directory $STATE could not be created"
++    command -v flock > /dev/null 2>&1 \
++        || refuse "flock is not on PATH: one changing subcommand at a time cannot be guaranteed, so nothing was started"
++    # shellcheck disable=SC2093
++    exec 9>> "$STATE/turn.lock" || refuse "the turn lock $STATE/turn.lock could not be opened: nothing was started"
++    if ! flock -w 20 9; then
++        exec 9>&-
++        refuse "the turn lock $STATE/turn.lock was not obtained within 20 s (another invocation is taking its turn): nothing was started"
++    fi
++    pid=$(state_get "$f" pid)
++    start=$(state_get "$f" pid_start)
++    boot=$(state_get "$f" wsl_boot_id)
++    what=$(state_get "$f" what)
++    case $pid in *[!0-9]*) pid="" ;; esac
++    if [ -n "$pid" ] && [ "$pid" != "$$" ] && [ -n "$start" ] && [ "$boot" = "$(wsl_boot_id)" ] \
++        && [ "$(proc_start "$pid")" = "$start" ]; then
++        exec 9>&-
++        refuse "another invocation of this script is still running: '$what' (pid $pid, since $(state_get "$f" taken_wall)). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row"
++    fi
++    tmp=$f.tmp.$$
++    if ! { printf 'what=%s\npid=%s\npid_start=%s\nwsl_boot_id=%s\ntaken_wall=%s\ntaken_up=%s\n' "$(one_line "$1")" "$$" \
++        "$(proc_start "$$")" "$(wsl_boot_id)" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$(up_now)" > "$tmp" && mv "$tmp" "$f"; }; then
++        exec 9>&-
++        refuse "the turn could not be recorded in $f: nothing was started"
++    fi
++    exec 9>&-
++}
++
+ # open_label: the label (S1, S2) of the session whose state file names the session that
+ # is open now, or nothing.
+ open_label() {
+@@ -711,6 +769,7 @@
+     LABEL=$1
+     case $LABEL in S1 | S2) ;; *) refuse "usage: g3_battery.sh open S1|S2" ;; esac
+     start_log "open-$LABEL"
++    take_turn "open $LABEL"
+     say "open $LABEL: steps script $SELF sha256 $(sha_of "$SELF")"
+     echo "EGW_EXEC_REPO=$EGW_EXEC_REPO EXEC=$EXEC SESSION=${SESSION:-<none>} (the three values of the operator procedure); STATE=$STATE ROWS=$ROWS_DIR OUT=$OUT"
+ 
+@@ -1126,11 +1185,17 @@
+ # itself (T7's fault job restores its service from its trap). Nothing is signalled. The
+ # last reading of the group is kept beside the row's state file.
+ wait_group() {
+-    local limit=$1 t0 pgid list=$STATE/row-$ROW_SLUG.group-after-signal.txt left
++    local limit=$1 t0 pgid list=$STATE/row-$ROW_SLUG.group-after-signal.txt left pids
+     pgid=$(own_pgid)
+     t0=$(up_now)
+     while :; do
+-        pgrep -g "$pgid" -a > "$list" 2> /dev/null
++        # The reading itself is pgrep alone, pids only (a filter in the same pipeline would
++        # be a member of this very group); the command lines are then read for those pids
++        # and kept only with the password hidden (mask_argv).
++        pgrep -g "$pgid" > "$list" 2> /dev/null
++        mapfile -t pids < "$list"
++        [ "${#pids[@]}" -eq 0 ] \
++            || ps -o pid=,args= -p "$(IFS=,; echo "${pids[*]}")" 2> /dev/null | sed 's/^ *//' | mask_argv > "$list"
+         left=$(grep -v -e "^$$ " -e "^${TEE_PID:-none} " "$list" | cut -c1-90 | tr '\n' ';')
+         [ -n "$left" ] || break
+         if [ $(($(up_now) - t0)) -ge "$limit" ]; then
+@@ -1165,7 +1230,11 @@
+     rc=$?
+     row_set driver_code "$rc"
+     row_set export "$(receipt_state)"
+-    echo "row $ROW_SLUG: attempt finished 'interrupted' and exported (driver code $rc). It is NOT classified again: its class is written in the result note."
++    if [ "$rc" -eq "$EXIT_EXPORT" ]; then
++        echo "row $ROW_SLUG: attempt finished 'interrupted', but its export FAILED (driver code $rc; receipt: $(state_get "$ROW_FILE" export)): the attempt is kept in WSL for 'local_export recover'. It is NOT classified again: its class is written in the result note."
++    else
++        echo "row $ROW_SLUG: attempt finished 'interrupted'; driver code $rc; export: $(state_get "$ROW_FILE" export). It is NOT classified again: its class is written in the result note."
++    fi
+     exit "$rc"
+ }
+ 
+@@ -1185,6 +1254,9 @@
+     ROW_SLUG=$1
+     LABEL=$(row_session "$ROW_SLUG") || refuse "unknown row '$ROW_SLUG' (S1: $ROWS_S1; S2: $ROWS_S2)"
+     start_log "row-$ROW_SLUG"
++    # The turn comes before the first check: "this row was not started yet" is tested
++    # below and made true only when the attempt exists, seconds later.
++    take_turn "row $ROW_SLUG"
+     say "row $ROW_SLUG (session $LABEL): steps script sha256 $(sha_of "$SELF")"
+     # Refusals: nothing is started, nothing is recorded as a halt (SESSION_FILE stays empty).
+     f=$STATE/session-$LABEL.env
+@@ -1379,6 +1451,7 @@
+     outcome=$4
+     row_session "$ROW_SLUG" > /dev/null || refuse "unknown row '$ROW_SLUG'"
+     start_log "classify-$ROW_SLUG"
++    take_turn "classify $ROW_SLUG"
+     ROW_FILE=$STATE/row-$ROW_SLUG.env
+     [ -f "$ROW_FILE" ] || { ROW_FILE=""; refuse "row $ROW_SLUG was not started"; }
+     st=$(state_get "$ROW_FILE" state)
+@@ -1428,7 +1501,13 @@
+         *) echo "NOTE: this row's gate did not pass ($(state_get "$ROW_FILE" gate)): no further row starts; 'close' and hand back to Rui." ;;
+     esac
+     [ "$HALTED" -eq 0 ] || exit 1
+-    echo "Next: the next row of session $LABEL, or 'close' after the last one."
++    # The halts of the 'row' invocation (a failed gate, a step status 97 or 74) are in the
++    # session's state file, not in this invocation's HALTED.
++    if [ "$(state_get "$ROW_FILE" gate)" = pass ] && [ -z "$(state_get "$SESSION_FILE" halt)" ]; then
++        echo "Next: the next row of session $LABEL, or 'close' after the last one."
++    else
++        echo "Next: 'close', then hand back to Rui: session $LABEL has a recorded halt (or this row's gate did not pass), and no further row starts without his direction."
++    fi
+ }
+ 
+ # --- term -----------------------------------------------------------------------------
+@@ -1446,9 +1525,14 @@
+     members=$(row_group "$ROW_FILE") \
+         || refuse "no process of row $ROW_SLUG is left in its process group $pgid (state '$(state_get "$ROW_FILE" state)'; another WSL boot, or the number now names another group): nothing is signalled"
+     say "term $ROW_SLUG: the process group $pgid (row state '$(state_get "$ROW_FILE" state)', step '$(state_get "$ROW_FILE" step)')"
+-    printf '%s\n' "$members" | cut -c1-200
++    # The simulator's password is on its argv: the listing is printed (and so kept in this
++    # invocation's console, an operator record) only masked and cut, as 'status' cuts it.
++    printf '%s\n' "$members" | mask_argv | cut -c1-90
++    # A HALT of 'term' is kept in the session's state file like every other halt.
++    LABEL=$(state_get "$ROW_FILE" session_label)
++    [ -z "$LABEL" ] || [ ! -f "$STATE/session-$LABEL.env" ] || SESSION_FILE=$STATE/session-$LABEL.env
+     if printf '%s\n' "$members" | cut -d' ' -f2- | grep -Eq "$QEMU_EXE_RE"; then
+-        echo "HALT: a qemu-system-aarch64 process is in that group: nothing was signalled. QEMU is never killed without Rui's decision."
++        halt "term $ROW_SLUG: a qemu-system-aarch64 process is in the row's process group $pgid: nothing was signalled. QEMU is never killed without Rui's decision."
+         exit 1
+     fi
+     # A keepalive client is 'sleep <seconds>' started by a WSL relay; a row's own sleeps
+@@ -1458,7 +1542,7 @@
+             sleep\ [0-9]*)
+                 case $(ps -o comm= -p "$(ps -o ppid= -p "$mpid" 2> /dev/null | tr -d ' ')" 2> /dev/null) in
+                     Relay*)
+-                        echo "HALT: the keepalive client (pid $mpid, '$margs') is in that group: nothing was signalled."
++                        halt "term $ROW_SLUG: the keepalive client (pid $mpid, '$margs') is in the row's process group $pgid: nothing was signalled."
+                         exit 1
+                         ;;
+                 esac
+@@ -1479,58 +1563,203 @@
+     exit 130
+ }
+ 
+-cmd_close() {
+-    local slug f st left rc line
+-    [ "$#" -eq 0 ] || refuse "usage: g3_battery.sh close"
+-    [ -n "$SESSION" ] && [ -d "$SESSION" ] || refuse "no open session"
+-    LABEL=$(open_label) || refuse "no $STATE/session-<label>.env names the open session $SESSION: it was not opened by this script (the frozen guest_session_close.sh closes it)"
+-    start_log "close-$LABEL"
+-    say "close $LABEL: $SESSION"
+-    for slug in $(session_rows "$LABEL"); do
++# attempt_state DIR: '<status> <export receipt state>' of an attempt, read from its own
++# files: 'running none' (open, not exported), 'interrupted complete' (finished and
++# exported), 'unreadable none'.
++attempt_state() {
++    "$PY" -c '
++import json, sys
++def read(path, key, default):
++    try:
++        return str(json.load(open(path)).get(key) or default)
++    except (OSError, ValueError, AttributeError):
++        return default
++print("%s %s" % (read(sys.argv[1] + "/attempt.json", "status", "unreadable").replace(" ", "_"),
++                 read(sys.argv[1] + "/export/receipt.json", "state", "none").replace(" ", "_")))' "$1" 2> /dev/null \
++        || echo "unreadable none"
++}
++
++# close_rows LABEL: the session's rows at the close (packet section 4, safe close: no
++# row or poller running; the open attempt finished and exported as it stands BEFORE the
++# stop). Refuses (exit 2) while a row runs, awaits classification, or left an attempt
++# that is still open; SESSION_FILE is set by the caller.
++close_rows() {
++    local slug f st left a ast
++    for slug in $(session_rows "$1"); do
+         f=$STATE/row-$slug.env
+         [ -f "$f" ] || continue
+         st=$(state_get "$f" state)
+         ! row_alive "$f" || refuse "row $slug is running (pid $(state_get "$f" pid), state '$st'): 'term $slug' sends TERM, never KILL"
+-        left=$(row_group "$f" | cut -c1-90 | head -n 3 | tr '\n' ';')
++        left=$(row_group "$f" | mask_argv | cut -c1-90 | head -n 3 | tr '\n' ';')
+         [ -z "$left" ] || refuse "row $slug: a process is still in its process group $(state_get "$f" pgid) ($left): no row or poller may be running at the close ('term $slug')"
+         case $st in
+             classified | interrupted) ;;
+             awaiting-classification) refuse "row $slug awaits classification: its attempt is finished and exported first ('classify $slug ...'; packet section 4, safe close)" ;;
+-            *) echo "WARNING: row $slug is recorded '$st' and its process is gone: its attempt is still open in WSL (the frozen 'local_export recover --interrupt <run id>' marks and exports it)" ;;
++            *)
++                # The row's process died without its trap: this script neither finished
++                # nor exported its attempt. The close does not power the guest off over
++                # an attempt that is still open.
++                a=$(state_get "$f" attempt)
++                ast=$(attempt_state "$a")
++                case $ast in
++                    running\ * | unreadable\ *) left=open ;;
++                    *\ complete) left="" ;;
++                    *) left=open ;;
++                esac
++                [ -z "$left" ] \
++                    || refuse "row $slug is recorded '$st', its process is gone and its attempt is not finished and exported (attempt.json status and export receipt: '$ast'). The safe close finishes and exports the open attempt BEFORE the stop (packet section 4): nothing was stopped. First fetch what the row left on the guest (its /tmp is lost at the power-off; README, 'Restorations'), then mark and export the attempt with the frozen tool, then 'close' again:  (cd \"$REPO/src\" && $LE recover --attempts-root \"$ATTEMPTS\" --dest-root \"$OUT\" --secrets-env \"$SECRETS_ENV\" --interrupt $(basename "$a"))"
++                state_set "$f" state interrupted
++                state_add "$f" closed_outside "up=$(up_now) was '$st' with its process gone; the attempt was finished and exported outside this script ($ast), read at the close"
++                state_set "$f" export "$(A=$a receipt_state)"
++                halt "row $slug: its process died without its trap (it was recorded '$st'); its attempt was finished and exported outside this script ($ast) and the row is now recorded 'interrupted' (packet section 4, halt 2). It is NOT classified: its class is written in the result note"
++                ;;
+         esac
+     done
++}
++
++# rootfs_after_close SESSION_DIR: the root file system hash the frozen close driver
++# recorded after the power-off (its 'artefacts-after-poweroff' step), kept in the
++# session's state file: S2 opens only on this value.
++rootfs_after_close() {
++    local line
++    line=$(ls "$1"/console/*-artefacts-after-poweroff.stdout.txt 2> /dev/null | tail -n 1)
++    if [ -n "$line" ]; then
++        line=$(sed -n 's/^\([0-9a-f]\{64\}\)  .*\.ext4$/\1/p' "$line" | head -n 1)
++        [ -z "$line" ] || state_set "$SESSION_FILE" rootfs_after_close "$line"
++    fi
++    echo "rootfs ext4 after the close: ${line:-NOT READ} (S2 opens only on this value)"
++}
++
++# data_disk_header: packet section 1 lists the data disk's ext4 header "before each boot
++# and after each close". The frozen open driver lists it before each boot; this is the
++# listing after the close, in its form (guest_session_open.sh, '## data disk'). Read-only
++# (dumpe2fs -h opens the image for reading), and only when no qemu-system-aarch64 process
++# is left: a disk a guest may still have mounted is not read. Evidence only: printed to
++# this invocation's console (an operator record); it decides nothing.
++data_disk_header() {
++    local rc
++    qemu_procs > /dev/null
++    rc=$?
++    if [ "$rc" -ne 1 ]; then
++        echo "data disk after the close: NOT listed (qemu pgrep exit $rc: a qemu-system-aarch64 process is left, or that was not determined)"
++        return 0
++    fi
++    echo "data disk after the close (read-only listing, no qemu-system-aarch64 process left):"
++    ls -l "$DATA_DISK" 2>&1 | sed 's/^/  /'
++    /usr/sbin/dumpe2fs -h "$DATA_DISK" 2> /dev/null | grep -E "state|features|mount count|Last mount" | sed 's/^/  /'
++    rc=${PIPESTATUS[0]}
++    [ "$rc" -eq 0 ] || echo "  the ext4 header of $DATA_DISK was NOT read (dumpe2fs exit $rc); evidence only"
++    return 0
++}
++
++# close_outside: 'close' with no open session. A session this script opened and did not
++# close itself (the frozen guest_session_close.sh was run by hand after a lost guest, or
++# an 'open' halted before any session existed) stays recorded 'open' or 'halted', and
++# 'open S2' refuses on that record. This script changes the record only on Rui's
++# explicit direction (EGW_G3_RUI_GO, recorded) and only when nothing is left to close:
++# no current_session, no qemu-system-aarch64 process, no row running or unfinished. The
++# halt it records keeps S2 behind his direction as well. It never returns.
++close_outside() {
++    local l f st="" found=""
++    [ ! -e "$EXEC/current_session" ] \
++        || refuse "no open session: $EXEC/current_session names '${SESSION}', which is not a session directory. Nothing was changed; hand back to Rui"
++    for l in S1 S2; do
++        f=$STATE/session-$l.env
++        [ -f "$f" ] || continue
++        st=$(state_get "$f" state)
++        [ "$st" = closed ] || { found=$l; break; }
++    done
++    [ -n "$found" ] || refuse "no open session"
++    f=$STATE/session-$found.env
++    [ -n "${EGW_G3_RUI_GO:-}" ] \
++        || refuse "no open session ($EXEC/current_session is absent), but session $found is recorded '$st' in $f: it was closed outside this script, or its open left no session. That record is changed only on Rui's explicit direction: 'close' with EGW_G3_RUI_GO set to his words records the session closed, with a halt (his words are recorded)"
++    LABEL=$found
++    start_log "close-$LABEL"
++    take_turn "close $LABEL (the record of a close made outside this script)"
++    say "close $LABEL: no session is open; session $LABEL is recorded '$st'. EGW_G3_RUI_GO is set and is recorded: $EGW_G3_RUI_GO"
++    qemu_procs > /dev/null
++    case $? in
++        1) ;;
++        0) refuse "a qemu-system-aarch64 process is running although no session is open: session $LABEL is NOT recorded closed. QEMU is never killed without Rui's decision" ;;
++        *) refuse "whether a qemu-system-aarch64 process is running could not be determined: session $LABEL is NOT recorded closed" ;;
++    esac
++    SESSION_FILE=$f
++    close_rows "$LABEL"
++    S=$(state_get "$SESSION_FILE" session_attempt)
++    [ -z "$S" ] || [ ! -d "$S" ] || rootfs_after_close "$S"
++    data_disk_header
++    state_set "$SESSION_FILE" state closed
++    state_set "$SESSION_FILE" closed_up "$(up_now)"
++    state_set "$SESSION_FILE" closed_outside "the record said '$st'; no current_session and no qemu-system-aarch64 process at up=$(up_now); EGW_G3_RUI_GO: $EGW_G3_RUI_GO"
++    halt "session $LABEL was not closed by this script (its record said '$st'; guest_session_close_exit='$(state_get "$SESSION_FILE" guest_session_close_exit)'): it is recorded closed on Rui's direction ($EGW_G3_RUI_GO). The session attempt's own package says how it ended: ${S:-no session attempt was recorded}"
++    exit 1
++}
++
++cmd_close() {
++    local rc
++    [ "$#" -eq 0 ] || refuse "usage: g3_battery.sh close"
++    [ -n "$SESSION" ] && [ -d "$SESSION" ] || close_outside
++    LABEL=$(open_label) || refuse "no $STATE/session-<label>.env names the open session $SESSION: it was not opened by this script (the frozen guest_session_close.sh closes it)"
++    start_log "close-$LABEL"
++    # The turn: a 'close' is refused while 'open' (or any other changing subcommand) is
++    # still running - the session's drivers must not lose the guest under them.
++    take_turn "close $LABEL"
++    say "close $LABEL: $SESSION"
+     SESSION_FILE=$STATE/session-$LABEL.env
++    close_rows "$LABEL"
++    # The stop (up to 130 s for each service) and the power-off must not lose WSL under
++    # them: the keepalive is checked before anything is stopped, as before every row.
++    keepalive_check "$KEEPALIVE_MARGIN_S" \
++        || refuse "the keepalive client is not attached with $KEEPALIVE_MARGIN_S s left (see above): nothing was stopped. Attach one, then 'close' again"
+     trap 'close_interrupted INT' INT
+     trap 'close_interrupted TERM' TERM
+     trap 'close_interrupted HUP' HUP
+     state_set "$SESSION_FILE" close_started_up "$(up_now)"
+ 
+-    say "no recorder or collector unit active (read-only)"
+-    gx "$S" g3-close-units "$(units_script)"
+-    rc=$?
+-    if [ "$rc" -ne 0 ]; then
+-        halt "close: a recorder or collector unit is active, or the units could not be read (exit $rc: 3 active, 97 the guest did not answer): nothing was stopped. The runbook's own cleanup is the operator's decision; then 'close' again"
+-        exit 1
+-    fi
++    qemu_procs > /dev/null
++    if [ "$?" -eq 1 ]; then
++        # The guest is gone (lost, or T8's re-launch did not bring it back): the units
++        # cannot be read and there is no stack to stop, so asking again would answer 97
++        # for ever. What is left of the controlled close is the session attempt, which
++        # the frozen close driver finishes and exports as it stands; with no QEMU process
++        # it signals nothing and powers nothing off.
++        state_set "$SESSION_FILE" stack_stop_130_exit "not run: no qemu-system-aarch64 process"
++        halt "close $LABEL: no qemu-system-aarch64 process is left (pgrep exit 1): the guest was lost before the close (packet section 4, halt 5 or 6). No unit was read and the recorded stop was NOT run - there is nothing to stop. The frozen guest_session_close.sh is run to finish and export the session attempt as it stands; its guest steps cannot succeed (expect exit 5)"
++    else
++        say "no recorder or collector unit active (read-only)"
++        gx "$S" g3-close-units "$(units_script)"
++        rc=$?
++        case $rc in
++            0) ;;
++            3)
++                halt "close: a recorder or collector unit is active (exit 3): nothing was stopped. The runbook's own cleanup is the operator's decision (README, 'Restorations': at most three tries); then 'close' again"
++                exit 1
++                ;;
++            "$EXIT_NOT_REACHED")
++                halt "close: the guest did not answer (exit 97) although a qemu-system-aarch64 process is running: whether a unit is active is UNKNOWN and nothing was stopped. 'close' answers the same for as long as the guest does not answer: hand back to Rui (QEMU is never killed without his decision; the frozen guest_session_close.sh is what finishes and exports the session attempt)"
++                exit 1
++                ;;
++            *)
++                halt "close: the units could not be read (exit $rc: 1 systemctl failed on the guest, 74 the console capture was lost): whether a unit is active is UNKNOWN and nothing was stopped. Read $S/console/, then 'close' again or hand back to Rui"
++                exit 1
++                ;;
++        esac
+ 
+-    say "the recorded stop with the controller's 130 s allowance (PM condition 4)"
+-    gx "$S" stack-stop-130 "cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env stop -t 130; rc=\$?; echo \"stop exit=\$rc\"; docker ps -a --format '{{.Names}} {{.Status}}'; exit \$rc"
+-    rc=$?
+-    state_set "$SESSION_FILE" stack_stop_130_exit "$rc"
+-    if [ "$rc" -ne 0 ]; then
+-        halt "stop failed (stack-stop-130 exit $rc): the close driver was NOT run and QEMU is NOT forced off. Hand back to Rui"
+-        exit 1
++        say "the recorded stop with the controller's 130 s allowance (PM condition 4)"
++        gx "$S" stack-stop-130 "cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env stop -t 130; rc=\$?; echo \"stop exit=\$rc\"; docker ps -a --format '{{.Names}} {{.Status}}'; exit \$rc"
++        rc=$?
++        state_set "$SESSION_FILE" stack_stop_130_exit "$rc"
++        if [ "$rc" -ne 0 ]; then
++            halt "stop failed (stack-stop-130 exit $rc): the close driver was NOT run and QEMU is NOT forced off. Hand back to Rui"
++            exit 1
++        fi
+     fi
+ 
+     run_driver "$LABEL" guest_session_close
+     rc=$?
+     trap - INT TERM HUP
+-    line=$(ls "$S"/console/*-artefacts-after-poweroff.stdout.txt 2> /dev/null | tail -n 1)
+-    if [ -n "$line" ]; then
+-        line=$(sed -n 's/^\([0-9a-f]\{64\}\)  .*\.ext4$/\1/p' "$line" | head -n 1)
+-        [ -z "$line" ] || state_set "$SESSION_FILE" rootfs_after_close "$line"
+-    fi
+-    echo "rootfs ext4 after the close: ${line:-NOT READ} (S2 opens only on this value)"
++    rootfs_after_close "$S"
++    data_disk_header
+     if [ ! -e "$EXEC/current_session" ]; then
+         # The frozen driver removes current_session only when no QEMU process is left.
+         state_set "$SESSION_FILE" state closed
+@@ -1557,6 +1786,13 @@
+     echo "open session (current_session): ${SESSION:-none}; host uptime now: $now s; WSL boot $(wsl_boot_id)"
+     qemu_procs
+     echo "qemu pgrep exit=$? (0 running, 1 none)"
++    if [ -f "$STATE/turn.env" ]; then
++        f=$STATE/turn.env
++        st=ended
++        [ "$(state_get "$f" wsl_boot_id)" != "$(wsl_boot_id)" ] || [ -z "$(state_get "$f" pid_start)" ] \
++            || [ "$(proc_start "$(state_get "$f" pid)")" != "$(state_get "$f" pid_start)" ] || st="STILL RUNNING: open, row, classify and close are refused until it ends"
++        echo "turn of the changing subcommands: last taken by '$(state_get "$f" what)' (pid $(state_get "$f" pid), $(state_get "$f" taken_wall)); that invocation: $st"
++    fi
+     for l in S1 S2; do
+         f=$STATE/session-$l.env
+         [ -f "$f" ] || { echo "session $l: not opened"; continue; }
+@@ -1587,7 +1823,7 @@
+                     ;;
+             esac
+             if row_group "$rf" > /dev/null; then
+-                echo "    processes still in its group $(state_get "$rf" pgid): $(row_group "$rf" | cut -c1-90 | head -n 8 | tr '\n' ';')"
++                echo "    processes still in its group $(state_get "$rf" pgid): $(row_group "$rf" | mask_argv | cut -c1-90 | head -n 8 | tr '\n' ';')"
+             fi
+         done
+     done

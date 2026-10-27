@@ -1,0 +1,2 @@
+metrics 200
+{"accepted":0,"rejected":0,"duplicate":0,"failed":0,"dropped":0,"received":0,"in_progress":0,"processing_errors":0,"started_at":"2026-09-20T23:37:38.535Z","uptime_s":39.70530404200008,"monotonic_ns":1212770122053,"wall_utc":"2026-09-20T23:38:18.239Z","queue_depth":0}

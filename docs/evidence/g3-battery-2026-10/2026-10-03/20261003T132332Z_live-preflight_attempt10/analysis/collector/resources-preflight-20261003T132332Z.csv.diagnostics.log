@@ -1,0 +1,13 @@
+2026-10-03T13:27:07Z start: collector_sha256=11444c0a21d6f689965d3c3be7c3eca12be132b8bd3a718e105b43d24c4819a6 host=egw-qemu-integrated source=auto interval=1s duration=45s pacing: wall-clock seconds: each sample aimed 0.5 s into a second, paced on /proc/uptime with a fractional sleep; timestamps: awk systime(); expected services: egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1
+2026-10-03T13:27:07Z sample 1: sampling source: cgroup v2 under /sys/fs/cgroup
+2026-10-03T13:27:08Z calibrated: wall second 1791034028 began at uptime 255.37 s (calibration 1)
+2026-10-03T13:27:18Z sample withheld at uptime 266.92 s: it fell in second 2026-10-03T13:27:18Z, not after the last stamped second 2026-10-03T13:27:18Z (a clock stepped back, or two samples in one second); no rows
+2026-10-03T13:27:20Z calibrated: wall second 1791034040 began at uptime 267.97 s (calibration 2)
+2026-10-03T13:27:20Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-03T13:27:18Z)
+2026-10-03T13:27:20Z stamps resumed after 1 withheld sample(s): 0.62 s of elapsed time without an accepted sample (uptime 265.91 s to 268.53 s, less one interval and the 1 forward UTC-gap second(s) just counted); not in the forward UTC-gap count
+2026-10-03T13:27:49Z sample withheld at uptime 298.53 s: it fell in second 2026-10-03T13:27:49Z, not after the last stamped second 2026-10-03T13:27:49Z (a clock stepped back, or two samples in one second); no rows
+2026-10-03T13:27:51Z calibrated: wall second 1791034071 began at uptime 299.58 s (calibration 3)
+2026-10-03T13:27:51Z forward UTC gap: no sample stamped in the 1 second(s) before this one (previous sample in 2026-10-03T13:27:49Z)
+2026-10-03T13:27:51Z stamps resumed after 1 withheld sample(s): 0.61 s of elapsed time without an accepted sample (uptime 297.52 s to 300.13 s, less one interval and the 1 forward UTC-gap second(s) just counted); not in the forward UTC-gap count
+2026-10-03T13:27:51Z inventory: observed=egw-controller-1,egw-ditto-gateway-1,egw-ditto-policies-1,egw-ditto-things-1,egw-mongodb-1,egw-mosquitto-1 expected=egw-mosquitto-1,egw-mongodb-1,egw-ditto-policies-1,egw-ditto-things-1,egw-ditto-gateway-1,egw-controller-1 missing=none unnamed_ids=0
+2026-10-03T13:27:51Z stop: samples=45 utc_gap_seconds=2 withheld_samples=2 withheld_elapsed_s=1.23 withheld_runs_unmeasured=0 withheld_open_at_stop=0 calibrations=3 pacing=wall-clock

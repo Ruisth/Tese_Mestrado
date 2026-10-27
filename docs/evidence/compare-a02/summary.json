@@ -1,0 +1,1051 @@
+{
+  "generated_utc": "2026-10-19T12:57:31Z",
+  "measure_root": "/home/ruisth/egw-compare/measure",
+  "character": "Exploratory comparison of two complete gateway configurations: n = 3 per scenario, one QEMU/TCG profile, one synthetic load; no statistical significance claimed.",
+  "provenance": {
+    "generator": "tools/compare/measure_summary.py",
+    "generator_commit": "34a5f9da0fbf7705a578918b618e1de138cc0e92",
+    "generated_utc": "2026-10-19T12:57:31Z",
+    "inputs": {
+      "measure_root": "/home/ruisth/egw-compare/measure",
+      "plan": {
+        "path": "/home/ruisth/egw-compare/measure/plan-a02.json",
+        "sha256": "94fc96919cc0c9e2f074c0f39a7c3a1fe4397d9bd639d9f16bc01c2e5c821f7d"
+      },
+      "per_run_csv": {
+        "path": "/home/ruisth/egw-compare/measure/harness/processed/per_run.csv",
+        "sha256": "ae89a002b9aa3eefdd7d9b08a53101362be99575ed0832ed6d992d468d8b6872"
+      }
+    },
+    "note": "a derivative of the raw records; raw records and earlier summaries are not modified"
+  },
+  "plan": {
+    "path": "/home/ruisth/egw-compare/measure/plan-a02.json",
+    "sha256": "94fc96919cc0c9e2f074c0f39a7c3a1fe4397d9bd639d9f16bc01c2e5c821f7d",
+    "run_ids": [
+      "cmp-p1-yocto-a02",
+      "cmp-p1-debian13-a02",
+      "cmp-p2-debian13-a02",
+      "cmp-p2-yocto-a02",
+      "cmp-p3-yocto-a02",
+      "cmp-p3-debian13-a02"
+    ],
+    "ignored_not_in_plan": [
+      "cmp-p1-yocto"
+    ],
+    "missing_directories": []
+  },
+  "rules": {
+    "min_pairs": 100,
+    "pairing_tolerance_s": 1.0,
+    "rate_bound_proximity_s": 5.0
+  },
+  "columns": [
+    "scenario",
+    "run_id",
+    "pair",
+    "order_in_pair",
+    "seed",
+    "boot_ssh_s",
+    "stack_ready_s",
+    "gateway_functional_s",
+    "mem_rest_median_mib",
+    "mem_rest_max_mib",
+    "mem_rest_samples",
+    "load_duration_monotonic_s",
+    "load_window_utc_span_s",
+    "wall_clock_step_s",
+    "clock_pairing_marker_lag_s",
+    "clock_pairing_pairs",
+    "clock_pairing_discrepancy_s",
+    "load_window_reason",
+    "mem_load_window_start_guest_s",
+    "mem_load_window_end_guest_s",
+    "mem_load_median_mib",
+    "mem_load_max_mib",
+    "mem_load_samples",
+    "mem_loadfile_median_mib",
+    "mem_loadfile_max_mib",
+    "mem_loadfile_samples",
+    "df_root_used_kib",
+    "df_docker_used_kib",
+    "sent_valid",
+    "published_rate_msg_s",
+    "delivered_unique",
+    "accepted_between_samples",
+    "accepted_rate_span_s",
+    "accepted_rate_start_gap_s",
+    "accepted_rate_end_gap_s",
+    "accepted_rate_est_msg_s",
+    "accepted_rate_reason",
+    "delivery_rate",
+    "lost",
+    "late_confirmations",
+    "duplicates",
+    "double_accepted",
+    "latency_ms_p50",
+    "latency_ms_p95",
+    "latency_samples",
+    "fetch_accepted_in_time",
+    "fetch_accepted_late",
+    "fetch_no_outcome",
+    "drain_accepted_in_time",
+    "drain_accepted_late",
+    "drain_accepted_no_ack",
+    "drain_no_outcome",
+    "drain_fetch_claim",
+    "drain_s",
+    "drain_result",
+    "harness_exit"
+  ],
+  "runs": [
+    {
+      "scenario": "yocto",
+      "run_id": "cmp-p1-yocto-a02",
+      "pair": 1,
+      "order_in_pair": 1,
+      "seed": 2026101801,
+      "boot_ssh_s": 15.8,
+      "stack_ready_s": 238.8,
+      "gateway_functional_s": 256.8,
+      "mem_rest_median_mib": 1893.6,
+      "mem_rest_max_mib": 2050.7,
+      "mem_rest_samples": 110,
+      "load_duration_monotonic_s": 600.151,
+      "load_window_utc_span_s": 584.428,
+      "wall_clock_step_s": -15.723,
+      "clock_pairing_marker_lag_s": 0.026,
+      "clock_pairing_pairs": 4514,
+      "clock_pairing_discrepancy_s": -0.015,
+      "load_window_reason": null,
+      "mem_load_window_start_guest_s": 504.655,
+      "mem_load_window_end_guest_s": 1104.807,
+      "mem_load_median_mib": 1911.6,
+      "mem_load_max_mib": 2084.9,
+      "mem_load_samples": 541,
+      "mem_loadfile_median_mib": 1911.9,
+      "mem_loadfile_max_mib": 2104.3,
+      "mem_loadfile_samples": 1029,
+      "df_root_used_kib": 500828,
+      "df_docker_used_kib": 2071164,
+      "sent_valid": 6720,
+      "published_rate_msg_s": 11.2,
+      "delivered_unique": 4430,
+      "accepted_between_samples": 4692,
+      "accepted_rate_span_s": 600.66,
+      "accepted_rate_start_gap_s": 0.86,
+      "accepted_rate_end_gap_s": 0.351,
+      "accepted_rate_est_msg_s": 7.81,
+      "accepted_rate_reason": null,
+      "delivery_rate": 0.6592,
+      "lost": 2290,
+      "late_confirmations": 84,
+      "duplicates": 0,
+      "double_accepted": 0,
+      "latency_ms_p50": 218837.7,
+      "latency_ms_p95": 263265.0,
+      "latency_samples": 4430,
+      "fetch_accepted_in_time": 4430,
+      "fetch_accepted_late": 84,
+      "fetch_no_outcome": 2206,
+      "drain_accepted_in_time": null,
+      "drain_accepted_late": null,
+      "drain_accepted_no_ack": null,
+      "drain_no_outcome": null,
+      "drain_fetch_claim": "not-fetched",
+      "drain_s": 338.6,
+      "drain_result": "quiet",
+      "harness_exit": 0
+    },
+    {
+      "scenario": "debian13",
+      "run_id": "cmp-p1-debian13-a02",
+      "pair": 1,
+      "order_in_pair": 2,
+      "seed": 2026101801,
+      "boot_ssh_s": 46.0,
+      "stack_ready_s": 322.3,
+      "gateway_functional_s": 341.9,
+      "mem_rest_median_mib": 2233.7,
+      "mem_rest_max_mib": 2406.9,
+      "mem_rest_samples": 103,
+      "load_duration_monotonic_s": 600.166,
+      "load_window_utc_span_s": 582.365,
+      "wall_clock_step_s": -17.801,
+      "clock_pairing_marker_lag_s": 0.079,
+      "clock_pairing_pairs": 2567,
+      "clock_pairing_discrepancy_s": -0.071,
+      "load_window_reason": null,
+      "mem_load_window_start_guest_s": 604.643,
+      "mem_load_window_end_guest_s": 1204.809,
+      "mem_load_median_mib": 2304.3,
+      "mem_load_max_mib": 2488.6,
+      "mem_load_samples": 495,
+      "mem_loadfile_median_mib": 2305.6,
+      "mem_loadfile_max_mib": 2500.9,
+      "mem_loadfile_samples": 1217,
+      "df_root_used_kib": 1493412,
+      "df_docker_used_kib": 2071152,
+      "sent_valid": 6720,
+      "published_rate_msg_s": 11.2,
+      "delivered_unique": 2480,
+      "accepted_between_samples": 3051,
+      "accepted_rate_span_s": 599.55,
+      "accepted_rate_start_gap_s": 0.094,
+      "accepted_rate_end_gap_s": 0.71,
+      "accepted_rate_est_msg_s": 5.09,
+      "accepted_rate_reason": null,
+      "delivery_rate": 0.369,
+      "lost": 4240,
+      "late_confirmations": 87,
+      "duplicates": 0,
+      "double_accepted": 0,
+      "latency_ms_p50": 349580.1,
+      "latency_ms_p95": 433717.3,
+      "latency_samples": 2480,
+      "fetch_accepted_in_time": 2480,
+      "fetch_accepted_late": 87,
+      "fetch_no_outcome": 4153,
+      "drain_accepted_in_time": 2480,
+      "drain_accepted_late": 4240,
+      "drain_accepted_no_ack": 0,
+      "drain_no_outcome": 0,
+      "drain_fetch_claim": "fetched",
+      "drain_s": 647.6,
+      "drain_result": "quiet",
+      "harness_exit": 0
+    },
+    {
+      "scenario": "debian13",
+      "run_id": "cmp-p2-debian13-a02",
+      "pair": 2,
+      "order_in_pair": 1,
+      "seed": 2026101802,
+      "boot_ssh_s": 46.3,
+      "stack_ready_s": 338.8,
+      "gateway_functional_s": 361.6,
+      "mem_rest_median_mib": 2296.3,
+      "mem_rest_max_mib": 2487.7,
+      "mem_rest_samples": 103,
+      "load_duration_monotonic_s": 600.144,
+      "load_window_utc_span_s": 581.217,
+      "wall_clock_step_s": -18.927,
+      "clock_pairing_marker_lag_s": 0.085,
+      "clock_pairing_pairs": 2483,
+      "clock_pairing_discrepancy_s": -0.058,
+      "load_window_reason": null,
+      "mem_load_window_start_guest_s": 625.011,
+      "mem_load_window_end_guest_s": 1225.155,
+      "mem_load_median_mib": 2289.6,
+      "mem_load_max_mib": 2501.1,
+      "mem_load_samples": 491,
+      "mem_loadfile_median_mib": 2301.0,
+      "mem_loadfile_max_mib": 2501.1,
+      "mem_loadfile_samples": 1233,
+      "df_root_used_kib": 1489648,
+      "df_docker_used_kib": 2071224,
+      "sent_valid": 6720,
+      "published_rate_msg_s": 11.2,
+      "delivered_unique": 2394,
+      "accepted_between_samples": 2973,
+      "accepted_rate_span_s": 600.046,
+      "accepted_rate_start_gap_s": 0.215,
+      "accepted_rate_end_gap_s": 0.314,
+      "accepted_rate_est_msg_s": 4.95,
+      "accepted_rate_reason": null,
+      "delivery_rate": 0.3563,
+      "lost": 4326,
+      "late_confirmations": 89,
+      "duplicates": 0,
+      "double_accepted": 0,
+      "latency_ms_p50": 350634.2,
+      "latency_ms_p95": 441800.1,
+      "latency_samples": 2394,
+      "fetch_accepted_in_time": 2394,
+      "fetch_accepted_late": 89,
+      "fetch_no_outcome": 4237,
+      "drain_accepted_in_time": 2394,
+      "drain_accepted_late": 4326,
+      "drain_accepted_no_ack": 0,
+      "drain_no_outcome": 0,
+      "drain_fetch_claim": "fetched",
+      "drain_s": 668.3,
+      "drain_result": "quiet",
+      "harness_exit": 0
+    },
+    {
+      "scenario": "yocto",
+      "run_id": "cmp-p2-yocto-a02",
+      "pair": 2,
+      "order_in_pair": 2,
+      "seed": 2026101802,
+      "boot_ssh_s": 15.8,
+      "stack_ready_s": 241.3,
+      "gateway_functional_s": 258.8,
+      "mem_rest_median_mib": 1892.9,
+      "mem_rest_max_mib": 2070.6,
+      "mem_rest_samples": 110,
+      "load_duration_monotonic_s": 600.177,
+      "load_window_utc_span_s": 580.27,
+      "wall_clock_step_s": -19.907,
+      "clock_pairing_marker_lag_s": 0.018,
+      "clock_pairing_pairs": 4510,
+      "clock_pairing_discrepancy_s": -0.012,
+      "load_window_reason": null,
+      "mem_load_window_start_guest_s": 506.498,
+      "mem_load_window_end_guest_s": 1106.675,
+      "mem_load_median_mib": 1922.7,
+      "mem_load_max_mib": 2089.9,
+      "mem_load_samples": 541,
+      "mem_loadfile_median_mib": 1922.4,
+      "mem_loadfile_max_mib": 2098.4,
+      "mem_loadfile_samples": 1033,
+      "df_root_used_kib": 500964,
+      "df_docker_used_kib": 2071140,
+      "sent_valid": 6720,
+      "published_rate_msg_s": 11.2,
+      "delivered_unique": 4426,
+      "accepted_between_samples": 4657,
+      "accepted_rate_span_s": 600.322,
+      "accepted_rate_start_gap_s": 0.856,
+      "accepted_rate_end_gap_s": 0.711,
+      "accepted_rate_est_msg_s": 7.76,
+      "accepted_rate_reason": null,
+      "delivery_rate": 0.6586,
+      "lost": 2294,
+      "late_confirmations": 84,
+      "duplicates": 0,
+      "double_accepted": 0,
+      "latency_ms_p50": 220130.9,
+      "latency_ms_p95": 264386.2,
+      "latency_samples": 4426,
+      "fetch_accepted_in_time": 4426,
+      "fetch_accepted_late": 84,
+      "fetch_no_outcome": 2210,
+      "drain_accepted_in_time": 4426,
+      "drain_accepted_late": 2294,
+      "drain_accepted_no_ack": 0,
+      "drain_no_outcome": 0,
+      "drain_fetch_claim": "fetched",
+      "drain_s": 344.0,
+      "drain_result": "quiet",
+      "harness_exit": 0
+    },
+    {
+      "scenario": "yocto",
+      "run_id": "cmp-p3-yocto-a02",
+      "pair": 3,
+      "order_in_pair": 1,
+      "seed": 2026101803,
+      "boot_ssh_s": 16.4,
+      "stack_ready_s": 243.5,
+      "gateway_functional_s": 261.2,
+      "mem_rest_median_mib": 1933.4,
+      "mem_rest_max_mib": 2093.3,
+      "mem_rest_samples": 110,
+      "load_duration_monotonic_s": 600.146,
+      "load_window_utc_span_s": 579.164,
+      "wall_clock_step_s": -20.982,
+      "clock_pairing_marker_lag_s": 0.019,
+      "clock_pairing_pairs": 4416,
+      "clock_pairing_discrepancy_s": -0.008,
+      "load_window_reason": null,
+      "mem_load_window_start_guest_s": 507.842,
+      "mem_load_window_end_guest_s": 1107.988,
+      "mem_load_median_mib": 1981.9,
+      "mem_load_max_mib": 2153.3,
+      "mem_load_samples": 541,
+      "mem_loadfile_median_mib": 1975.1,
+      "mem_loadfile_max_mib": 2153.3,
+      "mem_loadfile_samples": 1042,
+      "df_root_used_kib": 502312,
+      "df_docker_used_kib": 2071148,
+      "sent_valid": 6720,
+      "published_rate_msg_s": 11.2,
+      "delivered_unique": 4327,
+      "accepted_between_samples": 4604,
+      "accepted_rate_span_s": 599.971,
+      "accepted_rate_start_gap_s": 0.529,
+      "accepted_rate_end_gap_s": 0.703,
+      "accepted_rate_est_msg_s": 7.67,
+      "accepted_rate_reason": null,
+      "delivery_rate": 0.6439,
+      "lost": 2393,
+      "late_confirmations": 89,
+      "duplicates": 0,
+      "double_accepted": 0,
+      "latency_ms_p50": 225307.9,
+      "latency_ms_p95": 269236.4,
+      "latency_samples": 4327,
+      "fetch_accepted_in_time": 4327,
+      "fetch_accepted_late": 89,
+      "fetch_no_outcome": 2304,
+      "drain_accepted_in_time": 4327,
+      "drain_accepted_late": 2393,
+      "drain_accepted_no_ack": 0,
+      "drain_no_outcome": 0,
+      "drain_fetch_claim": "fetched",
+      "drain_s": 353.7,
+      "drain_result": "quiet",
+      "harness_exit": 0
+    },
+    {
+      "scenario": "debian13",
+      "run_id": "cmp-p3-debian13-a02",
+      "pair": 3,
+      "order_in_pair": 2,
+      "seed": 2026101803,
+      "boot_ssh_s": 46.8,
+      "stack_ready_s": 314.2,
+      "gateway_functional_s": 338.2,
+      "mem_rest_median_mib": 2292.3,
+      "mem_rest_max_mib": 2458.8,
+      "mem_rest_samples": 102,
+      "load_duration_monotonic_s": 600.124,
+      "load_window_utc_span_s": 578.148,
+      "wall_clock_step_s": -21.976,
+      "clock_pairing_marker_lag_s": 0.045,
+      "clock_pairing_pairs": 2459,
+      "clock_pairing_discrepancy_s": -0.031,
+      "load_window_reason": null,
+      "mem_load_window_start_guest_s": 600.395,
+      "mem_load_window_end_guest_s": 1200.519,
+      "mem_load_median_mib": 2316.2,
+      "mem_load_max_mib": 2534.2,
+      "mem_load_samples": 493,
+      "mem_loadfile_median_mib": 2307.2,
+      "mem_loadfile_max_mib": 2534.2,
+      "mem_loadfile_samples": 1245,
+      "df_root_used_kib": 1493844,
+      "df_docker_used_kib": 2071168,
+      "sent_valid": 6720,
+      "published_rate_msg_s": 11.2,
+      "delivered_unique": 2364,
+      "accepted_between_samples": 2962,
+      "accepted_rate_span_s": 600.07,
+      "accepted_rate_start_gap_s": 0.081,
+      "accepted_rate_end_gap_s": 0.136,
+      "accepted_rate_est_msg_s": 4.94,
+      "accepted_rate_reason": null,
+      "delivery_rate": 0.3518,
+      "lost": 4356,
+      "late_confirmations": 95,
+      "duplicates": 0,
+      "double_accepted": 0,
+      "latency_ms_p50": 361070.3,
+      "latency_ms_p95": 446041.9,
+      "latency_samples": 2364,
+      "fetch_accepted_in_time": 2364,
+      "fetch_accepted_late": 95,
+      "fetch_no_outcome": 4261,
+      "drain_accepted_in_time": 2364,
+      "drain_accepted_late": 4356,
+      "drain_accepted_no_ack": 0,
+      "drain_no_outcome": 0,
+      "drain_fetch_claim": "fetched",
+      "drain_s": 679.0,
+      "drain_result": "quiet",
+      "harness_exit": 0
+    }
+  ],
+  "scenarios": {
+    "yocto": {
+      "n_runs": 3,
+      "run_ids": [
+        "cmp-p1-yocto-a02",
+        "cmp-p2-yocto-a02",
+        "cmp-p3-yocto-a02"
+      ],
+      "metrics": {
+        "boot_ssh_s": {
+          "median": 15.8,
+          "min": 15.8,
+          "max": 16.4,
+          "n": 3
+        },
+        "stack_ready_s": {
+          "median": 241.3,
+          "min": 238.8,
+          "max": 243.5,
+          "n": 3
+        },
+        "gateway_functional_s": {
+          "median": 258.8,
+          "min": 256.8,
+          "max": 261.2,
+          "n": 3
+        },
+        "mem_rest_median_mib": {
+          "median": 1893.6,
+          "min": 1892.9,
+          "max": 1933.4,
+          "n": 3
+        },
+        "mem_rest_max_mib": {
+          "median": 2070.6,
+          "min": 2050.7,
+          "max": 2093.3,
+          "n": 3
+        },
+        "mem_rest_samples": {
+          "median": 110,
+          "min": 110,
+          "max": 110,
+          "n": 3
+        },
+        "load_duration_monotonic_s": {
+          "median": 600.151,
+          "min": 600.146,
+          "max": 600.177,
+          "n": 3
+        },
+        "load_window_utc_span_s": {
+          "median": 580.27,
+          "min": 579.164,
+          "max": 584.428,
+          "n": 3
+        },
+        "wall_clock_step_s": {
+          "median": -19.907,
+          "min": -20.982,
+          "max": -15.723,
+          "n": 3
+        },
+        "clock_pairing_marker_lag_s": {
+          "median": 0.019,
+          "min": 0.018,
+          "max": 0.026,
+          "n": 3
+        },
+        "clock_pairing_pairs": {
+          "median": 4510,
+          "min": 4416,
+          "max": 4514,
+          "n": 3
+        },
+        "clock_pairing_discrepancy_s": {
+          "median": -0.012,
+          "min": -0.015,
+          "max": -0.008,
+          "n": 3
+        },
+        "mem_load_window_start_guest_s": {
+          "median": 506.498,
+          "min": 504.655,
+          "max": 507.842,
+          "n": 3
+        },
+        "mem_load_window_end_guest_s": {
+          "median": 1106.675,
+          "min": 1104.807,
+          "max": 1107.988,
+          "n": 3
+        },
+        "mem_load_median_mib": {
+          "median": 1922.7,
+          "min": 1911.6,
+          "max": 1981.9,
+          "n": 3
+        },
+        "mem_load_max_mib": {
+          "median": 2089.9,
+          "min": 2084.9,
+          "max": 2153.3,
+          "n": 3
+        },
+        "mem_load_samples": {
+          "median": 541,
+          "min": 541,
+          "max": 541,
+          "n": 3
+        },
+        "mem_loadfile_median_mib": {
+          "median": 1922.4,
+          "min": 1911.9,
+          "max": 1975.1,
+          "n": 3
+        },
+        "mem_loadfile_max_mib": {
+          "median": 2104.3,
+          "min": 2098.4,
+          "max": 2153.3,
+          "n": 3
+        },
+        "mem_loadfile_samples": {
+          "median": 1033,
+          "min": 1029,
+          "max": 1042,
+          "n": 3
+        },
+        "df_root_used_kib": {
+          "median": 500964,
+          "min": 500828,
+          "max": 502312,
+          "n": 3
+        },
+        "df_docker_used_kib": {
+          "median": 2071148,
+          "min": 2071140,
+          "max": 2071164,
+          "n": 3
+        },
+        "sent_valid": {
+          "median": 6720,
+          "min": 6720,
+          "max": 6720,
+          "n": 3
+        },
+        "published_rate_msg_s": {
+          "median": 11.2,
+          "min": 11.2,
+          "max": 11.2,
+          "n": 3
+        },
+        "delivered_unique": {
+          "median": 4426,
+          "min": 4327,
+          "max": 4430,
+          "n": 3
+        },
+        "accepted_between_samples": {
+          "median": 4657,
+          "min": 4604,
+          "max": 4692,
+          "n": 3
+        },
+        "accepted_rate_span_s": {
+          "median": 600.322,
+          "min": 599.971,
+          "max": 600.66,
+          "n": 3
+        },
+        "accepted_rate_start_gap_s": {
+          "median": 0.856,
+          "min": 0.529,
+          "max": 0.86,
+          "n": 3
+        },
+        "accepted_rate_end_gap_s": {
+          "median": 0.703,
+          "min": 0.351,
+          "max": 0.711,
+          "n": 3
+        },
+        "accepted_rate_est_msg_s": {
+          "median": 7.76,
+          "min": 7.67,
+          "max": 7.81,
+          "n": 3
+        },
+        "delivery_rate": {
+          "median": 0.6586,
+          "min": 0.6439,
+          "max": 0.6592,
+          "n": 3
+        },
+        "lost": {
+          "median": 2294,
+          "min": 2290,
+          "max": 2393,
+          "n": 3
+        },
+        "late_confirmations": {
+          "median": 84,
+          "min": 84,
+          "max": 89,
+          "n": 3
+        },
+        "duplicates": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "double_accepted": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "latency_ms_p50": {
+          "median": 220130.9,
+          "min": 218837.7,
+          "max": 225307.9,
+          "n": 3
+        },
+        "latency_ms_p95": {
+          "median": 264386.2,
+          "min": 263265.0,
+          "max": 269236.4,
+          "n": 3
+        },
+        "latency_samples": {
+          "median": 4426,
+          "min": 4327,
+          "max": 4430,
+          "n": 3
+        },
+        "fetch_accepted_in_time": {
+          "median": 4426,
+          "min": 4327,
+          "max": 4430,
+          "n": 3
+        },
+        "fetch_accepted_late": {
+          "median": 84,
+          "min": 84,
+          "max": 89,
+          "n": 3
+        },
+        "fetch_no_outcome": {
+          "median": 2210,
+          "min": 2206,
+          "max": 2304,
+          "n": 3
+        },
+        "drain_accepted_in_time": {
+          "median": 4376.5,
+          "min": 4327,
+          "max": 4426,
+          "n": 2
+        },
+        "drain_accepted_late": {
+          "median": 2343.5,
+          "min": 2294,
+          "max": 2393,
+          "n": 2
+        },
+        "drain_accepted_no_ack": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 2
+        },
+        "drain_no_outcome": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 2
+        },
+        "drain_s": {
+          "median": 344.0,
+          "min": 338.6,
+          "max": 353.7,
+          "n": 3
+        }
+      }
+    },
+    "debian13": {
+      "n_runs": 3,
+      "run_ids": [
+        "cmp-p1-debian13-a02",
+        "cmp-p2-debian13-a02",
+        "cmp-p3-debian13-a02"
+      ],
+      "metrics": {
+        "boot_ssh_s": {
+          "median": 46.3,
+          "min": 46.0,
+          "max": 46.8,
+          "n": 3
+        },
+        "stack_ready_s": {
+          "median": 322.3,
+          "min": 314.2,
+          "max": 338.8,
+          "n": 3
+        },
+        "gateway_functional_s": {
+          "median": 341.9,
+          "min": 338.2,
+          "max": 361.6,
+          "n": 3
+        },
+        "mem_rest_median_mib": {
+          "median": 2292.3,
+          "min": 2233.7,
+          "max": 2296.3,
+          "n": 3
+        },
+        "mem_rest_max_mib": {
+          "median": 2458.8,
+          "min": 2406.9,
+          "max": 2487.7,
+          "n": 3
+        },
+        "mem_rest_samples": {
+          "median": 103,
+          "min": 102,
+          "max": 103,
+          "n": 3
+        },
+        "load_duration_monotonic_s": {
+          "median": 600.144,
+          "min": 600.124,
+          "max": 600.166,
+          "n": 3
+        },
+        "load_window_utc_span_s": {
+          "median": 581.217,
+          "min": 578.148,
+          "max": 582.365,
+          "n": 3
+        },
+        "wall_clock_step_s": {
+          "median": -18.927,
+          "min": -21.976,
+          "max": -17.801,
+          "n": 3
+        },
+        "clock_pairing_marker_lag_s": {
+          "median": 0.079,
+          "min": 0.045,
+          "max": 0.085,
+          "n": 3
+        },
+        "clock_pairing_pairs": {
+          "median": 2483,
+          "min": 2459,
+          "max": 2567,
+          "n": 3
+        },
+        "clock_pairing_discrepancy_s": {
+          "median": -0.058,
+          "min": -0.071,
+          "max": -0.031,
+          "n": 3
+        },
+        "mem_load_window_start_guest_s": {
+          "median": 604.643,
+          "min": 600.395,
+          "max": 625.011,
+          "n": 3
+        },
+        "mem_load_window_end_guest_s": {
+          "median": 1204.809,
+          "min": 1200.519,
+          "max": 1225.155,
+          "n": 3
+        },
+        "mem_load_median_mib": {
+          "median": 2304.3,
+          "min": 2289.6,
+          "max": 2316.2,
+          "n": 3
+        },
+        "mem_load_max_mib": {
+          "median": 2501.1,
+          "min": 2488.6,
+          "max": 2534.2,
+          "n": 3
+        },
+        "mem_load_samples": {
+          "median": 493,
+          "min": 491,
+          "max": 495,
+          "n": 3
+        },
+        "mem_loadfile_median_mib": {
+          "median": 2305.6,
+          "min": 2301.0,
+          "max": 2307.2,
+          "n": 3
+        },
+        "mem_loadfile_max_mib": {
+          "median": 2501.1,
+          "min": 2500.9,
+          "max": 2534.2,
+          "n": 3
+        },
+        "mem_loadfile_samples": {
+          "median": 1233,
+          "min": 1217,
+          "max": 1245,
+          "n": 3
+        },
+        "df_root_used_kib": {
+          "median": 1493412,
+          "min": 1489648,
+          "max": 1493844,
+          "n": 3
+        },
+        "df_docker_used_kib": {
+          "median": 2071168,
+          "min": 2071152,
+          "max": 2071224,
+          "n": 3
+        },
+        "sent_valid": {
+          "median": 6720,
+          "min": 6720,
+          "max": 6720,
+          "n": 3
+        },
+        "published_rate_msg_s": {
+          "median": 11.2,
+          "min": 11.2,
+          "max": 11.2,
+          "n": 3
+        },
+        "delivered_unique": {
+          "median": 2394,
+          "min": 2364,
+          "max": 2480,
+          "n": 3
+        },
+        "accepted_between_samples": {
+          "median": 2973,
+          "min": 2962,
+          "max": 3051,
+          "n": 3
+        },
+        "accepted_rate_span_s": {
+          "median": 600.046,
+          "min": 599.55,
+          "max": 600.07,
+          "n": 3
+        },
+        "accepted_rate_start_gap_s": {
+          "median": 0.094,
+          "min": 0.081,
+          "max": 0.215,
+          "n": 3
+        },
+        "accepted_rate_end_gap_s": {
+          "median": 0.314,
+          "min": 0.136,
+          "max": 0.71,
+          "n": 3
+        },
+        "accepted_rate_est_msg_s": {
+          "median": 4.95,
+          "min": 4.94,
+          "max": 5.09,
+          "n": 3
+        },
+        "delivery_rate": {
+          "median": 0.3563,
+          "min": 0.3518,
+          "max": 0.369,
+          "n": 3
+        },
+        "lost": {
+          "median": 4326,
+          "min": 4240,
+          "max": 4356,
+          "n": 3
+        },
+        "late_confirmations": {
+          "median": 89,
+          "min": 87,
+          "max": 95,
+          "n": 3
+        },
+        "duplicates": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "double_accepted": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "latency_ms_p50": {
+          "median": 350634.2,
+          "min": 349580.1,
+          "max": 361070.3,
+          "n": 3
+        },
+        "latency_ms_p95": {
+          "median": 441800.1,
+          "min": 433717.3,
+          "max": 446041.9,
+          "n": 3
+        },
+        "latency_samples": {
+          "median": 2394,
+          "min": 2364,
+          "max": 2480,
+          "n": 3
+        },
+        "fetch_accepted_in_time": {
+          "median": 2394,
+          "min": 2364,
+          "max": 2480,
+          "n": 3
+        },
+        "fetch_accepted_late": {
+          "median": 89,
+          "min": 87,
+          "max": 95,
+          "n": 3
+        },
+        "fetch_no_outcome": {
+          "median": 4237,
+          "min": 4153,
+          "max": 4261,
+          "n": 3
+        },
+        "drain_accepted_in_time": {
+          "median": 2394,
+          "min": 2364,
+          "max": 2480,
+          "n": 3
+        },
+        "drain_accepted_late": {
+          "median": 4326,
+          "min": 4240,
+          "max": 4356,
+          "n": 3
+        },
+        "drain_accepted_no_ack": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "drain_no_outcome": {
+          "median": 0,
+          "min": 0,
+          "max": 0,
+          "n": 3
+        },
+        "drain_s": {
+          "median": 668.3,
+          "min": 647.6,
+          "max": 679.0,
+          "n": 3
+        }
+      }
+    }
+  },
+  "notes": [
+    "The 11.2 msg/s load is the synthetic load of the existing nominal scenario, inherited so that the executions are reproducible and comparable. It is not a requirement of the supervisor, a required capacity, a performance reference or a pass threshold. Queue growth and confirmations after the observation limit are observed behaviour under that load, not failures against it. The figures describe the observed processing capacity under the load tried; a single load cannot establish a maximum capacity.",
+    "The observation limit is the end-of-load controller marker + 60 s (the harness's confirmation window), not a 60 s delivery deadline per message.",
+    "Latency percentiles cover only the confirmations within that limit (their count is reported); they say nothing about the confirmations after it.",
+    "Validity: every execution has a valid harness run; the post-drain collection was verified in 5 of 6 (cmp-p1-yocto-a02 excluded from the after-drain buckets). Metrics are reported with their own n; the after-drain reconciliation has Yocto n = 2 and Debian 13 n = 3.",
+    "Time alignment uncertainty: marker lag and pairing discrepancy as reported per run (marker lag 0.018 to 0.085 s, pairing discrepancy -0.071 to -0.008 s), probe cadences ssh 5 s, ready 5 s, accept 3 s, drain 5 s, sampler cadence about 1 s under emulation; the host wall clock stepped back inside every window (wall_clock_step_s -21.976 to -15.723 s) and is never used.",
+    "Whole configurations are compared (different kernels, container runtimes and userlands), under TCG emulation on a shared x86-64 host; nothing isolates an effect of the distribution alone, and nothing is said about physical ARM hardware.",
+    "Probe cadences: ssh 5 s, ready 5 s, accept 3 s, drain 5 s. The start times carry that cadence as their resolution.",
+    "boot_ssh_s, stack_ready_s and gateway_functional_s are host-monotonic seconds from the instant recorded just before the QEMU launch (one clock, the host's /proc/uptime) to the first ssh answer, to the controller's /ready 200 and to the twin read back after the functional event.",
+    "Latency is controller reception → Ditto confirmation, as the controller measures it; it is not simulator → Ditto and does not include the broker leg.",
+    "`lost` means no confirmation within the harness's deadline, not definitive loss; `late_confirmations` counts confirmations that arrived after it.",
+    "Memory is of the whole gateway guest: MemTotal − MemAvailable from the guest's /proc/meminfo, one sample per second (`mem_*_samples` says how many); median and max. It is not the containers' memory and not the host QEMU process. Each sampler line carries `uptime_s`, the guest's /proc/uptime (CLOCK_BOOTTIME, equal to the controller's CLOCK_MONOTONIC while the guest never suspends).",
+    "The measured window lives on MONOTONIC clocks and on nothing else. Its duration is the harness manifest's finished_monotonic_ns − measured_started_monotonic_ns on the harness host (`load_duration_monotonic_s`). Its end on the guest clock is the controller's CLOCK_MONOTONIC instant polled at the run end (controller_monotonic_at_run_end_ns, paired with finished_monotonic_ns), accepted only when the controller marker is ok and its lag is within its tolerance (`clock_pairing_marker_lag_s`); its start is that end minus the duration (`mem_load_window_start_guest_s`, `mem_load_window_end_guest_s`). The pairing is cross-checked against the host-guest event pairs of sent_events.jsonl/events.jsonl: the minimum of received − publish over at least 100 message ids (`clock_pairing_pairs`) must place the window end within 1.0 s of the marker's (`clock_pairing_discrepancy_s`). When any of this fails the window is unavailable (`load_window_reason`) and every window-dependent cell is empty: 600 s is never assumed, and the two monotonic clocks are never subtracted without this pairing.",
+    "measured_window_utc is never used as the duration or the bounds: the host wall clock can step during a run, and `wall_clock_step_s` (UTC span − monotonic duration) says by how much in each; it and `load_window_utc_span_s` are informational only.",
+    "Load memory (`mem_load_*`) is bounded to that window: a sampler line counts when window start <= uptime_s <= window end on the guest clock. Warm-up, the confirmation window and the drain are outside it. `mem_loadfile_*` describe the whole load-phase file, including warm-up, confirmation and drain, for transparency only and are not the load figure.",
+    "accepted_rate_est_msg_s is an estimated rate between the two boundary samples (gaps reported), not an exact count inside the window: controller_metrics.csv rows are placed by their guest monotonic_ns; the boundary samples are the last row at or before the window start and the last at or before its end, each required within 5.0 s before its bound (`accepted_rate_start_gap_s`, `accepted_rate_end_gap_s`), with the rows strictly time-ordered and the counter not decreasing; `accepted_between_samples` is the counter difference and `accepted_rate_span_s` the monotonic span between the two rows. `accepted_rate_reason` says why the estimate is unavailable.",
+    "published_rate_msg_s = sent_valid / load_duration_monotonic_s: the simulator's publications during the measured run, not an acceptance rate. delivered_unique keeps the analyser's meaning (accepted within the deadline) and is not divided by anything here.",
+    "sent_valid, delivered_unique, delivery_rate, lost, late_confirmations, duplicates, double_accepted and the latency percentiles are the harness analyser's per_run.csv values, joined by the harness run id; latency_samples is its `latency_count`.",
+    "The post-drain reconciliation is reported apart from the deadline accounting: `fetch_*` are accounting.json's buckets at the harness fetch and `drain_*` its buckets after the drain, per published valid identity (accepted_in_time, accepted_late, accepted_no_ack_time, no_outcome; a bucket absent from the counter is zero by construction); `drain_fetch_claim` is what the driver said about the post-drain event log, and the drain buckets are empty when that log was not read completely. None of these changes delivered_unique, lost or late_confirmations.",
+    "df_*_used_kib are the Used column of `df -P -k` on the guest for / and /var/lib/docker, before the load.",
+    "Median: the middle value of three; with two values their mean; with one, that value. min–max are the extremes of the values available; n says how many. An empty cell is an unavailable value, never a zero.",
+    "ignored, not in the plan: cmp-p1-yocto"
+  ],
+  "warnings": [
+    "cmp-p1-yocto-a02: accounting.json: after_drain is null (after_drain_fetch='not-fetched'; the post-drain event log is on disk but its fetch did not succeed: what it holds may be a partial tail, and no figure is claimed from it); drain bucket cells left empty"
+  ]
+}

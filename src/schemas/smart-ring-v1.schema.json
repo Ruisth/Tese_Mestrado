@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://c2dta.org/egw/schemas/smart-ring-v1.schema.json",
+  "title": "EGW smart ring telemetry v1",
+  "description": "Smart ring event: skin temperature + SpO2 at 0.2 Hz nominal.",
+  "type": "object",
+  "allOf": [
+    { "$ref": "https://c2dta.org/egw/schemas/telemetry-envelope-v1.schema.json" }
+  ],
+  "properties": {
+    "device_type": { "const": "smart_ring" },
+    "skin_temp_c": {
+      "type": "number",
+      "minimum": 30.0,
+      "maximum": 43.0
+    },
+    "spo2_pct": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 100
+    }
+  },
+  "required": ["device_type", "skin_temp_c", "spo2_pct"],
+  "unevaluatedProperties": false
+}

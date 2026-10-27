@@ -1,0 +1,46 @@
+## 2026-10-04T21:19:55Z rows-proofs.sh (sha256 dff17b59f9b2653c63ee5e83ed1e766f0986b22a8fdd3499d84e3913a8176700) <S>/g3/s3prep/rows <OT>/runs/2026-10-02/HIST_2026-10-02-g3-battery-host-preparation/rows <S>/g3/s3prep/runbook.8e49261.md
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## the first preparation's rows are read from the sealed package; its own SHA256SUMS for the files used:
+  sealed SHA256SUMS: ./rows/rows.manifest.json: OK
+  sealed SHA256SUMS: ./rows/t9-a.sh: OK
+  sealed SHA256SUMS: ./rows/t9-b.sh: OK
+  sealed SHA256SUMS: ./rows/t9-c.sh: OK
+  sealed SHA256SUMS: ./rows/t9-de.sh: OK
+  sealed SHA256SUMS: ./rows/t9-exposure.sh: OK
+## inputs
+runbook blob: sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db, 1623 lines
+first preparation's rows: <OT>/runs/2026-10-02/HIST_2026-10-02-g3-battery-host-preparation/rows
+  its manifest names the runbook commit 80e833f44f647fe9cd8f5e99d3abf3c444de95aa and the suffix -q1
+
+## 1. test 9: each fenced step file = the first preparation's file with '-q1' replaced by '-q2'
+IDENTICAL  t9-a.sh: first preparation 3ff287632ab2ca135e59c221c748d88339e5d8c11b07fce4e0c776ab666b5869 ('-q1' x1, '-q2' x0); with '-q1' replaced by '-q2' 34be9077366b587ae976db89e7aaaeda2bcdbcf8d3976af8254d5a5219169dac; S3 file 34be9077366b587ae976db89e7aaaeda2bcdbcf8d3976af8254d5a5219169dac ('-q2' x1, '-q1' x0); 387 and 387 bytes
+IDENTICAL  t9-b.sh: first preparation d6d86b2599dbef67ba3d15501f21944bd638272f4080be68b46f2996dea93c8e ('-q1' x4, '-q2' x0); with '-q1' replaced by '-q2' 29e7e98099e9bb30c58c4b141b87b4bf886ccd082a42da31a0c3b8656a4c4d5b; S3 file 29e7e98099e9bb30c58c4b141b87b4bf886ccd082a42da31a0c3b8656a4c4d5b ('-q2' x4, '-q1' x0); 1940 and 1940 bytes
+IDENTICAL  t9-c.sh: first preparation 9a3ae72b023c73ffa165451d34ec3095592c048b3dce3e335dddbd063d7632b7 ('-q1' x3, '-q2' x0); with '-q1' replaced by '-q2' e95f9f153a766f0ab0f21fefb4b93e0893578be80d863b411c1dfc1f64fbbf43; S3 file e95f9f153a766f0ab0f21fefb4b93e0893578be80d863b411c1dfc1f64fbbf43 ('-q2' x3, '-q1' x0); 630 and 630 bytes
+IDENTICAL  t9-de.sh: first preparation 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae ('-q1' x0, '-q2' x0); with '-q1' replaced by '-q2' 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae; S3 file 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae ('-q2' x0, '-q1' x0); 2228 and 2228 bytes
+
+## 1b. t9-exposure.sh: the diff against the first preparation's file (first preparation '<', S3 '>')
+3c3
+< # It derives from docs/setup/qemu_integrated_gateway.md at 80e833f (sha256 c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae), line 1529 (the last sentence of test 9's Expected), which says:
+---
+> # It derives from docs/setup/qemu_integrated_gateway.md at 8e49261 (sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db), line 1537 (the last sentence of test 9's Expected), which says:
+diff exit=1 (1: the files differ)
+ONE LINE  t9-exposure.sh: only line 3 differs (18 lines each); the first preparation's line 3 with '80e833f' -> '8e49261', the sha256 c55a2d3b... -> 4acf8de6... and 'line 1529' -> 'line 1537' is the S3 line 3; first preparation 484f3fdf6a753d4eaae35be9a0538af9c7e51e64088ee0946a848b2f34c76f85, S3 file ec18b22a643203a1c2d9bc9a9519b5b4a6f69de65df9944d832f09744428fe9c
+the body (the lines that are not comments: the three commands): first preparation 430a94f219481bd164e5d02ac04a7a51f56fdcb2ec656c3ee8fd4cb79985c6c7, S3 file 430a94f219481bd164e5d02ac04a7a51f56fdcb2ec656c3ee8fd4cb79985c6c7
+
+## 2. test 8: each step file with every '-q2' removed = the blob's lines, the prompt removed (python slicing; sha256 of both sides)
+IDENTICAL  t8-a-reboot.sh: runbook lines 1486-1495 (10 line(s), 1 with the prompt), prompt removed: sha256 9798ae61f69fb86563b62db6ce9332c57b74f598ad9f86c424a1697ad958c410, 3188 bytes; the file without '-q2': sha256 9798ae61f69fb86563b62db6ce9332c57b74f598ad9f86c424a1697ad958c410, 3188 bytes; the file: sha256 00ff23db999e4ad5460c93010721e393d60c34fd4e596666cef9fd35fda8aa43, '-q2' x15
+IDENTICAL  t8-b-wait-boot-id.sh: runbook lines 1496-1496 (1 line(s), 1 with the prompt), prompt removed: sha256 f42e3fcb3715df71ea6b4c7d2a76aff62cfb5163352098138027db8f4c19c656, 3059 bytes; the file without '-q2': sha256 f42e3fcb3715df71ea6b4c7d2a76aff62cfb5163352098138027db8f4c19c656, 3059 bytes; the file: sha256 f38f7fad40980359b6f3ea59142f8a2f0199a3d80a942e7b36826ddfdd9cade7, '-q2' x8
+IDENTICAL  t8-c-unaided.sh: runbook lines 1497-1497 (1 line(s), 1 with the prompt), prompt removed: sha256 92826e477d8b162443c8b6845fedad1106e9bb037b90b3fcd15f227e2206768a, 4811 bytes; the file without '-q2': sha256 92826e477d8b162443c8b6845fedad1106e9bb037b90b3fcd15f227e2206768a, 4811 bytes; the file: sha256 df4ff611057b4f5a7df40b8b8f0fb2818eed43011c2c10109d7cc0881a7da39d, '-q2' x32
+IDENTICAL  t8-d-tunnel.sh: runbook lines 1498-1498 (1 line(s), 1 with the prompt), prompt removed: sha256 dbffd3defbdfbbadce3218bde6c4562d77b0e1813bd70a0562e6f921844809f5, 252 bytes; the file without '-q2': sha256 dbffd3defbdfbbadce3218bde6c4562d77b0e1813bd70a0562e6f921844809f5, 252 bytes; the file: sha256 dbffd3defbdfbbadce3218bde6c4562d77b0e1813bd70a0562e6f921844809f5, '-q2' x0
+IDENTICAL  t8-e-state.sh: runbook lines 1499-1499 (1 line(s), 1 with the prompt), prompt removed: sha256 ba95574eaa7d1754f139975093afdd7c373dbe7d2e94b12f292f97f0d2eb8fea, 1001 bytes; the file without '-q2': sha256 ba95574eaa7d1754f139975093afdd7c373dbe7d2e94b12f292f97f0d2eb8fea, 1001 bytes; the file: sha256 00d100f7232b93fe5e425f603b7915514b24e67258b692603fa335b99293f593, '-q2' x5
+IDENTICAL  t8-f-smoke.sh: runbook lines 1500-1500 (1 line(s), 1 with the prompt), prompt removed: sha256 3ebdac904a7f50258821af49a990e9b01f50081f962c03d98451da3125a2c75c, 296 bytes; the file without '-q2': sha256 3ebdac904a7f50258821af49a990e9b01f50081f962c03d98451da3125a2c75c, 296 bytes; the file: sha256 874ef658228e30e19b561a6f5306b698e0665f3701c2fb28ab0d13feddb6dc76, '-q2' x1
+IDENTICAL  the six files in order, without '-q2' = runbook lines 1486-1500, prompt removed: sha256 3de0b928e211de747b7850e525ef21b21db4aa282582a6fa5627bb3103c5bb15 (test 8's whole fenced block: line 1485 opens the fence, line 1501 closes it: '```bash', '```')
+
+## 2b. the same for test 9's four fenced files (they are also the blob's lines)
+IDENTICAL  t9-a.sh: runbook lines 1509-1510, prompt removed: sha256 e431473a5ccbe397d6d2c35da27fd02cabf38300af26f0498f00c2dbecba5acc; the file: sha256 34be9077366b587ae976db89e7aaaeda2bcdbcf8d3976af8254d5a5219169dac, '-q2' x1
+IDENTICAL  t9-b.sh: runbook lines 1511-1524, prompt removed: sha256 bc4335f915922a1b5b5f10baaadbfd53125a95008618f2c8ddbb21e9d2614a1d; the file: sha256 29e7e98099e9bb30c58c4b141b87b4bf886ccd082a42da31a0c3b8656a4c4d5b, '-q2' x4
+IDENTICAL  t9-c.sh: runbook lines 1525-1527, prompt removed: sha256 8a8da5b548f4731dc91bfb70de12045ce164f3a678cb17d30e848a391ae34416; the file: sha256 e95f9f153a766f0ab0f21fefb4b93e0893578be80d863b411c1dfc1f64fbbf43, '-q2' x3
+IDENTICAL  t9-de.sh: runbook lines 1528-1534, prompt removed: sha256 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae; the file: sha256 4ad835244e065df402034f3f552938ce2e7b7c50a43f776db4b4c06078c2b6ae, '-q2' x0
+
+PROOFS HOLD (0 differences)
+proofs exit=0

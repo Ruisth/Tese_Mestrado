@@ -1,0 +1,41 @@
+== (a) travelling scripts: lines that carry a tool name (the name itself is masked)
+scripts/adr0011_code_anchors.sh:9: REPO="<scratchpad>/devwt"
+
+== (b) cross-references between the two documents and to round one
+backlog_diagnosis.md:4: - **Package:** D, first half — diagnosis of the message backlog of the nominal run of 2026-09-19. The controller's restart recovery is the second half and is decided in the recovery ADR draft, not here.
+backlog_diagnosis.md:365: - **Package D proposes two guest runs in total**: this one and the finite proof of the recovery ADR. This one comes first: the ADR draft sizes its proof run at 5.0 msg/s against the 6.457 msg/s average (`../adr-recovery-
+backlog_diagnosis.md:394: | Probe sized on the average (figures B5) | 5.0 msg/s against 6.457 | 2.24 msg/s against the lowest block, 4.60 msg/s (section 11.2) |
+adr-0011-controller-restart-recovery.md:260: ingress — and in each 60 s block of the window (5.35 to 8.57 msg/s) was below
+adr-0011-controller-restart-recovery.md:931: - **T3 — a bounded diagnostic measurement first**, then T1 or T2. The capacity
+adr-0011-controller-restart-recovery.md:932: probe proposed in `backlog_diagnosis.md` section 7 would need re-sizing
+adr-0011-controller-restart-recovery.md:933: before use: it offered 5.0 msg/s against a margin computed from the window
+adr-0011-controller-restart-recovery.md:935: block of the window 5.35 msg/s [F:N.5, N.7]. A measurement, never a capacity
+adr-0011-controller-restart-recovery.md:941: section 3, proposal item 5). It is listed so that it is not confused with T1 to T3; it
+adr-0011-controller-restart-recovery.md:1002: | 11 | proof at 5.0 msg/s, "+1.457 msg/s headroom", restart at t+90 s | 11.2 msg/s, kill at t+150 s, no timing in any criterion; the old sizing assumed a rate the nominal warm-up (4.94) and slowest block (5.35) fell belo
+
+== (c) served rate per 60 s block of the measured window, as each document's own output states it
+out/adr0011_figures.out.txt:86: N.5 served rates by phase (one failed run; not a capacity): warm-up 4.9397 msg/s (122 samples), measured window 6.4570 msg/s (599 samples, delta accepted 3863), drain without ingress 8.8637 msg/s
+out/adr0011_figures.out.txt:94: N.7 served rate per 60 s block of the measured window (msg/s): 6.55, 5.56, 5.35, 5.98, 6.10, 6.18, 6.53, 6.90, 6.88, 8.57; slowest 5.3470
+out/s02_rates_and_queue.out.txt:33: -- 60 s blocks, aligned at el 0, from el -120 to el 600 --
+out/s02_rates_and_queue.out.txt:34:      block (s)  arrivals  acks(ev)  ev msg/s ctr msg/s
+out/s02_rates_and_queue.out.txt:35:   -120..-60          671       276    4.6000    4.6009
+out/s02_rates_and_queue.out.txt:36:    -60..0            672       317    5.2833    5.2899
+out/s02_rates_and_queue.out.txt:37:      0..60           672       393    6.5500    6.5428
+out/s02_rates_and_queue.out.txt:38:     60..120          672       334    5.5667    5.5650
+out/s02_rates_and_queue.out.txt:39:    120..180          672       319    5.3167    5.3158
+out/s02_rates_and_queue.out.txt:40:    180..240          671       360    6.0000    6.0130
+out/s02_rates_and_queue.out.txt:41:    240..300          673       369    6.1500    6.1400
+out/s02_rates_and_queue.out.txt:42:    300..360          672       370    6.1667    6.1520
+out/s02_rates_and_queue.out.txt:43:    360..420          672       392    6.5333    6.5527
+out/s02_rates_and_queue.out.txt:44:    420..480          672       413    6.8833    6.8607
+out/s02_rates_and_queue.out.txt:45:    480..540          672       414    6.9000    6.9094
+out/s02_rates_and_queue.out.txt:46:    540..600          672       513    8.5500    8.4576
+out/s02_rates_and_queue.out.txt:47: lowest 60 s block: event log 4.6000 msg/s at el -120..-60; counters 4.6009 msg/s at el -120..-60
+out/s02_rates_and_queue.out.txt:48: in-window 60 s blocks (event log): min 5.3167, max 8.5500 msg/s
+out/s02_rates_and_queue.out.txt:115: G. The drain in 30 s blocks after the window end (no ingress), event log
+out/s02_rates_and_queue.out.txt:115: G. The drain in 30 s blocks after the window end (no ingress), event log
+out/s02_rates_and_queue.out.txt:116: ==============================================================================
+out/s02_rates_and_queue.out.txt:117:   window end +  0..+30  s (harness wall from 2026-09-19T20:12:45.750Z): 348 acks = 11.600 msg/s
+out/s02_rates_and_queue.out.txt:118:   window end + 30..+60  s (harness wall from 2026-09-19T20:13:15.750Z): 319 acks = 10.633 msg/s
+out/s02_rates_and_queue.out.txt:119:   window end + 60..+90  s (harness wall from 2026-09-19T20:13:45.750Z): 207 acks =  6.900 msg/s
+out/s02_rates_and_queue.out.txt:120:   window end + 90..+120 s (harness wall from 2026-09-19T20:14:15.750Z): 237 acks =  7.900 msg/s

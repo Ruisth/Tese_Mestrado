@@ -1,0 +1,5 @@
+--- a/docs/setup/qemu_integrated_gateway.md@80e833f lines 1501-1502 (prompt removed)
++++ b/rows/t9-a.sh
+@@ -2 +2 @@
+-python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-tls-wrongca --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD" --ca-cert /tmp/wrong.crt; echo "exit=$?"
++python -m egw_simulator run --scenario smoke --seed 42 --duration 10 --run-id itest-tls-wrongca-q1 --output ~/egw-tcg/itest --broker 127.0.0.1 --port 8883 --username egw-simulator --password "$MOSQUITTO_SIMULATOR_PASSWORD" --ca-cert /tmp/wrong.crt; echo "exit=$?"

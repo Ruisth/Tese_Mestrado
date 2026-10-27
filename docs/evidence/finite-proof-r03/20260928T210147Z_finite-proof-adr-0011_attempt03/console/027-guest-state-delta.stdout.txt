@@ -1,0 +1,8 @@
+## faults: what the system did during the measured run
+none
+## problems: what the two records do not let anyone say
+none
+## expected restarts: what the caller said the run would do, and the pair shows
+EXPECTED-RESTART: egw-controller-1 was restarted in place during the run, as expected: it started again at 2026-09-28T21:13:03.730874694Z (it had been running since 2026-09-28T20:58:05.444710738Z), the same container object (a7428fc55b53) with its restart count unchanged (0) and not OOM-killed
+guest state before/after: 0 fault(s), 0 problem(s), 1 expected restart(s)
+guest-state-delta: faults=0 problems=0

@@ -1,0 +1,31 @@
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# G3 battery, row t1-harness, step 2 of 2: PROSE-ONLY step. No fenced runbook line exists for it.
+# Written by g3_extract_rows.py from a constant of that script; nothing is extracted and no id is substituted.
+# It derives from docs/setup/qemu_integrated_gateway.md at 80e833f (sha256 c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae), line 1320, which says:
+#   "The harness applies the confirmation deadline itself (manifest `confirmation_deadline_clock_domain: "controller"`), so no `pre`/`post` is used here; read the result with `python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json` and the columns `confirmation_deadline_source`, `sent_valid`, `delivered_unique`, `lost`, `late_confirmations`, `double_accepted` of `~/egw-tcg/pilot/results/processed/per_run.csv`"
+# Decision packet of 2026-10-01 (revision 2), execution choice "Prose-only steps": T1's analyze read (line 1320)
+# is run and recorded. The plan entry is nominal-r02 (decision 1b; packet section 2, row 2). The analyze command
+# is, character for character, the runbook's own fenced line 1427 (test 6). The second command prints the six
+# columns line 1320 names from this run's row of per_run.csv. Both print; neither judges.
+python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json; echo "analyze exit=$?"
+[analyze] 4 run(s) with validity != 'valid' removed from summaries, saturation, acceptance and figures; they remain listed in per_run.csv: smoke_sequence-r01, smoke_sequence-r02, controller_restart-r01, controller_restart-r02
+[analyze] EVIDENCE INTEGRITY UNVERIFIABLE in 4 timed run(s): smoke_sequence-r01, smoke_sequence-r02, controller_restart-r01, controller_restart-r02. No SHA256SUMS in the run directory, so nothing can be verified; these runs are removed from summaries, saturation, acceptance and figures (report 5.4).
+notice: no load_sweep runs in results/raw yet; figures skipped
+[analyze] 6 message run(s) processed (2 included, 0 excluded, 4 invalid, 0 integrity failure(s), 4 unsealed timed run(s)); 0 external run(s); 0 figure(s) written to /home/ruisth/egw-tcg/pilot/results/figures
+[recovery] restart_recovery_observed_every_run: FAILED - 0/3 controller_restart run(s) recovery_observed (3 planned); not qualified: controller_restart-r01 (not_evidenced: validity 'invalid'; integrity 'unsealed': the run is not evidence), controller_restart-r02 (not_evidenced: validity 'invalid'; integrity 'unsealed': the run is not evidence), controller_restart-r03 (not_evidenced: validity 'absent'; integrity 'absent': the run is not evidence); written to processed/recovery_qualification.json and processed/recovery_qualification.csv; no count of lost, late or N1 changed
+analyze exit=0
+python3 - ~/egw-tcg/pilot/results/processed/per_run.csv nominal-r02 <<'EOF'
+import csv, sys
+path, rid = sys.argv[1], sys.argv[2]
+cols = ("confirmation_deadline_source", "sent_valid", "delivered_unique", "lost", "late_confirmations", "double_accepted")
+with open(path, newline="", encoding="utf-8") as fh:
+    rows = [r for r in csv.DictReader(fh) if r.get("run_id") == rid]
+print("per_run.csv:", path, "- rows of", rid + ":", len(rows))
+for r in rows:
+    print(rid, " ".join("%s=%s" % (c, r.get(c)) for c in cols))
+sys.exit(0 if len(rows) == 1 else 1)
+EOF
+per_run.csv: /home/ruisth/egw-tcg/pilot/results/processed/per_run.csv - rows of nominal-r02: 1
+nominal-r02 confirmation_deadline_source=controller-marker sent_valid=6720 delivered_unique=4584 lost=2136 late_confirmations=111 double_accepted=0
+echo "per_run read exit=$? (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)"
+per_run read exit=0 (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)

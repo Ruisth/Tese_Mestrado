@@ -1,0 +1,79 @@
+## 2026-10-02T13:22:10Z script under test: /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh sha256 cee1e52f920aaf9a97f9e42d0d077c4a39c2b3288d2fd8ac82ad23b0d851553f
+
+######## a (after1)
+bench ready: /tmp/g3-dry-fix/aafter1
+=== open S1
+## 2026-10-02T13:22:12Z up=564 session S1 is open: /tmp/g3-dry-fix/aafter1/egw-exec/attempts/20261002T132211Z_guest-session_attempt01
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== row t1-smokes (detached)
+the stand-in is running: 8376 python -m egw_simulator run --broker 127.0.0.1 --port 8883 --username egw-simulator --password ...
+=== status
+status holds the value: 0 line(s)
+=== term t1-smokes
+exit=0
+## 2026-10-02T13:22:16Z up=567 term t1-smokes: the process group 7978 (row state 'running', step 't1-smokes')
+7978 bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Me
+7995 tee -p -a /tmp/g3-dry-fix/aafter1/egw-exec/g3-battery/console/002-row-t1-smokes.txt
+8370 /home/ruisth/egw-exec/venv/bin/python -m egw_experiments.local_export exec --attempt 
+8371 bash -c { . /home/ruisth/egw-exec/venv/bin/activate && set -a && . $HOME/egw-tcg/.env
+8376 python -m egw_simulator run --broker 127.0.0.1 --port 8883 --username egw-simulator -
+TERM sent to the process group 7978 (exit 0). KILL is never sent.
+The row's own trap finishes its attempt 'interrupted' and exports it; T7's fault job restores its service from its trap.
+Then: 'status'; check that no service was left stopped and no recorder or collector unit is active; 'close'.
+term output holds the value: 0 line(s)
+--- files of the state directory (the operator records) that hold the value:
+(end of list)
+--- the group listing kept after the signal:
+7978 bash /mnt/c/Users/ruimf/AppData/Local/Temp/claude/C--Users-ruimf-Documents-Projeto-Mestrado/d631a3f3-65ca-4372-97f1-525d6d1e593d/scratchpad/g3/battery/prep/g3_battery.sh row t1-smokes
+7995 tee -p -a /tmp/g3-dry-fix/aafter1/egw-exec/g3-battery/console/002-row-t1-smokes.txt
+=== status after
+session S1: state=open attempt=/tmp/g3-dry-fix/aafter1/egw-exec/attempts/20261002T132211Z_guest-session_attempt01 UP0=562
+  elapsed host uptime: 19 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  HALT: up=567 row=t1-smokes row t1-smokes was interrupted by a signal (TERM) during 't1-smokes' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the c
+  row t1-smokes: interrupted; gate=; class=; driver code=130; export=verified; incomplete: 0 registered source root(s), 0 registered artefact(s) below one, 0 file(s) or folder(s) of the attempt itself, 3 registered artef
+    attempt /tmp/g3-dry-fix/aafter1/egw-exec/attempts/20261002T132213Z_g3-qualification-t1-smokes_attempt01
+    HALT: up=567 row t1-smokes was interrupted by a signal (TERM) during 't1-smokes' (packet section 4, halt 7). Check that no service was left stopped and no recorder or collector unit is active before the close
+  row t1-harness: not started
+
+######## b0 (after1)
+bench ready: /tmp/g3-dry-fix/b0after1
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== two 'row t1-smokes', the second 0 s after the first
+times the row's step ran (one line per shell that sourced the row file): 1
+attempts of the row: 1
+## egw-exec/g3-battery/console/002-row-t1-smokes.txt
+REFUSED: another invocation of this script is still running: 'row t1-smokes' (pid 9315, since 2026-10-02T13:22:30Z). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row
+## 2026-10-02T13:22:31Z up=583 row t1-smokes: attempt /tmp/g3-dry-fix/b0after1/egw-exec/attempts/20261002T132231Z_g3-qualification-t1-smokes_attempt01 (ceiling 105 min from now: the operator enforces it with 'term t1-smokes')
+## 2026-10-02T13:22:31Z up=584 row t1-smokes: step t1-smokes (hx: one shell, the row file is sourced)
+## 2026-10-02T13:22:37Z up=590 row t1-smokes: step t1-smokes ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-02T13:22:38Z up=590 row t1-smokes ended after 7 s; the attempt is OPEN for the operator's classification
+halt lines in the session file: 0
+session S1: state=open attempt=/tmp/g3-dry-fix/b0after1/egw-exec/attempts/20261002T132229Z_guest-session_attempt01 UP0=582
+  elapsed host uptime: 29 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  row t1-smokes: awaiting-classification; gate=pass; class=; driver code=; export=
+    attempt /tmp/g3-dry-fix/b0after1/egw-exec/attempts/20261002T132231Z_g3-qualification-t1-smokes_attempt01
+  row t1-harness: not started
+
+######## b1 (after1)
+bench ready: /tmp/g3-dry-fix/b1after1
+=== open S1
+Next: 'row t1-smokes'. Keepalive and keep-awake stay attached for the whole session.
+=== two 'row t1-smokes', the second 0.15 s after the first
+times the row's step ran (one line per shell that sourced the row file): 1
+attempts of the row: 1
+## egw-exec/g3-battery/console/002-row-t1-smokes.txt
+## 2026-10-02T13:22:59Z up=613 row t1-smokes: attempt /tmp/g3-dry-fix/b1after1/egw-exec/attempts/20261002T132259Z_g3-qualification-t1-smokes_attempt01 (ceiling 105 min from now: the operator enforces it with 'term t1-smokes')
+## 2026-10-02T13:23:00Z up=614 row t1-smokes: step t1-smokes (hx: one shell, the row file is sourced)
+## 2026-10-02T13:23:06Z up=620 row t1-smokes: step t1-smokes ended; hx status 0 (the status of its last line; never a verdict)
+## 2026-10-02T13:23:06Z up=620 row t1-smokes ended after 7 s; the attempt is OPEN for the operator's classification
+## egw-exec/g3-battery/console/003-row-t1-smokes.txt
+REFUSED: another invocation of this script is still running: 'row t1-smokes' (pid 10541, since 2026-10-02T13:22:59Z). One changing subcommand at a time: nothing was started or changed. 'status' reads the state; 'term <slug>' sends TERM, never KILL, to a running row
+halt lines in the session file: 0
+session S1: state=open attempt=/tmp/g3-dry-fix/b1after1/egw-exec/attempts/20261002T132258Z_guest-session_attempt01 UP0=612
+  elapsed host uptime: 29 s of 10800 s (a row STARTS only before the cutoff; a running row keeps its ceiling)
+  row t1-smokes: awaiting-classification; gate=pass; class=; driver code=; export=
+    attempt /tmp/g3-dry-fix/b1after1/egw-exec/attempts/20261002T132259Z_g3-qualification-t1-smokes_attempt01
+  row t1-harness: not started
+
+## 2026-10-02T13:23:26Z ended

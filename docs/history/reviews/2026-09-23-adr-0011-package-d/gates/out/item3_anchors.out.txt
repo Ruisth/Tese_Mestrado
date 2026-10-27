@@ -1,0 +1,975 @@
+== 1. Code identity: src/egw_controller at 35fe8bb (Windows repository) vs the WSL clone's working tree
+35fe8bbdd71e48a3d029eef0cc75ab712ab360b2 2026-09-21 12:03:49 +0100 Merge pull request #41 from Ruisth/docs/g2-decision
+WSL clone HEAD: b7e0c83c3277f7469c05336f91949e7d1b89489a HEAD 
+IDENTICAL: every blob of the listed files matches 35fe8bb
+29ace5d86c1c90af29d95c72099a2e4c87f3ae7a src/CONTRACTS.md
+5e5d66ec8ecceae509e8af8d56d582fb8f080b5e src/deployment/compose.yaml
+e3cb1029aa460bcc20426b2baeebcac4f86df88e src/deployment/mosquitto/config/mosquitto.conf
+0cbf2363d14c60740738b59d206fc8e7835fed32 src/egw_controller/README.md
+a66e0cf1c8c8df72ee6f5a69f514fa58e3bbf3d5 src/egw_controller/__init__.py
+32d01cd837878d67942f7b9dd36bead886a6e938 src/egw_controller/__main__.py
+11eab0599bd718dd104ad014b3dfd58f88fd8ebd src/egw_controller/app.py
+ff0904b6a934a1e5c123a01e882f6f0c42c598ed src/egw_controller/config.py
+307c0d9fdb0e6738a33adff15397e0fe879d5a52 src/egw_controller/dedupe.py
+f6141c72d78e199672b098ce73df5ea7f6ce11e7 src/egw_controller/ditto.py
+ab204ba82bd0b2f900f467c010a379bb0b87b587 src/egw_controller/events.py
+d001ecddcd9daa1c81864206f5008ed3e95f44fb src/egw_controller/logging_config.py
+050b1f2b888cd8d3df4628715f31863fd2c26909 src/egw_controller/metrics.py
+b620afaa13b5fae4ec3c49d4f6cdfd5b0473bb61 src/egw_controller/mqtt.py
+02042e8565db186a5d555107d755cfa4e5fc5884 src/egw_controller/schema.py
+7063e164ce8e7b351bc96d9b4beea35109a83155 src/egw_controller/service.py
+5193552ef8fd630278f16df40fc8a4f76ac9b778 src/egw_controller/topic.py
+51efa3e841136065d1e290e78f3d9f7fa7428d30 src/pyproject.toml
+
+== 2. Controller (repository working tree, identical to 35fe8bb per section 1)
+-- /home/ruisth/egw-exec/repo/src/egw_controller/mqtt.py:33-36
+   33  # MQTT SUBACK reason codes: granted QoS 0/1 (we request QoS 1, so the broker
+   34  # may grant 1 or downgrade to 0); values >= 0x80 are failures.
+   35  _GRANTED_QOS = (0, 1)
+   36  _SUBACK_FAILURE_FLOOR = 0x80
+-- /home/ruisth/egw-exec/repo/src/egw_controller/mqtt.py:73-76
+   73          client = Client(
+   74              callback_api_version=CallbackAPIVersion.VERSION2,
+   75              client_id=f"egw-controller-{settings.egw_id}",
+   76          )
+-- /home/ruisth/egw-exec/repo/src/egw_controller/mqtt.py:149-161
+  149          if value in _GRANTED_QOS:
+  150              self._connected.set()
+  151              logger.info(
+  152                  "MQTT subscription granted; bridge ready",
+  153                  extra={
+  154                      "context": {
+  155                          "granted_qos": value,
+  156                          "topic_filter": self._settings.mqtt_topic_filter,
+  157                      }
+  158                  },
+  159              )
+  160          else:
+  161              self._connected.clear()
+-- /home/ruisth/egw-exec/repo/src/egw_controller/mqtt.py:172-199
+  172      def _on_disconnect(
+  173          self,
+  174          client: Client,
+  175          userdata: Any,
+  176          disconnect_flags: Any,
+  177          reason_code: Any,
+  178          properties: Any = None,
+  179      ) -> None:
+  180          self._connected.clear()
+  181          self._sub_mid = None
+  182          logger.warning(
+  183              "MQTT disconnected",
+  184              extra={"context": {"reason_code": str(reason_code)}},
+  185          )
+  186  
+  187      def _on_message(self, client: Client, userdata: Any, message: Any) -> None:
+  188          # Latency measurement starts here, on the network thread, at arrival.
+  189          received_monotonic_ns = self._monotonic_ns()
+  190          loop = self._loop
+  191          if loop is None or loop.is_closed():
+  192              logger.warning("message received before bridge start; dropping")
+  193              return
+  194          inbound = InboundMessage(
+  195              topic=message.topic,
+  196              payload=bytes(message.payload),
+  197              received_monotonic_ns=received_monotonic_ns,
+  198          )
+  199          loop.call_soon_threadsafe(self._submit, inbound)
+-- /home/ruisth/egw-exec/repo/src/egw_controller/mqtt.py:203-217
+  203      def start(self, loop: asyncio.AbstractEventLoop | None = None) -> None:
+  204          """Attach to the running event loop and start the network thread."""
+  205          self._loop = loop if loop is not None else asyncio.get_running_loop()
+  206          self._client.connect_async(
+  207              self._settings.mqtt_host, self._settings.mqtt_port, keepalive=_KEEPALIVE_S
+  208          )
+  209          self._client.loop_start()
+  210  
+  211      def stop(self) -> None:
+  212          try:
+  213              self._client.disconnect()
+  214          finally:
+  215              self._client.loop_stop()
+  216              self._connected.clear()
+  217              self._sub_mid = None
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:11-12
+   11  - ``failed``    - valid and fresh, but the Ditto update (or first-contact
+   12    seeding) failed after bounded retries.
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:52-53
+   52  class NonStandardJSONConstantError(ValueError):
+   53      """Raised for the ``NaN``/``Infinity``/``-Infinity`` literals in a payload."""
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:81-87
+   81  @dataclass(frozen=True, slots=True)
+   82  class InboundMessage:
+   83      """One raw MQTT message bridged into the asyncio pipeline."""
+   84  
+   85      topic: str
+   86      payload: bytes
+   87      received_monotonic_ns: int
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:150-169
+  150          self._queue: asyncio.Queue[InboundMessage | None] = asyncio.Queue(
+  151              maxsize=queue_maxsize
+  152          )
+  153  
+  154      def submit(self, message: InboundMessage) -> None:
+  155          """Enqueue a message; called on the event loop via call_soon_threadsafe.
+  156  
+  157          This is the counting point of ``received`` (CONTRACTS 5): once per
+  158          call, before the capacity decision, so a message dropped on a full
+  159          queue is counted as ``received`` and as ``dropped``.
+  160          """
+  161          self._metrics.increment_received()
+  162          try:
+  163              self._queue.put_nowait(message)
+  164          except asyncio.QueueFull:
+  165              self._metrics.increment_dropped()
+  166              logger.warning(
+  167                  "inbound queue full; dropping message",
+  168                  extra={"context": {"topic": message.topic}},
+  169              )
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:182-201
+  182          while True:
+  183              message = await self._queue.get()
+  184              if message is None:
+  185                  break
+  186              # Before the try, with no await since the removal from the queue:
+  187              # the finally below runs if and only if this call ran.
+  188              self._metrics.processing_started()
+  189              try:
+  190                  await self.process(message)
+  191              except Exception:  # noqa: BLE001 - keep the pipeline alive
+  192                  logger.exception(
+  193                      "unhandled error while processing message",
+  194                      extra={"context": {"topic": message.topic}},
+  195                  )
+  196              finally:
+  197                  self._metrics.processing_finished()
+  198  
+  199      async def stop(self) -> None:
+  200          """Request shutdown after the already-queued backlog is drained."""
+  201          await self._queue.put(None)
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:210-229
+  210          received = message.received_monotonic_ns
+  211  
+  212          try:
+  213              decoded: Any = json.loads(
+  214                  message.payload.decode("utf-8"),
+  215                  parse_constant=_reject_json_constant,
+  216              )
+  217          except (
+  218              UnicodeDecodeError,
+  219              json.JSONDecodeError,
+  220              NonStandardJSONConstantError,
+  221          ) as exc:
+  222              self._emit(
+  223                  identity=_extract_identity(None),
+  224                  received=received,
+  225                  outcome="rejected",
+  226                  attempts=0,
+  227                  error=f"invalid JSON payload: {exc}",
+  228              )
+  229              return
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:244-254
+  244          try:
+  245              self._repository.validate(decoded)
+  246          except SchemaValidationError as exc:
+  247              self._emit(
+  248                  identity=identity,
+  249                  received=received,
+  250                  outcome="rejected",
+  251                  attempts=0,
+  252                  error=str(exc),
+  253              )
+  254              return
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:287-301
+  287          # First event for this device since startup: rebuild the dedupe state
+  288          # from the twin's ingestion feature (CONTRACTS.md section 4), creating
+  289          # policy + thing on true first contact.
+  290          if not self._dedupe.known_device(device_uuid):
+  291              try:
+  292                  await self._seed_device(device_uuid, payload)
+  293              except DittoError as exc:
+  294                  self._emit(
+  295                      identity=identity,
+  296                      received=received,
+  297                      outcome="failed",
+  298                      attempts=exc.attempts,
+  299                      error=str(exc),
+  300                  )
+  301                  return
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:316-343
+  316          patch = build_merge_patch(
+  317              payload, self._dedupe.accepted_count(device_uuid) + 1
+  318          )
+  319          try:
+  320              attempts = await self._ditto.patch_thing(device_uuid, patch)
+  321          except DittoError as exc:
+  322              self._emit(
+  323                  identity=identity,
+  324                  received=received,
+  325                  outcome="failed",
+  326                  attempts=exc.attempts,
+  327                  error=str(exc),
+  328              )
+  329              return
+  330  
+  331          ack = self._monotonic_ns()
+  332          self._dedupe.record(
+  333              device_uuid, payload["message_id"], payload["seq"], payload["run_id"]
+  334          )
+  335          self._emit(
+  336              identity=identity,
+  337              received=received,
+  338              outcome="accepted",
+  339              attempts=attempts,
+  340              error=None,
+  341              ack=ack,
+  342              latency_ms=(ack - received) / 1e6,
+  343          )
+-- /home/ruisth/egw-exec/repo/src/egw_controller/service.py:414-415
+  414          self._events.log(event)
+  415          self._metrics.increment(outcome)
+-- /home/ruisth/egw-exec/repo/src/egw_controller/schema.py:123-130
+  123      def validator_for(self, device_type: str) -> Draft202012Validator:
+  124          try:
+  125              return self._validators[device_type]
+  126          except KeyError:
+  127              raise SchemaValidationError(
+  128                  f"unknown device_type {device_type!r}; expected one of "
+  129                  f"{sorted(self._validators)}"
+  130              ) from None
+-- /home/ruisth/egw-exec/repo/src/egw_controller/schema.py:139-143
+  139          if not isinstance(payload, Mapping):
+  140              raise SchemaValidationError(
+  141                  f"payload must be a JSON object, got {type(payload).__name__}"
+  142              )
+  143          validator = self.validator_for(payload.get("device_type"))
+-- /home/ruisth/egw-exec/repo/src/egw_controller/ditto.py:228-255
+  228          for attempt in range(1, self._retry_max + 1):
+  229              try:
+  230                  response = await self._client.request(
+  231                      method, path, content=content, headers=headers, auth=auth
+  232                  )
+  233              except httpx.TransportError as exc:
+  234                  # Covers timeouts and connection-level errors (retryable).
+  235                  last_error = f"{type(exc).__name__}: {exc}"
+  236                  last_status = None
+  237              else:
+  238                  if response.status_code < 400:
+  239                      return response, attempt
+  240                  if response.status_code < 500:
+  241                      raise DittoClientError(
+  242                          f"{method} {path} returned {response.status_code}: "
+  243                          f"{_body_snippet(response)}",
+  244                          attempts=attempt,
+  245                          status=response.status_code,
+  246                      )
+  247                  last_error = f"HTTP {response.status_code}: {_body_snippet(response)}"
+  248                  last_status = response.status_code
+  249              if attempt < self._retry_max:
+  250                  await self._sleep(self._backoff_s(attempt))
+  251          raise DittoUnavailableError(
+  252              f"{method} {path} failed after {self._retry_max} attempt(s): {last_error}",
+  253              attempts=self._retry_max,
+  254              status=last_status,
+  255          )
+-- /home/ruisth/egw-exec/repo/src/egw_controller/ditto.py:323-333
+  323      async def get_twin(self, device_uuid: str) -> dict[str, Any] | None:
+  324          """Fetch the raw thing JSON, or ``None`` when the twin does not exist."""
+  325          try:
+  326              response, _ = await self._request(
+  327                  "GET", f"/api/2/things/{thing_id_for(device_uuid)}"
+  328              )
+  329          except DittoClientError as exc:
+  330              if exc.status == 404:
+  331                  return None
+  332              raise
+  333          return response.json()
+-- /home/ruisth/egw-exec/repo/src/egw_controller/dedupe.py:52-81
+   52      def seed_from_twin(
+   53          self, device_uuid: str, twin: Mapping[str, Any] | None
+   54      ) -> None:
+   55          """Mark the device known, restoring state from the twin's ``ingestion`` feature.
+   56  
+   57          ``twin`` is the raw Ditto thing JSON (or ``None`` for a twin created just
+   58          now, which starts empty). Missing/null ingestion properties are treated
+   59          as unknown state. A legacy twin without ``last_run_id`` yields an
+   60          unknown run: the seq floor is then never applied (it only binds within
+   61          a proven-identical ``run_id``) and normal state is written back on the
+   62          first accepted event.
+   63          """
+   64          state = _DeviceState()
+   65          if twin is not None:
+   66              features = twin.get("features") or {}
+   67              ingestion = features.get("ingestion") or {}
+   68              properties = ingestion.get("properties") or {}
+   69              last_seq = properties.get("last_seq")
+   70              if _is_int(last_seq):
+   71                  state.last_seq = last_seq
+   72              last_run_id = properties.get("last_run_id")
+   73              if isinstance(last_run_id, str) and last_run_id:
+   74                  state.last_run_id = last_run_id
+   75              last_message_id = properties.get("last_message_id")
+   76              if isinstance(last_message_id, str) and last_message_id:
+   77                  state.message_ids[last_message_id] = None
+   78              accepted_count = properties.get("accepted_count")
+   79              if _is_int(accepted_count) and accepted_count >= 0:
+   80                  state.accepted_count = accepted_count
+   81          self._devices[device_uuid] = state
+-- /home/ruisth/egw-exec/repo/src/egw_controller/events.py:74-82
+   74      @staticmethod
+   75      def _bucket(run_id: str | None) -> str:
+   76          if (
+   77              run_id is None
+   78              or run_id in (".", "..")
+   79              or not _RUN_ID_RE.fullmatch(run_id)
+   80          ):
+   81              return UNKNOWN_RUN_BUCKET
+   82          return run_id
+-- /home/ruisth/egw-exec/repo/src/egw_controller/events.py:103-119
+  103      def _open(self, bucket: str) -> IO[str]:
+  104          fh = self._files.get(bucket)
+  105          if fh is None or fh.closed:
+  106              run_dir = self._log_dir / bucket
+  107              run_dir.mkdir(parents=True, exist_ok=True)
+  108              fh = (run_dir / EVENTS_FILENAME).open("a", encoding="utf-8", newline="\n")
+  109              self._files[bucket] = fh
+  110          return fh
+  111  
+  112      def log(self, event: ControllerEvent) -> None:
+  113          """Append one event line and flush it immediately."""
+  114          self._validate(event)
+  115          line = json.dumps(event.to_dict(), ensure_ascii=False, separators=(",", ":"))
+  116          with self._lock:
+  117              fh = self._open(self._bucket(event.run_id))
+  118              fh.write(line + "\n")
+  119              fh.flush()
+-- /home/ruisth/egw-exec/repo/src/egw_controller/metrics.py:143-160
+  143      def processing_finished(self) -> None:
+  144          """Mark the end of processing of the message taken last.
+  145  
+  146          One lock acquisition lowers ``in_progress`` and, when no outcome
+  147          counter moved since :meth:`processing_started`, raises
+  148          ``processing_errors`` (residual rule, see module docstring).
+  149  
+  150          Raises ``RuntimeError``, changing nothing, when no message is in
+  151          progress; ``ControllerService.run`` cannot reach that case.
+  152          """
+  153          with self._lock:
+  154              if self._in_progress <= 0:
+  155                  raise RuntimeError(
+  156                      "processing_finished() without a matching processing_started()"
+  157                  )
+  158              self._in_progress -= 1
+  159              if sum(self._counts.values()) == self._outcomes_at_start:
+  160                  self._processing_errors += 1
+-- /home/ruisth/egw-exec/repo/src/egw_controller/app.py:82-88
+   82      @app.get("/ready")
+   83      async def ready() -> JSONResponse:
+   84          mqtt_connected = deps.mqtt_connected()
+   85          ditto_ready = await deps.ditto.is_ready()
+   86          is_ready = mqtt_connected and ditto_ready
+   87          return JSONResponse(
+   88              status_code=200 if is_ready else 503,
+-- /home/ruisth/egw-exec/repo/src/egw_controller/app.py:153-164
+  153      @asynccontextmanager
+  154      async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+  155          pipeline_task = asyncio.create_task(service.run())
+  156          bridge.start(asyncio.get_running_loop())
+  157          try:
+  158              yield
+  159          finally:
+  160              bridge.stop()
+  161              await service.stop()
+  162              await pipeline_task
+  163              await ditto.aclose()
+  164              events.close()
+-- /home/ruisth/egw-exec/repo/src/deployment/compose.yaml:243-256
+  243    controller:
+  244      # Prebuilt from src/Dockerfile on a provisioning host
+  245      # (scripts/build-controller-image.sh: buildx, linux/arm64, `docker save`
+  246      # plus an identity record) and brought in with `docker load`; not part of
+  247      # images.lock.env because it is never pulled from a registry. There is
+  248      # deliberately no "build:" here: the gateway has no build context, no
+  249      # buildx and no pip. pull_policy "never" turns a missing image into an
+  250      # immediate, named failure instead of a pull attempt of
+  251      # docker.io/library/egw-controller. Identity = image id + source commit
+  252      # (scripts/verify-controller-image.sh).
+  253      image: egw-controller:0.1.0
+  254      pull_policy: never
+  255      platform: linux/arm64
+  256      restart: unless-stopped
+-- /home/ruisth/egw-exec/repo/src/deployment/mosquitto/config/mosquitto.conf:29-35
+   29  # ---------------------------------------------------------------------------
+   30  # Persistence: QoS 1 in-flight/queued state survives broker restarts
+   31  # (dropout-reconnect scenario). Backed by the mosquitto-data named volume.
+   32  # ---------------------------------------------------------------------------
+   33  persistence true
+   34  persistence_location /mosquitto/data/
+   35  autosave_interval 60
+-- /home/ruisth/egw-exec/repo/src/CONTRACTS.md:186-195
+  186  - **`processing_errors`** (cumulative): the number of messages removed from
+  187    the inbound queue whose processing ended **without any outcome counter
+  188    having been incremented** — an exception that escaped the pipeline (a
+  189    failed write of the event record included) or cancellation of the consumer.
+  190    It means **"no outcome was recorded"**, not "not applied": the twin may
+  191    already have been updated, because the Ditto update precedes the event
+  192    record. No record exists in `events.jsonl` for such a message. For an
+  193    escaping exception the traceback and the topic, not the message identity,
+  194    are in the controller's error log; cancellation of the consumer leaves no
+  195    log record. A message whose outcome was counted is never also counted
+-- /home/ruisth/egw-exec/repo/src/CONTRACTS.md:275-287
+  275  **Shutdown.** To stop, the controller places one internal marker in the
+  276  inbound queue; the marker is not a message. During shutdown `queue_depth`
+  277  may therefore include that one marker, and the right-hand side of the
+  278  identity may exceed `received` by exactly one. The meaning of `queue_depth`
+  279  is not changed to hide it. While it is queued the marker occupies one queue
+  280  slot, so a message that arrives then may be counted as `dropped` one slot
+  281  before the configured capacity is reached; this is the existing shutdown
+  282  behaviour, not a change. A message enqueued behind the marker is counted
+  283  in `received` and stays in `queue_depth`. With a sentinel shutdown the
+  284  message in progress finishes normally and the backlog ahead of the marker is
+  285  drained; if the consumer is cancelled instead, a message in progress is
+  286  counted in `processing_errors` and the backlog stays in `queue_depth`. A
+  287  process that is killed runs no code: the restart rules above apply.
+-- /home/ruisth/egw-exec/repo/src/deployment/images.lock.env:39-39
+   39  IMAGE_MOSQUITTO=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b3c
+-- /home/ruisth/egw-exec/repo/src/Dockerfile:25-25
+   25  FROM docker.io/library/python:3.12.13-slim@sha256:229a2c5bfa27522db7815ea81f9bed70af17ccb9de9fc7ad142b1877b5830d36
+-- /home/ruisth/egw-exec/repo/src/pyproject.toml:11-11
+   11      "paho-mqtt>=2.1,<3",
+
+== 3. paho-mqtt 2.1.0 in ~/egw-exec/venv
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:690-695
+  690      :param bool manual_ack: normally, when a message is received, the library automatically
+  691          acknowledges after on_message callback returns.  manual_ack=True allows the application to
+  692          acknowledge receipt after it has completed processing of a message
+  693          using a the ack() method. This addresses vulnerability to message loss
+  694          if applications fails while processing a message, or while it pending
+  695          locally.
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:742-751
+  742          manual_ack: bool = False,
+  743      ) -> None:
+  744          transport = transport.lower()  # type: ignore
+  745          if transport == "unix" and not hasattr(socket, "AF_UNIX"):
+  746              raise ValueError('"unix" transport not supported')
+  747          elif transport not in ("websockets", "tcp", "unix"):
+  748              raise ValueError(
+  749                  f'transport must be "websockets", "tcp" or "unix", not {transport}')
+  750  
+  751          self._manual_ack = manual_ack
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:784-789
+  784              if clean_session is None:
+  785                  clean_session = True
+  786              if not clean_session and (client_id == "" or client_id is None):
+  787                  raise ValueError(
+  788                      'A client id must be provided if clean session is False.')
+  789              self._clean_session = clean_session
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:812-812
+  812          self._out_packet: collections.deque[_OutPacket] = collections.deque()
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:877-877
+  877          self.suppress_exceptions = False # For callbacks
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:1123-1135
+ 1123      def _sock_close(self) -> None:
+ 1124          """Close the connection to the server."""
+ 1125          if not self._sock:
+ 1126              return
+ 1127  
+ 1128          try:
+ 1129              sock = self._sock
+ 1130              self._sock = None
+ 1131              self._call_socket_unregister_write(sock)
+ 1132              self._call_socket_close(sock)
+ 1133          finally:
+ 1134              # In case a callback fails, still close the socket to avoid leaking the file descriptor.
+ 1135              sock.close()
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:1566-1604
+ 1566          self._state = _ConnectionState.MQTT_CS_CONNECTING
+ 1567  
+ 1568          self._sock_close()
+ 1569  
+ 1570          # Mark all currently outgoing QoS = 0 packets as lost,
+ 1571          # or `wait_for_publish()` could hang forever
+ 1572          for pkt in self._out_packet:
+ 1573              if pkt["command"] & 0xF0 == PUBLISH and pkt["qos"] == 0 and pkt["info"] is not None:
+ 1574                  pkt["info"].rc = MQTT_ERR_CONN_LOST
+ 1575                  pkt["info"]._set_as_published()
+ 1576  
+ 1577          self._out_packet.clear()
+ 1578  
+ 1579          with self._msgtime_mutex:
+ 1580              self._last_msg_in = time_func()
+ 1581              self._last_msg_out = time_func()
+ 1582  
+ 1583          # Put messages in progress in a valid state.
+ 1584          self._messages_reconnect_reset()
+ 1585  
+ 1586          with self._callback_mutex:
+ 1587              on_pre_connect = self.on_pre_connect
+ 1588  
+ 1589          if on_pre_connect:
+ 1590              try:
+ 1591                  on_pre_connect(self, self._userdata)
+ 1592              except Exception as err:
+ 1593                  self._easy_log(
+ 1594                      MQTT_LOG_ERR, 'Caught exception in on_pre_connect: %s', err)
+ 1595                  if not self.suppress_exceptions:
+ 1596                      raise
+ 1597  
+ 1598          self._sock = self._create_socket()
+ 1599  
+ 1600          self._sock.setblocking(False)  # type: ignore[attr-defined]
+ 1601          self._registered_write = False
+ 1602          self._call_socket_open(self._sock)
+ 1603  
+ 1604          return self._send_connect(self._keepalive)
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:1680-1688
+ 1680          except Exception:
+ 1681              # Note that KeyboardInterrupt, etc. can still terminate since they
+ 1682              # are not derived from Exception
+ 1683              return MQTTErrorCode.MQTT_ERR_UNKNOWN
+ 1684  
+ 1685          if self._sock in socklist[0] or pending_bytes > 0:
+ 1686              rc = self.loop_read()
+ 1687              if rc or self._sock is None:
+ 1688                  return rc
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:2151-2168
+ 2151          if self._ping_t > 0 and now - self._ping_t >= self._keepalive:
+ 2152              # client->ping_t != 0 means we are waiting for a pingresp.
+ 2153              # This hasn't happened in the keepalive time so we should disconnect.
+ 2154              self._sock_close()
+ 2155  
+ 2156              if self._state in (_ConnectionState.MQTT_CS_DISCONNECTING, _ConnectionState.MQTT_CS_DISCONNECTED):
+ 2157                  self._state = _ConnectionState.MQTT_CS_DISCONNECTED
+ 2158                  rc = MQTTErrorCode.MQTT_ERR_SUCCESS
+ 2159              else:
+ 2160                  self._state = _ConnectionState.MQTT_CS_CONNECTION_LOST
+ 2161                  rc = MQTTErrorCode.MQTT_ERR_KEEPALIVE
+ 2162  
+ 2163              self._do_on_disconnect(
+ 2164                  packet_from_broker=False,
+ 2165                  v1_rc=rc,
+ 2166              )
+ 2167  
+ 2168              return MQTTErrorCode.MQTT_ERR_CONN_LOST
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:2294-2330
+ 2294          while run:
+ 2295              rc = MQTTErrorCode.MQTT_ERR_SUCCESS
+ 2296              while rc == MQTTErrorCode.MQTT_ERR_SUCCESS:
+ 2297                  rc = self._loop(timeout)
+ 2298                  # We don't need to worry about locking here, because we've
+ 2299                  # either called loop_forever() when in single threaded mode, or
+ 2300                  # in multi threaded mode when loop_stop() has been called and
+ 2301                  # so no other threads can access _out_packet or _messages.
+ 2302                  if (self._thread_terminate is True
+ 2303                      and len(self._out_packet) == 0
+ 2304                          and len(self._out_messages) == 0):
+ 2305                      rc = MQTTErrorCode.MQTT_ERR_NOMEM
+ 2306                      run = False
+ 2307  
+ 2308              def should_exit() -> bool:
+ 2309                  return (
+ 2310                      self._state in (_ConnectionState.MQTT_CS_DISCONNECTING, _ConnectionState.MQTT_CS_DISCONNECTED) or
+ 2311                      run is False or  # noqa: B023 (uses the run variable from the outer scope on purpose)
+ 2312                      self._thread_terminate is True
+ 2313                  )
+ 2314  
+ 2315              if should_exit() or not self._reconnect_on_failure:
+ 2316                  run = False
+ 2317              else:
+ 2318                  self._reconnect_wait()
+ 2319  
+ 2320                  if should_exit():
+ 2321                      run = False
+ 2322                  else:
+ 2323                      try:
+ 2324                          self.reconnect()
+ 2325                      except OSError:
+ 2326                          self._handle_on_connect_fail()
+ 2327                          self._easy_log(
+ 2328                              MQTT_LOG_DEBUG, "Connection failed, retrying")
+ 2329  
+ 2330          return rc
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:2332-2366
+ 2332      def loop_start(self) -> MQTTErrorCode:
+ 2333          """This is part of the threaded client interface. Call this once to
+ 2334          start a new thread to process network traffic. This provides an
+ 2335          alternative to repeatedly calling `loop()` yourself.
+ 2336  
+ 2337          Under the hood, this will call `loop_forever` in a thread, which means that
+ 2338          the thread will terminate if you call `disconnect()`
+ 2339          """
+ 2340          if self._thread is not None:
+ 2341              return MQTTErrorCode.MQTT_ERR_INVAL
+ 2342  
+ 2343          self._sockpairR, self._sockpairW = _socketpair_compat()
+ 2344          self._thread_terminate = False
+ 2345          self._thread = threading.Thread(target=self._thread_main, name=f"paho-mqtt-client-{self._client_id.decode()}")
+ 2346          self._thread.daemon = True
+ 2347          self._thread.start()
+ 2348  
+ 2349          return MQTTErrorCode.MQTT_ERR_SUCCESS
+ 2350  
+ 2351      def loop_stop(self) -> MQTTErrorCode:
+ 2352          """This is part of the threaded client interface. Call this once to
+ 2353          stop the network thread previously created with `loop_start()`. This call
+ 2354          will block until the network thread finishes.
+ 2355  
+ 2356          This don't guarantee that publish packet are sent, use `wait_for_publish` or
+ 2357          `on_publish` to ensure `publish` are sent.
+ 2358          """
+ 2359          if self._thread is None:
+ 2360              return MQTTErrorCode.MQTT_ERR_INVAL
+ 2361  
+ 2362          self._thread_terminate = True
+ 2363          if threading.current_thread() != self._thread:
+ 2364              self._thread.join()
+ 2365  
+ 2366          return MQTTErrorCode.MQTT_ERR_SUCCESS
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:2859-2872
+ 2859      def _call_socket_close(self, sock: SocketLike) -> None:
+ 2860          """Call the socket_close callback with the about-to-be-closed socket"""
+ 2861          with self._callback_mutex:
+ 2862              on_socket_close = self.on_socket_close
+ 2863  
+ 2864          if on_socket_close:
+ 2865              with self._in_callback_mutex:
+ 2866                  try:
+ 2867                      on_socket_close(self, self._userdata, sock)
+ 2868                  except Exception as err:
+ 2869                      self._easy_log(
+ 2870                          MQTT_LOG_ERR, 'Caught exception in on_socket_close: %s', err)
+ 2871                      if not self.suppress_exceptions:
+ 2872                          raise
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3036-3052
+ 3036      def _loop_rc_handle(
+ 3037          self,
+ 3038          rc: MQTTErrorCode,
+ 3039      ) -> MQTTErrorCode:
+ 3040          if rc:
+ 3041              self._sock_close()
+ 3042  
+ 3043              if self._state in (_ConnectionState.MQTT_CS_DISCONNECTING, _ConnectionState.MQTT_CS_DISCONNECTED):
+ 3044                  self._state = _ConnectionState.MQTT_CS_DISCONNECTED
+ 3045                  rc = MQTTErrorCode.MQTT_ERR_SUCCESS
+ 3046  
+ 3047              self._do_on_disconnect(packet_from_broker=False, v1_rc=rc)
+ 3048  
+ 3049          if rc == MQTT_ERR_CONN_LOST:
+ 3050              self._state = _ConnectionState.MQTT_CS_CONNECTION_LOST
+ 3051  
+ 3052          return rc
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3160-3180
+ 3160      def _packet_write(self) -> MQTTErrorCode:
+ 3161          while True:
+ 3162              try:
+ 3163                  packet = self._out_packet.popleft()
+ 3164              except IndexError:
+ 3165                  return MQTTErrorCode.MQTT_ERR_SUCCESS
+ 3166  
+ 3167              try:
+ 3168                  write_length = self._sock_send(
+ 3169                      packet['packet'][packet['pos']:])
+ 3170              except (AttributeError, ValueError):
+ 3171                  self._out_packet.appendleft(packet)
+ 3172                  return MQTTErrorCode.MQTT_ERR_SUCCESS
+ 3173              except BlockingIOError:
+ 3174                  self._out_packet.appendleft(packet)
+ 3175                  return MQTTErrorCode.MQTT_ERR_AGAIN
+ 3176              except OSError as err:
+ 3177                  self._out_packet.appendleft(packet)
+ 3178                  self._easy_log(
+ 3179                      MQTT_LOG_ERR, 'failed to receive on socket: %s', err)
+ 3180                  return MQTTErrorCode.MQTT_ERR_CONN_LOST
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3222-3236
+ 3222                      if (packet['command'] & 0xF0) == DISCONNECT:
+ 3223                          with self._msgtime_mutex:
+ 3224                              self._last_msg_out = time_func()
+ 3225  
+ 3226                          self._do_on_disconnect(
+ 3227                              packet_from_broker=False,
+ 3228                              v1_rc=MQTTErrorCode.MQTT_ERR_SUCCESS,
+ 3229                          )
+ 3230                          self._sock_close()
+ 3231                          # Only change to disconnected if the disconnection was wanted
+ 3232                          # by the client (== state was disconnecting). If the broker disconnected
+ 3233                          # use unilaterally don't change the state and client may reconnect.
+ 3234                          if self._state == _ConnectionState.MQTT_CS_DISCONNECTING:
+ 3235                              self._state = _ConnectionState.MQTT_CS_DISCONNECTED
+ 3236                          return MQTTErrorCode.MQTT_ERR_SUCCESS
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3337-3339
+ 3337      def _send_puback(self, mid: int) -> MQTTErrorCode:
+ 3338          self._easy_log(MQTT_LOG_DEBUG, "Sending PUBACK (Mid: %d)", mid)
+ 3339          return self._send_command_with_mid(PUBACK, mid, False)
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3444-3444
+ 3444          return self._packet_queue(PUBLISH, packet, mid, qos, info)
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3454-3461
+ 3454      def _send_command_with_mid(self, command: int, mid: int, dup: int) -> MQTTErrorCode:
+ 3455          # For PUBACK, PUBCOMP, PUBREC, and PUBREL
+ 3456          if dup:
+ 3457              command |= 0x8
+ 3458  
+ 3459          remaining_length = 2
+ 3460          packet = struct.pack('!BBH', command, remaining_length, mid)
+ 3461          return self._packet_queue(command, packet, mid, 1)
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3741-3752
+ 3741      def _messages_reconnect_reset_in(self) -> None:
+ 3742          with self._in_message_mutex:
+ 3743              if self._check_clean_session():
+ 3744                  self._in_messages = collections.OrderedDict()
+ 3745                  return
+ 3746              for m in self._in_messages.values():
+ 3747                  m.timestamp = 0
+ 3748                  if m.qos != 2:
+ 3749                      self._in_messages.pop(m.mid)
+ 3750                  else:
+ 3751                      # Preserve current state
+ 3752                      pass
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:3758-3795
+ 3758      def _packet_queue(
+ 3759          self,
+ 3760          command: int,
+ 3761          packet: bytes,
+ 3762          mid: int,
+ 3763          qos: int,
+ 3764          info: MQTTMessageInfo | None = None,
+ 3765      ) -> MQTTErrorCode:
+ 3766          mpkt: _OutPacket = {
+ 3767              "command": command,
+ 3768              "mid": mid,
+ 3769              "qos": qos,
+ 3770              "pos": 0,
+ 3771              "to_process": len(packet),
+ 3772              "packet": packet,
+ 3773              "info": info,
+ 3774          }
+ 3775  
+ 3776          self._out_packet.append(mpkt)
+ 3777  
+ 3778          # Write a single byte to sockpairW (connected to sockpairR) to break
+ 3779          # out of select() if in threaded mode.
+ 3780          if self._sockpairW is not None:
+ 3781              try:
+ 3782                  self._sockpairW.send(sockpair_data)
+ 3783              except BlockingIOError:
+ 3784                  pass
+ 3785  
+ 3786          # If we have an external event loop registered, use that instead
+ 3787          # of calling loop_write() directly.
+ 3788          if self._thread is None and self._on_socket_register_write is None:
+ 3789              if self._in_callback_mutex.acquire(False):
+ 3790                  self._in_callback_mutex.release()
+ 3791                  return self.loop_write()
+ 3792  
+ 3793          self._call_socket_register_write()
+ 3794  
+ 3795          return MQTTErrorCode.MQTT_ERR_SUCCESS
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4033-4039
+ 4033          self._sock_close()
+ 4034          self._do_on_disconnect(
+ 4035              packet_from_broker=True,
+ 4036              v1_rc=MQTTErrorCode.MQTT_ERR_SUCCESS,  # If reason is absent (remaining length < 1), it means normal disconnection
+ 4037              reason=reasonCode,
+ 4038              properties=properties,
+ 4039          )
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4091-4096
+ 4091      def _handle_publish(self) -> MQTTErrorCode:
+ 4092          header = self._in_packet['command']
+ 4093          message = MQTTMessage()
+ 4094          message.dup = ((header & 0x08) >> 3) != 0
+ 4095          message.qos = (header & 0x06) >> 1
+ 4096          message.retain = (header & 0x01) != 0
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4115-4119
+ 4115          message.topic = topic
+ 4116  
+ 4117          if message.qos > 0:
+ 4118              pack_format = f"!H{len(packet) - 2}s"
+ 4119              (message.mid, packet) = struct.unpack(pack_format, packet)
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4143-4161
+ 4143          message.timestamp = time_func()
+ 4144          if message.qos == 0:
+ 4145              self._handle_on_message(message)
+ 4146              return MQTTErrorCode.MQTT_ERR_SUCCESS
+ 4147          elif message.qos == 1:
+ 4148              self._handle_on_message(message)
+ 4149              if self._manual_ack:
+ 4150                  return MQTTErrorCode.MQTT_ERR_SUCCESS
+ 4151              else:
+ 4152                  return self._send_puback(message.mid)
+ 4153          elif message.qos == 2:
+ 4154  
+ 4155              rc = self._send_pubrec(message.mid)
+ 4156  
+ 4157              message.state = mqtt_ms_wait_for_pubrel
+ 4158              with self._in_message_mutex:
+ 4159                  self._in_messages[message.mid] = message
+ 4160  
+ 4161              return rc
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4165-4184
+ 4165      def ack(self, mid: int, qos: int) -> MQTTErrorCode:
+ 4166          """
+ 4167             send an acknowledgement for a given message id (stored in :py:attr:`message.mid <MQTTMessage.mid>`).
+ 4168             only useful in QoS>=1 and ``manual_ack=True`` (option of `Client`)
+ 4169          """
+ 4170          if self._manual_ack :
+ 4171              if qos == 1:
+ 4172                  return self._send_puback(mid)
+ 4173              elif qos == 2:
+ 4174                  return self._send_pubcomp(mid)
+ 4175  
+ 4176          return MQTTErrorCode.MQTT_ERR_SUCCESS
+ 4177  
+ 4178      def manual_ack_set(self, on: bool) -> None:
+ 4179          """
+ 4180             The paho library normally acknowledges messages as soon as they are delivered to the caller.
+ 4181             If manual_ack is turned on, then the caller MUST manually acknowledge every message once
+ 4182             application processing is complete using `ack()`
+ 4183          """
+ 4184          self._manual_ack = on
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4467-4506
+ 4467      def _handle_on_message(self, message: MQTTMessage) -> None:
+ 4468  
+ 4469          try:
+ 4470              topic = message.topic
+ 4471          except UnicodeDecodeError:
+ 4472              topic = None
+ 4473  
+ 4474          on_message_callbacks = []
+ 4475          with self._callback_mutex:
+ 4476              if topic is not None:
+ 4477                  on_message_callbacks = list(self._on_message_filtered.iter_match(message.topic))
+ 4478  
+ 4479              if len(on_message_callbacks) == 0:
+ 4480                  on_message = self.on_message
+ 4481              else:
+ 4482                  on_message = None
+ 4483  
+ 4484          for callback in on_message_callbacks:
+ 4485              with self._in_callback_mutex:
+ 4486                  try:
+ 4487                      callback(self, self._userdata, message)
+ 4488                  except Exception as err:
+ 4489                      self._easy_log(
+ 4490                          MQTT_LOG_ERR,
+ 4491                          'Caught exception in user defined callback function %s: %s',
+ 4492                          callback.__name__,
+ 4493                          err
+ 4494                      )
+ 4495                      if not self.suppress_exceptions:
+ 4496                          raise
+ 4497  
+ 4498          if on_message:
+ 4499              with self._in_callback_mutex:
+ 4500                  try:
+ 4501                      on_message(self, self._userdata, message)
+ 4502                  except Exception as err:
+ 4503                      self._easy_log(
+ 4504                          MQTT_LOG_ERR, 'Caught exception in on_message: %s', err)
+ 4505                      if not self.suppress_exceptions:
+ 4506                          raise
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4521-4525
+ 4521      def _thread_main(self) -> None:
+ 4522          try:
+ 4523              self.loop_forever(retry_first_connection=True)
+ 4524          finally:
+ 4525              self._thread = None
+-- /home/ruisth/egw-exec/venv/lib/python3.12/site-packages/paho/mqtt/client.py:4527-4547
+ 4527      def _reconnect_wait(self) -> None:
+ 4528          # See reconnect_delay_set for details
+ 4529          now = time_func()
+ 4530          with self._reconnect_delay_mutex:
+ 4531              if self._reconnect_delay is None:
+ 4532                  self._reconnect_delay = self._reconnect_min_delay
+ 4533              else:
+ 4534                  self._reconnect_delay = min(
+ 4535                      self._reconnect_delay * 2,
+ 4536                      self._reconnect_max_delay,
+ 4537                  )
+ 4538  
+ 4539              target_time = now + self._reconnect_delay
+ 4540  
+ 4541          remaining = target_time - now
+ 4542          while (self._state not in (_ConnectionState.MQTT_CS_DISCONNECTING, _ConnectionState.MQTT_CS_DISCONNECTED)
+ 4543                  and not self._thread_terminate
+ 4544                  and remaining > 0):
+ 4545  
+ 4546              time.sleep(min(remaining, 1))
+ 4547              remaining = target_time - time_func()
+
+== 4. CPython asyncio in the analysis environment (Python 3.12.3)
+-- /usr/lib/python3.12/asyncio/base_events.py:539-541
+  539      def _check_closed(self):
+  540          if self._closed:
+  541              raise RuntimeError('Event loop is closed')
+-- /usr/lib/python3.12/asyncio/base_events.py:814-818
+  814      def _call_soon(self, callback, args, context):
+  815          handle = events.Handle(callback, args, self, context)
+  816          if handle._source_traceback:
+  817              del handle._source_traceback[-1]
+  818          self._ready.append(handle)
+-- /usr/lib/python3.12/asyncio/base_events.py:838-847
+  838      def call_soon_threadsafe(self, callback, *args, context=None):
+  839          """Like call_soon(), but thread-safe."""
+  840          self._check_closed()
+  841          if self._debug:
+  842              self._check_callback(callback, 'call_soon_threadsafe')
+  843          handle = self._call_soon(callback, args, context)
+  844          if handle._source_traceback:
+  845              del handle._source_traceback[-1]
+  846          self._write_to_self()
+  847          return handle
+-- /usr/lib/python3.12/asyncio/base_events.py:1966-1972
+ 1966          # Note: We run all currently scheduled callbacks, but not any
+ 1967          # callbacks scheduled by callbacks run this time around --
+ 1968          # they will be run the next time (after another I/O poll).
+ 1969          # Use an idiom that is thread-safe without using locks.
+ 1970          ntodo = len(self._ready)
+ 1971          for i in range(ntodo):
+ 1972              handle = self._ready.popleft()
+-- /usr/lib/python3.12/asyncio/queues.py:47-54
+   47      def _init(self, maxsize):
+   48          self._queue = collections.deque()
+   49  
+   50      def _get(self):
+   51          return self._queue.popleft()
+   52  
+   53      def _put(self, item):
+   54          self._queue.append(item)
+-- /usr/lib/python3.12/asyncio/queues.py:110-147
+  110      async def put(self, item):
+  111          """Put an item into the queue.
+  112  
+  113          Put an item into the queue. If the queue is full, wait until a free
+  114          slot is available before adding item.
+  115          """
+  116          while self.full():
+  117              putter = self._get_loop().create_future()
+  118              self._putters.append(putter)
+  119              try:
+  120                  await putter
+  121              except:
+  122                  putter.cancel()  # Just in case putter is not done yet.
+  123                  try:
+  124                      # Clean self._putters from canceled putters.
+  125                      self._putters.remove(putter)
+  126                  except ValueError:
+  127                      # The putter could be removed from self._putters by a
+  128                      # previous get_nowait call.
+  129                      pass
+  130                  if not self.full() and not putter.cancelled():
+  131                      # We were woken up by get_nowait(), but can't take
+  132                      # the call.  Wake up the next in line.
+  133                      self._wakeup_next(self._putters)
+  134                  raise
+  135          return self.put_nowait(item)
+  136  
+  137      def put_nowait(self, item):
+  138          """Put an item into the queue without blocking.
+  139  
+  140          If no free slot is immediately available, raise QueueFull.
+  141          """
+  142          if self.full():
+  143              raise QueueFull
+  144          self._put(item)
+  145          self._unfinished_tasks += 1
+  146          self._finished.clear()
+  147          self._wakeup_next(self._getters)

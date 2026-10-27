@@ -1,0 +1,5 @@
+## 2026-10-02T15:52:46Z up=3261 classify t2: pass (finished, valid/pass)
+exported 20261002T154427Z_g3-qualification-t2_attempt01: C:\Users\ruimf\Documents\Projeto Mestrado\output_test\runs\2026-10-02\20261002T154427Z_g3-qualification-t2_attempt01 (verified, 39 files, 0 excluded)
+DRIVER RESULT 20261002T154427Z_g3-qualification-t2_attempt01: exit=0 (ran; instrumentation valid (or not applicable); system outcome pass; package exported and verified) status=finished instrumentation_validity=valid system_outcome=pass export=exported headline="G3 qualification t2: pass. PASS (packet section 5). itest-3dev-01-q1 (seed 7, scenario smoke, 60 s, 672 messages, three devices): PROCEDURE COMPLETE, no STOP, empty stderr. Timed (decision 3), cont..."
+row t2: classified 'pass'; driver code 0; export: verified -> /mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-02/20261002T154427Z_g3-qualification-t2_attempt01
+Next: the next row of session S1, or 'close' after the last one.

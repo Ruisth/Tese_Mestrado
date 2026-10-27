@@ -1,0 +1,78 @@
+script run: the short-timing variant, <scratchpad>/g3/s3prep/bench/g3_battery.short.sh, sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+  it differs from the final bytes (g3_battery.sh, sha256 6009da1e74094f4bd28ce54992f463a8e2ae667e0113047ae82d1c39409620f2) in 2 lines: T8_SSH_WAIT_S=48 # ;T8_SSH_POLL_S=3 # ;
+## 2026-10-05T09:14:19Z scenario s8b; host uptime 124.30 s; row files: the real <scratchpad>/g3/s3prep/rows (manifest sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d)
+bench scripts (sha256, first 16 characters): bs3_run.sh affd2cb43b5a4487, bs3_setup.sh 995fab22d656906d, bs3_env.sh ff64ecf1b6400ca3, bs3_stubs.py ccdf6b9c31640cee
+bench switches: BENCH_FAST_DRAIN=1 (1: 'drained' returns after two readings; 0: its real 130 s quiet window), BENCH_SCALED=0 (1: the test module's STUB_SLEEP and STUB_TIMEOUT, 1000 ms and 1000 ms for each second; 0: the host's sleep and timeout)
+bench keepalive: no keepalive client of wsl.exe runs on the host (2026-10-05) and the bench starts none: the steps script's keepalive_check is answered by the bench's ps stub, which adds a SYNTHETIC client (pid 4194301 'sleep 43200', parent 4194300 'Relay(bench)'; no process) to the listing that check reads; processes 'sleep N' with N of 3600 or more now on the host: 0
+drivers of the copy before the stubs: 4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5 (the recorded drivers_sha256)
+test module imported: test_runbook_itest_helpers.py sha256 fe8baa60d41a088807e071a462d4ff36674f7325ed18a9e480159b14db719ff1; runbook sha256 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db
+tunnel.sh: written by the runbook's own heredoc, sha256 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1 (as recorded)
+itest-helpers.sh: written by the runbook's own heredoc, sha256 e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb (as recorded)
+itest-helpers.sh: 545 lines
+EXPECTED: the gate driver's record of the running images differs from S2's in the controller's image id: 'open S3' passes (the record is compared before row t8), 'row t8' halts before any attempt exists; 'row t9' refused.
+
+=== g3_battery.sh open S3
+-> exit 0
+## 2026-10-05T09:14:22Z up=127 open S3: steps script <scratchpad>/g3/s3prep/bench/g3_battery.short.sh sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+## 2026-10-05T09:14:22Z up=127 candidate identities
+## 2026-10-05T09:14:22Z up=128 row files of S3 against <scratchpad>/g3/s3prep/rows/rows.manifest.json
+## 2026-10-05T09:14:23Z up=128 run ids of S3 unused on the host
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:14:23Z up=128 guest root file system before the boot
+## 2026-10-05T09:14:23Z up=128 keepalive
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 61 s, about 43139 s left
+keepalive: attached, about 43139 s left (needed: 21600 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:14:23Z up=129 UP0=128 (whole seconds of /proc/uptime: the session clock of PM condition 3; no row starts at or after UP0 + 10800)
+## 2026-10-05T09:14:24Z up=129 guest_session_open.sh (frozen driver, <bench>/repo/tools/session/guest_session_open.sh; console <bench>/state/S3-guest_session_open.console.txt)
+## 2026-10-05T09:14:25Z up=130 preflight.sh (frozen driver, <bench>/repo/tools/session/preflight.sh; console <bench>/state/S3-preflight.console.txt)
+## environment input (PM condition 2 of 2026-10-01)
+## 2026-10-05T09:14:26Z up=131 gate_health.sh (frozen driver, <bench>/repo/tools/session/gate_health.sh; console <bench>/state/S3-gate_health.console.txt)
+TUNNEL UP
+## 2026-10-05T09:14:27Z up=133 run ids of S3 unused on the guest (read-only listing)
+## 2026-10-05T09:14:28Z up=133 session S3 is open: <bench>/egw-exec/attempts/20261005T091424Z_guest-session_attempt01
+Next: 'row t8'. Keepalive and keep-awake stay attached for the whole session.
+CHECK ok: exit status 0: open S3
+CHECK ok: the session is open
+--- the fake process that stands for QEMU after the open: pid 13915 alive, start tick 12952
+
+=== g3_battery.sh row t8
+-> exit 1
+## 2026-10-05T09:14:28Z up=133 row t8 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 67 s, about 43133 s left
+keepalive: attached, about 43133 s left (needed: 9900 s). The Windows keep-awake stays the operator's own check.
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/egw-exec/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): <bench>/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+## 2026-10-05T09:14:29Z up=135 row t8: the running images recorded by the gate driver at open, against S2's record
+gate record: <bench>/egw-exec/attempts/20261005T091426Z_g2-gate-preconditions_attempt01/environment/container_identities.txt (sha256 2769465862d3576b1b0e979f4938f2c30a6c938b0dc74e0ebf23ce4d895d5e00)
+HALT: the gate package's record of the running images (<bench>/egw-exec/attempts/20261005T091426Z_g2-gate-preconditions_attempt01/environment/container_identities.txt: 6 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form: row t8 was NOT started and no attempt was created (packet section 4, halt 6: an identity differing from the recorded candidate)
+CHECK ok: exit status 1: row t8 (a halt before the attempt)
+CHECK ok: the halt of row t8
+CHECK ok: the differing line is printed beside S2's
+CHECK ok: row state file of t8: absent
+CHECK ok: attempts of row t8 created: 0
+CHECK ok: reboot commands sent to the stub guest: 0
+
+=== g3_battery.sh row t9
+-> exit 2
+## 2026-10-05T09:14:30Z up=135 row t9 (session S3): steps script sha256 1fe0f20e2dbe1269d64b5de093fae835cda3fce354698666ce28a352d1f2a858
+REFUSED: the previous row t8 is 'not started', not classified: the next row starts only when this one is classified and its gate passed
+CHECK ok: exit status 2: row t9 (refused)
+CHECK ok: row t9 is refused: row t8 is not classified
+
+=== g3_battery.sh close
+-> exit 0
+## 2026-10-05T09:14:31Z up=136 close S3: <bench>/egw-exec/attempts/20261005T091424Z_guest-session_attempt01
+keepalive: pid 4194301 'sleep 43200', parent 4194300 (Relay(bench)), running for 69 s, about 43131 s left
+keepalive: attached, about 43131 s left (needed: 1800 s). The Windows keep-awake stays the operator's own check.
+## 2026-10-05T09:14:31Z up=136 no recorder or collector unit active (read-only)
+## 2026-10-05T09:14:31Z up=136 the recorded stop with the controller's 130 s allowance (PM condition 4)
+## 2026-10-05T09:14:32Z up=137 guest_session_close.sh (frozen driver, <bench>/repo/tools/session/guest_session_close.sh; console <bench>/state/S3-guest_session_close.console.txt)
+## 2026-10-05T09:14:33Z up=138 session S3 closed (guest_session_close.sh exit 0)
+CHECK ok: exit status 0: close
+CHECK ok: the session is closed
+
+=== the end of the bench
+CHECK ok: processes of this bench left: 0
+
+## 2026-10-05T09:14:34Z SCENARIO s8b: PASS (13 checks)

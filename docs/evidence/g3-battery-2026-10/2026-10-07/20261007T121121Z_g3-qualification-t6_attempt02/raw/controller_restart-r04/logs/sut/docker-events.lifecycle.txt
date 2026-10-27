@@ -1,0 +1,4 @@
+start epoch=1791375242 pid=5288 since=1791375121
+cli-start epoch=1791375242 cli_pid=5290
+ready epoch=1791375243 events_bytes=129115 unit=active
+cli-exit epoch=1791376325 rc=143 stop_requested=yes

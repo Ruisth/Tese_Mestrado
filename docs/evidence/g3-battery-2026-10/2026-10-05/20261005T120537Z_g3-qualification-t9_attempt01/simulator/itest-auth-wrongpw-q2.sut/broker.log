@@ -1,0 +1,11 @@
+[2Kmosquitto-1  | 2026-10-05T12:05:52.533323399Z 2026-10-05T12:05:52: Client connection from 10.0.2.2 failed: error:0A000418:SSL routines::tlsv1 alert unknown ca.
+[2Kmosquitto-1  | 2026-10-05T12:05:53.584144295Z 2026-10-05T12:05:53: New connection from 10.0.2.2:46215 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:53.587122039Z 2026-10-05T12:05:53: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:54.663977863Z 2026-10-05T12:05:54: New connection from 10.0.2.2:49617 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:54.664244327Z 2026-10-05T12:05:54: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:56.682553895Z 2026-10-05T12:05:56: New connection from 10.0.2.2:54835 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:56.685707639Z 2026-10-05T12:05:56: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:05:59.304290127Z 2026-10-05T12:05:59: New connection from 10.0.2.2:43609 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:05:59.312597487Z 2026-10-05T12:05:59: Client egw-simulator-itest-auth-wrongpw-q2 disconnected, not authorised.
+[2Kmosquitto-1  | 2026-10-05T12:06:00.573559167Z 2026-10-05T12:06:00: New connection from 127.0.0.1:52490 on port 8883.
+[2Kmosquitto-1  | 2026-10-05T12:06:00.770357055Z 2026-10-05T12:06:00: Client egw-healthcheck disconnected, not authorised.

@@ -1,0 +1,2 @@
+proof_fetch_sut_log: docker-events: coverage=complete from RUN_T0 1791036545 (2026-10-03T14:09:05Z) to the stop request; expected=die,stop,start of egw-ditto-things-1; the rules are in /home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.coverage.txt
+proof_fetch_sut_log: docker-events: 505 line(s), 969767 bytes, sha256 712042c324c3a4f48950851b316889d50e1b634a054c2e22b4977544dd01b705, written to /home/ruisth/egw-tcg/itest/itest-ditto-fault-01-q1.sut/docker-events.log

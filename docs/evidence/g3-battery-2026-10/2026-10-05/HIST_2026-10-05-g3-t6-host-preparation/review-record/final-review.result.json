@@ -1,0 +1,241 @@
+{
+  "summary": "Two independent readers try to refute the S4 request and operator documents before sealing",
+  "agentCount": 2,
+  "logs": [],
+  "result": [
+    {
+      "findings": [
+        {
+          "id": "R1",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "\"In short\" gives \"about 35–45 min of guest occupation\", but section 4's own table does not add up to that, and \"S2's row: 19 min\" is the length of the step, not of the row.",
+          "evidence": "Section 4 table: open/preflight/gate \"about 7–10 min\" + T6 \"about 20–25 min\" + stop/close \"about 1.5 min\" = 28.5–36.5 min. The table has no line for the classification gap, so the headline cannot be reconciled with it. Sealed records: open took 401 s (S1), 401 s (S2) and 414 s (S3 second opening). Close took 83, 81, 62 and 71 s. In S2 (session-S2.env) the stretch from open to T6 classified to the end of the close was about 31 min. S2's row-t6.env has start_up=439 and end_up=1650, so the row took 1211 s (about 20 min). The 19 min is the t6 step alone (SUMMARY.md command 3: 1146.706 s).",
+          "fix": "Either state the occupation as the table's sum plus the classification gap (about 30–40 min, S2's equivalent was about 31 min), or add a classification line to the table so that 35–45 adds up. Write \"S2's t6 step: 19 min (row 20 min)\"."
+        },
+        {
+          "id": "R2",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "The lists of what S4 exercises for the first time (section 7 \"Verified nowhere but on the guest\" and section 8 \"Unverified on the guest (Appendix B item 24)\") leave out delta's `--restart-evidence` on a real run directory. Appendix B item 24 names it, it has never run on real data, and a delta exit 1 or 2 would make S4 invalid instrumentation.",
+          "evidence": "Runbook line 1623 (item 24) lists as not observed: \"`delta`'s N1 options (`--controller-log`, `--restart-evidence`) on a real controller log and a real run directory's restart record and Docker events capture (tests 6 and 7)\". S2's T6 never ran delta (\"The delta line and the C12 reading did not run (T6=stop)\"). S2's T7 lines ran `$REC delta $P/$R --controller-log ...` without `--restart-evidence`. No commands.jsonl under output_test/runs contains `--restart-evidence`. The request's section 8 names only \"the transition rule on a live restart, the collector's uptime bounds, the exactly-once line on a real post-drain copy\".",
+          "fix": "Add to both lists: \"`delta` with `--restart-evidence` (the N1 report) on a real run directory (never run on real data; T7 used `--controller-log` only)\"."
+        },
+        {
+          "id": "R3",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "Classing `--exactly-once` exit 1 as \"Invalid instrumentation\" is a choice the request makes without flagging it. Section 9 says only two points are choices of this request. The packet has no `--exactly-once`, and it classes the same tool's exit 1 for test 3 as Inconclusive.",
+          "evidence": "Request section 6, Invalid instrumentation: \"... `delta` 1 or 2; `--exactly-once` exit 1\". Packet 2026-10-01_g3-candidate-freeze-and-battery-packet.md line 209, T3 row: Inconclusive / not demonstrated = \"`C3=stop`; `acceptance` 1\" (Invalid = \"`acceptance` 2\"). itest_reconcile.py gives exit 1 the same meaning in both modes (\"the step was NOT carried out: ... an input file is missing or malformed\"). Runbook line 1427 says \"exit 1: test 6 NOT evaluated\". Request section 9: \"Two points are choices of this request\".",
+          "fix": "Either list it as a third choice in section 9 (exit 1 → invalid instrumentation, following the T6 row's handling of `delta` 1, against the packet's T3 precedent of Inconclusive), or move it to Inconclusive."
+        },
+        {
+          "id": "R4",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "Section 7 describes the bench as using \"stand-ins for the harness, analyze and the guest\". It leaves out that `$REC delta`, `$REC acceptance --exactly-once` and the four frozen session drivers (open, preflight with the collector install and `collector-duration`, gate, close) were also stubs.",
+          "evidence": "bench-notes.md section 2: \"the four session drivers (`guest_session_open.sh`, `preflight.sh` with modes pass/fail/invalid, `gate_health.sh`, `guest_session_close.sh`), in the copy only\"; \"`$REC delta` and `$REC acceptance --exactly-once`: the module's `STUB_PYTHON`\". Section 5: \"The frozen session drivers (the stack start, the collector's install, `collector-duration` on the uptime bounds, the real gate): stubs.\"",
+          "fix": "Write: \"stand-ins for the harness, analyze, `delta`/`acceptance`, the four session drivers and the guest\"."
+        },
+        {
+          "id": "R5",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "Section 7 is headed \"Preparation (delivered; no guest)\" and names the package `output_test/runs/2026-10-05/HIST_2026-10-05-g3-t6-host-preparation`, but that package does not exist yet.",
+          "evidence": "Listing of output_test/runs/2026-10-05/: there are HIST_2026-10-05-g3-t8t9-host-preparation(-attempt02), the s3 operator records and the t6-prerequisites packages, but no `HIST_2026-10-05-g3-t6-host-preparation`. seal_prep.sh (not yet run) is what creates it.",
+          "fix": "Seal the package before the request is sent, and give its SHA256SUMS hash in the request or the hand-off. Otherwise write \"to be delivered\" until it is sealed."
+        },
+        {
+          "id": "R6",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "wording",
+          "claim": "\"Verified nowhere but on the guest:\" literally says these items were verified, on the guest. In fact none of them has ever run on a guest; they can be verified only there.",
+          "evidence": "Section 7 bullet: \"Verified nowhere but on the guest: the real harness with the transition rule, the collector's uptime bounds, `--exactly-once` on a real post-drain copy, and `term` on the real harness.\" LOG #C053 Limits: \"Nothing ran on the guest: ... exercised on fixtures and stubs only\". Section 8 itself says \"Unverified on the guest\".",
+          "fix": "Write: \"Not yet verified, and verifiable only on the guest: ...\"."
+        },
+        {
+          "id": "R7",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "wording",
+          "claim": "\"`t6.sh` ... equals runbook lines 1421–1428 byte for byte\" is not literally true: the `host$ ` prompt is removed.",
+          "evidence": "rows-check-clone.console.txt line 16: \"t6.sh: byte-identical to the blob's lines (NR>=1421&&NR<=1428), the prompt removed\". Recomputed: awk lines 1421–1428 | sed 's/^host\\$ //' | sha256sum = ec8ac010d79b..., the hash of t6.sh.",
+          "fix": "Write: \"equals runbook lines 1421–1428 byte for byte once the `host$ ` prompt is removed\"."
+        }
+      ],
+      "verified": [
+        "runbook.1fd9792.md sha256 317165936abe… and 1,624 lines; equals git show 1fd9792:docs/setup/qemu_integrated_gateway.md (at 8e49261 it was 4acf8de6…, 1,623 lines)",
+        "t6.sh sha256 ec8ac010… = runbook lines 1421–1428 with the prompt removed; 8 lines; heading at 1416, fence 1420–1429; r04 is the runbook's own literal",
+        "1fd9792 is the merge of PR #57 (parents 99ddf40, e375026), tree 14f89c4, which is also e375026's tree; reachable from origin/dev; PRs #55, #56 and #57 merged",
+        "drivers_sha256 recomputed from git: 2c209b09… at 1fd9792 and 4a6a572d… at 8e49261, over 38 files (32 *.sh/*.py + 6 guest/*.sh); the changed driver files are collector_check.py, collector_shortfall.py and a comment-only change to preflight.sh (README.md is not a driver file)",
+        "collector 9e678b02… at 1fd9792 vs 11444c0a… at 8e49261 and 489bc9e; the diff only adds uptime_s=/boot_id= to the start: and stop: records; S3's preflight used 11444c0a",
+        "local_export.py 544c9b3d…; images.lock.env 8a9a05df…; compose.yaml 1a32f6c2…; mosquitto.conf ea37827c…; CONTRACTS.md 247e3b02…; src/schemas tree 1d5284cf…: all unchanged from 489bc9e",
+        "src/deployment tree 573e902b… (1fd9792) vs e056d389… (8e49261 and 489bc9e), differing only in README.md and collect-resources.sh",
+        "Helpers e5eba37e… (545 lines), tunnel.sh 38f5cae9…, ca.crt 556e139f…, controller image_id 9a293fe1…5f46 from 489bc9e, kernel 4457ef38…, qemuboot.conf 7739c945…, QEMU 5d389c65…, Yocto checkout 489bc9e (clean), all from the host-preparation console",
+        "Root file system 6fce1688… = rootfs_after_close of S3's second opening (session-S3.env, attempt02 records); before and after the offline listing in the preparation",
+        "Data disk 34,359,738,368 B, ext4 'clean', listed and not hashed",
+        "Preparation at 2026-10-05T20:19Z, outcome=prepared; clone moved from 8e49261 to 1fd9792, clean, branches unchanged",
+        "Plan c195bd3f… → 61d55940…, 95 → 96 entries, first 95 byte-identical; r04 planned, supplement g3-t6, order 96, 600 s, 11.2 msg/s, warm-up 0, scenario nominal; seed 1715385812 recomputed as random.Random('42:controller_restart-r04').randrange(2**32) (r03's 2189910495 matches too)",
+        "r04 fresh on the host and in the guest rootfs event listing (r01–r03 present); S2's 20261003T132936Z_g3-qualification-t6_attempt01 is the only earlier t6 attempt, so the next is attempt02",
+        "Preflight at 1fd9792: stack start through the interlock, collector copy and install with the previous copy kept in /opt/egw/evidence/collector-previous/, deployed tree compared with the clone except README.md, 45 s of live collection, collector-duration",
+        "g3_battery.sh 7a63b361… (2,356 lines): row t6 only, ceiling 47 min (packet section 4), keepalive 21,600 s at open, purpose official, compose stop -t 130 at close, the collector compared at open and before the row, S3's exception removed, attempt suffix _attempt02",
+        "Packet: T6 ceiling 47 min; T6 Pass names 'endpoint recovery ≤ 120 s'; invalid = HR=1 / resources.csv rejected / delta 1 or 2; inconclusive = HR=3",
+        "Drain defaults 130/5/900 s (runbook line 1424); RESTART_RECOVERY_MAX_S 120; CONFIRMATION_WINDOW_S 60; per_run.csv has the columns restart_metrics_endpoint_recovery_s and restart_functional_recovery_s",
+        "LOG #C052 (amended criterion, option 2) and #C053 (option A, uptime bounds, r04, exactly-once) match the request's description; decision record docs/governance/g3-t5-t6-decisions-2026-10-05.md exists",
+        "Appendix B item 24 (2026-10-05 addition) names the transition rule, the uptime bounds and the --exactly-once line as guest-unverified",
+        "S2 t6 step 1146.7 s; opens took 401/401/414 s; closes took 62–83 s",
+        "Bounded check: 1 material + 9 minor/wording findings (OP-1..OP-5, F1..F5), OP-1 on which recovery value decides; adversarial reading: 1 material + 2 minor; bench: 25 scenarios PASS; finding F1 (recorder left active after term) and its resolution in the documents"
+      ]
+    },
+    {
+      "findings": [
+        {
+          "id": "C1",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "The Pass row names no deciding source for the criterion item 'restarted once mid-run'. It also drops the packet's explicit 'capture with die and start'. The only 'once' evidence S4 produces, the gate's EXPECTED-RESTART, is placed beside the class and never decides it.",
+          "evidence": "Decision record: \"T6 passes when the controller is restarted once mid-run with recovery within 120 s, every valid message ...\". Packet T6 row: \"`T6=ok` (harness 0, sealed, drain quiet); capture with `die` and `start`; ...\". Request §6 Pass: \"`T6=ok` (harness exit 0, run sealed, drain quiet); recovery within 120 s (...); every `delta` line OK; `acceptance --exactly-once` exit 0\". operator-procedure.md: \"A failed gate after the row is a stop condition (3): the row is classified by the cause its record shows, and the gate's result is written beside the class.\" README: the gate's \"one in-place restart (same container id, later start instant, restart count unchanged, no OOM) is `EXPECTED-RESTART`; anything else about it ... fails the gate\". T6=ok does cover 'restarted mid-run': run.py makes validity need restart returncode 0, and EVENTS_EXPECTED=die,start is checked by R7. But R7 in events_coverage.py only needs at least one hit of each action (`if hits:`), so 'once' is decided by nothing. operator-procedure step 5 still promises \"each criterion item with its source\".",
+          "fix": "In the Pass row (and the copy of it in operator-procedure.md), add: \"the controller restarted once mid-run: the restart record's returncode 0 at +300 s and the capture's die and start (both behind harness exit 0), and the gate's `EXPECTED-RESTART` for `egw-controller-1`\". State that a gate fault on `egw-controller-1` (not one in-place restart) rules out Pass."
+        },
+        {
+          "id": "C2",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "The stop conditions in §5 change the packet's halt rules in four places without saying so. §9 says only two points are choices of this request.",
+          "evidence": "Packet §4 halt 4: \"Any restoration (T7's manual `start`, a controller left stopped by T6): restore, record, halt.\" Request §5 item 6: \"nothing on the guest is started, restarted or recreated by hand\", and README: \"A controller left stopped by the test's own restart is a failure the record shows, not something to repair before the close.\" Packet halt 3 has \"an OOM kill or unexpected restart\"; request item 3 has only \"not six healthy services within 900 s; a recorder or collector unit active; an OOM kill\" (the README keeps \"an unexpected restart or replacement\"). Packet halt 7 has \"or the session limit\"; neither request §4 nor §5 mentions the 3 h start cut-off, which the README and the procedure apply (\"No row starts at or after 3 h\"). Packet halt 2 has \"a usage exit 2 of `acceptance`, `replay-check` or `delta`\"; request item 2 lists only \"a step status 97 or 74; an export, transcript or snapshot failure\". Request §9: \"Two points are choices of this request\". Most of these deviations are conservative and S3's request already banned manual starts, but the packet's T6-specific restore rule is reversed silently.",
+          "fix": "Either align §5 with packet §4 (add 'an unexpected restart or replacement', 'the 3 h start cut-off', 'a usage exit 2 of delta or acceptance'), or list the differences as choices in §9. The no-restore rule for a controller left stopped by T6 should be one of them, with the reason (the close's compose stop covers it)."
+        },
+        {
+          "id": "C3",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "The class table makes undisclosed choices for the new check and leaves three outcomes without a class. It maps `--exactly-once` exit 1 to Invalid instrumentation, where the packet's precedent for the same tool is Inconclusive. It gives no class for `acceptance` exit 2, a blank recovery value or a row interrupted at the ceiling. The request and the README also disagree on whether an interrupted row is classified.",
+          "evidence": "Request §6 Invalid instrumentation: \"`--exactly-once` exit 1\". Runbook line 1427 / LOG #C053: \"exit 1: test 6 NOT evaluated\". Packet §5 T3 row maps `acceptance 1` to \"Inconclusive / not demonstrated\" and `acceptance 2` to instrumentation; packet halt 2 makes \"a usage exit 2 of `acceptance`\" instrumentation. The request's table has no `--exactly-once` exit 2. It also has no case for an empty `restart_metrics_endpoint_recovery_s` (analyze.py calls that 'insufficient instrumentation'). Request §5: \"the attempt is classified and exported as it stands\" (item 4 is the ceiling). README: \"`term t6` (the ceiling) ...: the attempt is finished `interrupted` and exported; it is not classified again\". Packet §5: \"a TERM leaves `interrupted`\".",
+          "fix": "State the mapping of `--exactly-once` exit 1 as a choice in §9, or follow the packet's T3 precedent (Inconclusive). Add exit 2 to Invalid instrumentation. Name the class the result note gives a blank recovery value and an interrupted (ceiling) row. Make §5 match the README on the interrupted row."
+        },
+        {
+          "id": "C4",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "The request promises a controlled close for every stop, including a lost guest. The procedure and the README say that when the guest does not answer, no controlled close is claimed and Rui decides. S3's request carried this exception; the S4 request dropped it.",
+          "evidence": "Request §1: \"one attempt of test 6, then a controlled close whatever the result\". §5: \"Each halts the session: ... the session is closed in a controlled way and handed back to Rui\", item 5 \"Guest, tunnel, WSL or keepalive lost\". operator-procedure.md: \"Preserve the state, signal nothing, ask Rui ... the session stays open; no controlled close is claimed; what is done with QEMU is Rui's decision in the window\". README: \"no controlled close is claimed\". S3 request §5: \"the session is closed in a controlled way (section 6) whenever the guest answers ... If the guest does not answer while its QEMU process is running ...\".",
+          "fix": "In §5's preamble write \"closed in a controlled way whenever the guest answers\" and add one sentence: with QEMU alive but the guest silent, the state is preserved and Rui decides in the window. That restores the S3 wording and matches the procedure."
+        },
+        {
+          "id": "C5",
+          "file": "<S>/g3/t6prep/g3_battery.README.md",
+          "severity": "minor",
+          "claim": "The README gives a different count of bench scenarios that passed than the request and the bench record.",
+          "evidence": "g3_battery.README.md line 206: \"the bench of the final script (`bench/`, `bench-notes.md`: the REAL `t6.sh` ... 20 scenarios PASS)\". request-draft.md line 127: \"25 scenarios PASS\". bench-notes.md line 14: \"25 scenarios, 25 PASS, 1,222 checks, 0 failed\". The refute pass upheld \"1,222 for the 25 scenarios as claimed\".",
+          "fix": "README line 206: \"25 scenarios, 25 PASS (1,222 checks)\"."
+        },
+        {
+          "id": "C6",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "The request is inconsistent on whether the collector install changes the candidate. The summary and the authorisation sentence Rui signs say 'no change to the candidate'. §8 treats the install as the one change, and the PM put that install inside the authorised session.",
+          "evidence": "In short: \"the new collector is installed by the frozen preflight at the session's open; ... no change to the candidate or to a criterion\". §8: \"any change to the candidate beyond the collector the merged preflight installs\". §9 sample: \"sem repetições, sem alterações ao candidato e sem aceitação automática do G3\". The decision record calls the collector \"instrumentation, not the system under test\". The PM's order: \"the collector's install by the preflight belongs to the authorised session\".",
+          "fix": "Use one framing throughout. For example, §9: \"... sem alterações ao candidato além da instalação do novo coletor pelo preflight ...\", and the summary: \"no change to the candidate beyond the collector the preflight installs\"."
+        },
+        {
+          "id": "C7",
+          "file": "<S>/g3/t6prep/operator-procedure.md",
+          "severity": "minor",
+          "claim": "The packet's 'cause not established' rule is dropped. It says a delta MISMATCH or a duplicate-only identity is a failure whose cause is not established, and that the result note reports no SUT defect for it. Neither the request's T6 row nor the procedure's result-note rules carry it, yet the procedure says the rules beside the table are 'unchanged from the packet'.",
+          "evidence": "Packet §5: \"A `delta` MISMATCH ... and a `duplicate_only_unexplained` identity are failures **with the cause not established**: `lost` is unchanged, and the result note reports no SUT defect for them.\" Packet T6 row: \"a duplicate-only identity included (cause not established)\". Packet §6 limit 2: \"the report explains, never counts\". Request §6 Valid failure: \"`--exactly-once` exit 4 (a valid message absent, duplicate-only or accepted twice); ... a `delta` MISMATCH\", with no qualification. operator-procedure.md: \"Rules that stand beside the table, unchanged from the packet and the request\", listing only the configuration identity and 97/74/export rules; step 5's result note: \"the class, each criterion item with its source, ...\".",
+          "fix": "Add one line beside the table in both files: a `delta` MISMATCH or a duplicate-only identity is a valid failure with the cause not established, and the result note reports no SUT defect for it (packet §5, §6 item 2)."
+        },
+        {
+          "id": "C8",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "wording",
+          "claim": "The request applies the amended criterion without stating the condition that makes it apply: runs made after 2026-10-05. The request is dated 2026-10-05 and does not fix S4's date.",
+          "evidence": "Decision record: \"Adopted criterion, for test 6 only, for runs made after 2026-10-05\". Runbook Timed families: \"For runs made after that date, test 6 passes when ...\". Request header: \"Test 6 is judged under the criterion amended on 2026-10-05\". The session window is open-ended (\"in a window Rui attends\").",
+          "fix": "Add a clause to §1 or the header: \"S4 is a run made after the criterion's adoption of 2026-10-05\". If S4 could fall on 2026-10-05 UTC, cite the decision quote's \"after its dated adoption\" reading explicitly."
+        },
+        {
+          "id": "C9",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "minor",
+          "claim": "The request understates what was stubbed and what remains unverified, compared with the README and the bench record. A reader could take delta and acceptance verdicts, or the step's failure paths, as exercised.",
+          "evidence": "Request §7: \"stand-ins for the harness, `analyze` and the guest: 25 scenarios PASS\". README: \"The harness, `analyze` and `itest_reconcile` were stand-ins ... `delta` and `acceptance --exactly-once` on real files were not run\". The bench's not_benched list also has \"the 47 min ceiling and the 3 h cut-off as real times ... step statuses 97 and 74 ... an export failure\". Request §8 \"Unverified on the guest (Appendix B item 24)\" lists three items. Item 24 also names `fetch_started_at.sh` and `delta`'s N1 options; the README adds \"the Docker events of a compose restart on the guest's engine\" (item 23).",
+          "fix": "In §7, name `itest_reconcile` (`delta`, `--exactly-once`) among the stand-ins and add \"paths not exercised: real-time ceiling and cut-off, 97/74, export failure\". In §8, cite items 23–24 and add `fetch_started_at.sh`, `delta`'s N1 options and the compose-restart Docker events, as the README does."
+        },
+        {
+          "id": "C10",
+          "file": "<S>/g3/t6prep/request-draft.md",
+          "severity": "wording",
+          "claim": "§7 calls the preparation 'delivered' and gives a fixed package path. That package does not exist yet, and its final name depends on the UTC date at sealing and on whether an -attemptNN suffix is needed.",
+          "evidence": "Request §7: \"## 7. Preparation (delivered; no guest)\" and \"Package `output_test/runs/2026-10-05/HIST_2026-10-05-g3-t6-host-preparation` (its seal is given in the hand-off)\". output_test/runs/2026-10-05/ holds no `HIST_2026-10-05-g3-t6-host-preparation`. seal_prep.sh accepts `...-g3-t6-host-preparation-attempt[0-9][0-9]`, and the sealing line in host-notes.md uses `D=$(date -u +%F)`.",
+          "fix": "Fill in the path and the seal from the actual sealing output when the request is finalised. Until then, write \"to be sealed\" rather than \"delivered\"."
+        }
+      ],
+      "verified": [
+        "Runbook copy runbook.1fd9792.md: sha256 317165936abed4…, 1,624 lines, equal to `git show 1fd9792:docs/setup/qemu_integrated_gateway.md`. Test 6's fence opens on line 1420 and closes on 1429, with eight host$ lines 1421–1428.",
+        "rows/t6.sh is ec8ac010…, matching rows.manifest.json. g3_check_rows.sh against the moved clone: ROW FILES OK. No identifier is substituted; r04 is the runbook's own literal.",
+        "1fd9792 has tree 14f89c4d…, identical to e375026's tree. local_export.py at 1fd9792 is 544c9b3d….",
+        "Collector: 11444c0a… at 8e49261 and 9e678b02… at 1fd9792. drivers_sha256 recomputed from git archive (*.sh *.py guest/*.sh, README excluded): 4a6a572d… at 8e49261 and 2c209b09… at 1fd9792. Between the two commits tools/session changed only in collector_check.py, collector_shortfall.py, a comment of preflight.sh and README.md (not hashed), as the request says.",
+        "Host preparation console (record/console.txt, 20:19Z) confirms: clone 8e49261 → 1fd9792, clean, branches unchanged; images.lock.env, compose.yaml, mosquitto.conf, CONTRACTS, schemas tree, controller record and archive (image_id 9a293fe1…, source 489bc9e), kernel, qemuboot.conf, QEMU and Yocto checkout equal; src/deployment 573e902b vs e056d389, differing only in README.md and the collector; no rebuild.",
+        "Same console: helpers regenerated, e5eba37e…, 545 lines, HELPERS OK; r04 fresh on the host and on the guest rootfs (debugfs, offline); S2's t6 attempt01 is the only earlier one; rootfs 6fce1688… before and after; data disk 34,359,738,368 B, ext4 clean.",
+        "Same console: plan c195bd3f… → 61d55940…, 95 → 96 entries, the first 95 byte-identical; r04 `planned`, seed 1715385812, order 96, 600 s at 11.2 msg/s, warm-up 0, scenario nominal.",
+        "g3_battery.sh is 7a63b361…; bench-notes and the refute pass agree it was not edited. Bench: 25 scenarios, 25 PASS, 1,222 checks. The bounded check had 1 material and 9 minor/wording findings, matching request §7; spot-checked F1, F2, F3 and F4 as applied in seal_prep.sh, host-notes.md, g3_hostprep.sh and bench-brief.md.",
+        "preflight.sh at 1fd9792 runs in the order the request states: stack-start-interlock, collector-copy and install (previous copy kept in /opt/egw/evidence/collector-previous), deployed-vs-clone (README.md excepted), stack-health, 45 s collector-live, collector-check, collector-duration.",
+        "The request's §6 class table and the operator procedure's table are word for word the same. The recovery reading (restart_metrics_endpoint_recovery_s) is consistent with the packet's 'endpoint recovery ≤ 120 s' and the runbook's 'samples resuming within 120 s', exists in analyze.py, and is disclosed as a choice in §9.",
+        "All three documents keep G3 `Not decided` whatever S4 shows. None claims S4 can close G3; §8 and §9 keep the session authorisation separate from G3's closure.",
+        "Every item of the PM order is present: merged commit, tool hashes, the new collector, the r04 entry and seed, parameters, ceiling and stop limits; image and configuration unchanged; the identifier free; disks' state; steps re-extracted; no rebuild; one attempt, export to output_test, controlled close; collector install inside the authorised session, not the offline preparation.",
+        "Harness validity for controller_restart requires restart returncode 0 (run.py compute_validity, restart_ok). EVENTS_EXPECTED=die,start is enforced by R7 of events_coverage.py: each expected action needs at least one event, not exactly one.",
+        "LOG #C052 and #C053 exist at 1fd9792 and match the decision record's criterion, the exit-code semantics of --exactly-once (1 not evaluated, 4 fails) and the collector change from 11444c0a to 9e678b02."
+      ]
+    }
+  ],
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Review"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "review:facts",
+      "phaseIndex": 1,
+      "phaseTitle": "Review",
+      "agentId": "a09b5223d1c7441d5",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791231633504,
+      "queuedAt": 1791231633487,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are a skeptical, independent reviewer. Read-only: modify nothing anywhere; scratch only under /tmp/g3-s4-rev-* in WSL (MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc '...') or <S>/g3/t6prep/check-record/request-review/. Never run any script of C:/Users/ruimf/Ap…",
+      "promptFramed": true,
+      "lastProgressAt": 1791232199954,
+      "tokens": 255121,
+      "toolCalls": 72,
+      "durationMs": 566449,
+      "resultPreview": "{\"findings\":[{\"id\":\"R1\",\"file\":\"<S>/g3/t6prep/request-draft.md\",\"severity\":\"minor\",\"claim\":\"\\\"In short\\\" gives \\\"about 35–45 min of guest occupation\\\", but section 4's own table does not add up to that, and \\\"S2's row: 19 min\\\" is the length of the step, not of the row.\",\"…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "review:consistency",
+      "phaseIndex": 1,
+      "phaseTitle": "Review",
+      "agentId": "a70888b53b6dbb24a",
+      "model": "claude-opus-5-5",
+      "state": "done",
+      "startedAt": 1791231633505,
+      "queuedAt": 1791231633487,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "promptPreview": "You are a skeptical, independent reviewer. Read-only: modify nothing anywhere; scratch only under /tmp/g3-s4-rev-* in WSL (MSYS_NO_PATHCONV=1 wsl -d Ubuntu-24.04 --exec bash -lc '...') or <S>/g3/t6prep/check-record/request-review/. Never run any script of C:/Users/ruimf/Ap…",
+      "promptFramed": true,
+      "lastProgressAt": 1791232314700,
+      "tokens": 234152,
+      "toolCalls": 59,
+      "durationMs": 680346,
+      "resultPreview": "{\"findings\":[{\"id\":\"C1\",\"file\":\"<S>/g3/t6prep/request-draft.md\",\"severity\":\"minor\",\"claim\":\"The Pass row names no deciding source for the criterion item 'restarted once mid-run'. It also drops the packet's explicit 'capture with die and start'. The only 'once' evidence S4 …"
+    }
+  ],
+  "totalTokens": 489273,
+  "totalToolCalls": 131
+}

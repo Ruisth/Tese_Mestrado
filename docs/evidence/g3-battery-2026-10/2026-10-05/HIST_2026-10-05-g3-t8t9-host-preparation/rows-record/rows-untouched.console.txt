@@ -1,0 +1,23 @@
+## 2026-10-04T21:20:10Z the real trees of the execution host: listing times before and after this record (stat only; nothing here names them otherwise)
+## before
+2026-10-03 15:39:17.357387533 +0100 /home/ruisth/egw-exec
+2026-10-02 12:39:48.532721317 +0100 /home/ruisth/egw-exec/repo
+2026-10-04 21:52:45.146216506 +0100 /home/ruisth/egw-exec/repo/.git
+2026-10-02 12:39:48.540721317 +0100 /home/ruisth/egw-exec/repo/.git/HEAD
+2026-10-02 12:49:58.486151790 +0100 /home/ruisth/egw-exec/repo/.git/index
+2026-10-03 15:23:10.623392284 +0100 /home/ruisth/egw-exec/attempts
+2026-10-03 15:38:48.481722055 +0100 /home/ruisth/egw-tcg
+2026-10-03 15:25:35.924043937 +0100 /home/ruisth/egw-tcg/itest
+## after
+2026-10-03 15:39:17.357387533 +0100 /home/ruisth/egw-exec
+2026-10-02 12:39:48.532721317 +0100 /home/ruisth/egw-exec/repo
+2026-10-04 21:52:45.146216506 +0100 /home/ruisth/egw-exec/repo/.git
+2026-10-02 12:39:48.540721317 +0100 /home/ruisth/egw-exec/repo/.git/HEAD
+2026-10-02 12:49:58.486151790 +0100 /home/ruisth/egw-exec/repo/.git/index
+2026-10-03 15:23:10.623392284 +0100 /home/ruisth/egw-exec/attempts
+2026-10-03 15:38:48.481722055 +0100 /home/ruisth/egw-tcg
+2026-10-03 15:25:35.924043937 +0100 /home/ruisth/egw-tcg/itest
+UNCHANGED: the two listings are identical
+## no process is started in the background by this record; /tmp/g3-s3-* directories now (this record's own is removed when it ends):
+/tmp/g3-s3-rows-record.550RXr
+/tmp/g3-s3-seal-2VMkmZ

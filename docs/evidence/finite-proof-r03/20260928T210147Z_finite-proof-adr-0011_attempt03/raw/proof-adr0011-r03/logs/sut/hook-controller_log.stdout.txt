@@ -1,0 +1,1 @@
+proof_fetch_sut_log: controller: 11862 line(s), 2691883 bytes, sha256 5b3a49ab998be92074bb1937671eac5eed52a56287022877e4eb6812274a7b56, written to /home/ruisth/egw-tcg/proof/results/raw/proof-adr0011-r03/logs/sut/controller.log

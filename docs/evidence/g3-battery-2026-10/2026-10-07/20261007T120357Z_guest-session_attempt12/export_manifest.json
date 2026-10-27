@@ -1,0 +1,634 @@
+{
+  "capture_failures": [],
+  "capture_reconciliation": "",
+  "console_extra_files": [],
+  "copy_verification": "verified",
+  "destination": {
+    "package": "/mnt/c/Users/ruimf/Documents/Projeto Mestrado/output_test/runs/2026-10-07/20261007T120357Z_guest-session_attempt12",
+    "windows_path": "C:\\Users\\ruimf\\Documents\\Projeto Mestrado\\output_test\\runs\\2026-10-07\\20261007T120357Z_guest-session_attempt12"
+  },
+  "excluded": [],
+  "expected_artefacts_missing": [],
+  "exported_utc": "2026-10-07T12:35:12.269372Z",
+  "failed_copies": [],
+  "files": [
+    {
+      "package_path": ".current_run",
+      "sha256": "c16536a72c4b685dd4b73915f1588f3edbdc95eb2cbba408ba85db12ffc491de",
+      "size": 3,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/.current_run",
+      "state": "verified"
+    },
+    {
+      "package_path": "attempt.json",
+      "sha256": "88c93411ae70a3df68297605c44fba8f2e80393bbd7cf02b8d6d7c829f766b41",
+      "size": 1066,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/attempt.json",
+      "state": "verified"
+    },
+    {
+      "package_path": "boot/known_hosts",
+      "sha256": "da8e327410b0523e7bb87afcd21a42bb1e4b00f90a73a8d0e95e22c29d4d0d39",
+      "size": 142,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/boot/known_hosts",
+      "state": "verified"
+    },
+    {
+      "package_path": "boot/s1.console.typescript",
+      "sha256": "b67cbcd97f075307eb71f74997944c49c4bd71390c0f0cb31b11ef4295498fce",
+      "size": 51981,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/boot/s1.console.typescript",
+      "state": "verified"
+    },
+    {
+      "package_path": "boot/s1.log",
+      "sha256": "b719d55e427296280703a46700bf5de754ebac2cf69d3734b02cddbabdc87ddf",
+      "size": 50956,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/boot/s1.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "boot/s1.started",
+      "sha256": "5e542948f632fcc3938cb596eb512d2c90e47c506e02be66ddd2e1e5c8165fe9",
+      "size": 21,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/boot/s1.started",
+      "state": "verified"
+    },
+    {
+      "package_path": "boot/s1.status",
+      "sha256": "97dd9a2dfb19f80b68168eacb630c0efca8aaf7f412cbe9145532562eadd97a3",
+      "size": 37,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/boot/s1.status",
+      "state": "verified"
+    },
+    {
+      "package_path": "commands.jsonl",
+      "sha256": "0631aa9e2c6153f321905deab8f6e6c85bebaa67a68ba8f22fe585979befece8",
+      "size": 13587,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/commands.jsonl",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-identities-before-boot.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/001-identities-before-boot.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/001-identities-before-boot.stdout.txt",
+      "sha256": "1cc7db95840705208aecbda3b5313b670d59c4cbb3bd025663e82b4ea3257388",
+      "size": 5910,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/001-identities-before-boot.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-boot.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/002-boot.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/002-boot.stdout.txt",
+      "sha256": "56a195f59805537c5919e80b35bb261300837519b223e6eed4f118bc85bf45a6",
+      "size": 430,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/002-boot.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-guest-state-after-boot.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/003-guest-state-after-boot.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/003-guest-state-after-boot.stdout.txt",
+      "sha256": "f1eaa5e3b02f7134051538bb222cddf8fbe9b8b2f13c1d9abc7eba2e468d865d",
+      "size": 1902,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/003-guest-state-after-boot.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-g3-guest-events-listing.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/004-g3-guest-events-listing.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/004-g3-guest-events-listing.stdout.txt",
+      "sha256": "2f30260917bf32679f4b979106a7afdf24befe587852566ef1d6728f89a8ea90",
+      "size": 646,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/004-g3-guest-events-listing.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-g3-close-units.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/005-g3-close-units.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/005-g3-close-units.stdout.txt",
+      "sha256": "8c648e58851cdf309c702fdb4e50ec9d646bcc7814d766ac85cd6eb19d46dd87",
+      "size": 54,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/005-g3-close-units.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-stack-stop-130.stderr.txt",
+      "sha256": "2d960cc04dabec113e4344e752a36493c13973bf30ab5440fbc78a7c88547d3b",
+      "size": 460,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/006-stack-stop-130.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/006-stack-stop-130.stdout.txt",
+      "sha256": "229959d51468787e7aba025988d82e7104a4709788715d60d250b9f4084ed84e",
+      "size": 278,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/006-stack-stop-130.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-tunnel-down.stderr.txt",
+      "sha256": "f221bc2585c4efebca01f34f20087bcddc8e9389f57abc26d57eab159b7d1b2b",
+      "size": 20,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/007-tunnel-down.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/007-tunnel-down.stdout.txt",
+      "sha256": "23285667efbf04cb31f8cb8f56c18adf7c45564c6dcabb4d10981eda9e2add77",
+      "size": 14,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/007-tunnel-down.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/008-stack-stop.stderr.txt",
+      "sha256": "aa9960661729f5e48c0cd4897159051dc9a1dd58bdebe039f7844e9a1d1d6826",
+      "size": 460,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/008-stack-stop.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/008-stack-stop.stdout.txt",
+      "sha256": "04814b7488f4bd88e02d6031df468ce4f10eadf3c1572e4f05c5bb8e790f2485",
+      "size": 279,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/008-stack-stop.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/009-oom-before-poweroff.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/009-oom-before-poweroff.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/009-oom-before-poweroff.stdout.txt",
+      "sha256": "da56757f1f67e9dc758fca2e3feacfebd0fef2bef7e5af907b802043fce75a44",
+      "size": 61,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/009-oom-before-poweroff.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/010-session-close.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/010-session-close.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/010-session-close.stdout.txt",
+      "sha256": "0652f9fddccadd712ff92a78f2614d1726f34d2cd2dee3da359496dd14d65c60",
+      "size": 295,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/010-session-close.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/011-artefacts-after-poweroff.stderr.txt",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/011-artefacts-after-poweroff.stderr.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "console/011-artefacts-after-poweroff.stdout.txt",
+      "sha256": "03b89a5925a96bbad9cb18a20aae03478d1c83e7a37bd33c11621a249db02e2c",
+      "size": 319,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/console/011-artefacts-after-poweroff.stdout.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "driver.log",
+      "sha256": "62f5bf397072962ec1adb57a0b4bd4b6db4b11390fb5af98c0e1edccd631ecc9",
+      "size": 725,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/driver.log",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/venv-freeze-now.txt",
+      "sha256": "448fc8d99409c963568afc8121bf8693c94dfee7bb960f49c9a80bef6dca283e",
+      "size": 1253,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/environment/venv-freeze-now.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "environment/venv-freeze.txt",
+      "sha256": "398bf0060dc7f54a6dc0f8a4cac4f7e7edeadc0a506d92007ba1f8472735fbdc",
+      "size": 901,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/environment/venv-freeze.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "g1-after-s1.sha256check.txt",
+      "sha256": "9fc6448ebca21db9d37a4213ede7e07e3487449ee026f1bfd39f8ab060dd9168",
+      "size": 86,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/g1-after-s1.sha256check.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "guest/final-state-s1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/guest/final-state-s1.err",
+      "state": "verified"
+    },
+    {
+      "package_path": "guest/final-state-s1.txt",
+      "sha256": "0f30f1769e4b001e11bdbf7b0fad314d9c227c944901eb26b3c8addcb63cf02a",
+      "size": 3905,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/guest/final-state-s1.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "guest/journal-s1.err",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size": 0,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/guest/journal-s1.err",
+      "state": "verified"
+    },
+    {
+      "package_path": "guest/journal-s1.txt",
+      "sha256": "bfcd43c9ca823d7bb4af4c35f5cc72559c440867847cae11146fcc29a4f75cf7",
+      "size": 183401,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/guest/journal-s1.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "s1.session.status",
+      "sha256": "147a773b6f3ff13a2a0492a2095f17b5ae58f44718498e9704068c314abdb51a",
+      "size": 35,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/s1.session.status",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/boot_driver.sh",
+      "sha256": "6e7c7334002f5002a93b000bf3b4cedada3afab1670c9547d90ad4e371c24686",
+      "size": 1000,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/boot_driver.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/backfill.sh",
+      "sha256": "952d87ca1994f48c01eea96348244ce30b9c20ad9334b57793e7999fababfd20",
+      "size": 5987,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/backfill.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/broker_measure.sh",
+      "sha256": "01cad6d947d3990b55e47a68cb7dc7db13bb089149922861e2e1bb54ca7b823b",
+      "size": 50674,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/broker_measure.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/collector_check.py",
+      "sha256": "b1266f4846594663ab3b56fd4a0f91cb5d53b7569896d6ffdb027879e8e028d1",
+      "size": 30767,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/collector_check.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/collector_shortfall.py",
+      "sha256": "68eed1007ebc5007a00069878251910776d1a784e53c8983f192ff1134a5a8fc",
+      "size": 8681,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/collector_shortfall.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/common.sh",
+      "sha256": "93d96b6d9115a57cde21ee3ce74a4ada1ebb4619ac07e11ba41a2d7b8e6c5122",
+      "size": 10573,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/common.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/deployed_vs_clone.py",
+      "sha256": "30ac62f8bb18bcecf9a8c500a4728ced94402c79aee9e1e9b11d3e2998c3b95f",
+      "size": 5115,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/deployed_vs_clone.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/driver_status.py",
+      "sha256": "1ad02b2e76ad20293b3ecaddb7b6024b426bb9be24dc9a57dd795f7c2188e7ed",
+      "size": 11660,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/driver_status.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/events_capture.sh",
+      "sha256": "b06b8678023dba80e42e315204d87638c3e50aadea6b74d2e0fc0926f7a4536c",
+      "size": 12462,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/events_capture.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/events_coverage.py",
+      "sha256": "dd6c0aedd9f97f68b026d5d22c4485ea227c82a769b78d28e2a4b1a2f83cc845",
+      "size": 25281,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/events_coverage.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/export_checks.sh",
+      "sha256": "61c7dec7d98bb2f0edd0b69ecf6cb12d1af5d5915d704f6f268619434bda57cc",
+      "size": 11948,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/export_checks.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/fetch_started_at.sh",
+      "sha256": "9c6dc824c885ce6d2edacdfb5fe4a4db4a96b6e0b6454f93300ee1b007421827",
+      "size": 5723,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/fetch_started_at.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/gate_health.sh",
+      "sha256": "6fb8b7504316096be2d62aacba06c3eab20e8073eb0ac16bf15940163f11f50f",
+      "size": 27935,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/gate_health.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest/boot_driver.sh",
+      "sha256": "6e7c7334002f5002a93b000bf3b4cedada3afab1670c9547d90ad4e371c24686",
+      "size": 1000,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest/boot_driver.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest/gssh.sh",
+      "sha256": "39eb71fbebd6a07090248dd2cd7a38a8a864472981a4a6e5c1b11cf65b4a9fb9",
+      "size": 481,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest/gssh.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest/session_close.sh",
+      "sha256": "8b5ababfbe241abb2aeebf977708557037c7acd35c09a789e32dd433b8315b09",
+      "size": 3801,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest/session_close.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest/session_common.sh",
+      "sha256": "f4df9a7126ef6763ebe2004041570b6d6a9e191629b2176b3ff8287cec1c3e8c",
+      "size": 917,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest/session_common.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest/session_open.sh",
+      "sha256": "0cfaade0deb2c3dd1a31efdf51b839d7a392658b12de9109b269653ac01e362f",
+      "size": 1876,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest/session_open.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest/session_run.sh",
+      "sha256": "49632d11d141cae53bc2ef7ca131ad97b8b687ec6268cd5287af73532528b3fd",
+      "size": 728,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest/session_run.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest_common.sh",
+      "sha256": "6c9e7d5c9905025ce1d378dba18f3ac962d3bf92769cde7df9b9fc08f993d746",
+      "size": 11273,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest_common.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest_session_close.sh",
+      "sha256": "f44fa524a41325fc2c5d59d5411d75ae93941a1cc20cc53dd7d1eb65b278a95b",
+      "size": 11106,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest_session_close.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest_session_open.sh",
+      "sha256": "a73cfedcad57b553d50ea074cc0e42217a62996eddf9f0b864ab5ff6b25a7dc5",
+      "size": 12039,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest_session_open.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/guest_state_delta.py",
+      "sha256": "06d2d3edf20c0fecc183ccd465f2da10c1a31b6f61526618e0e2d37486b894b5",
+      "size": 24865,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/guest_state_delta.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/junit_one_failure.py",
+      "sha256": "123feaa6560f5b82575f60ff4bb59db4412952f6f80b66957ad0e9804bccebf6",
+      "size": 2073,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/junit_one_failure.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/nominal.sh",
+      "sha256": "db2f590d5cca8a37418c56023265add8c7c7c2ffc20e03a8051bd93ca3a25951",
+      "size": 26540,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/nominal.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/nominal_account.py",
+      "sha256": "b6fbdb373a6955e8a3613869fea69feb01273a6d1f29d4fe5b58e287d09bd10e",
+      "size": 9402,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/nominal_account.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/persistence.sh",
+      "sha256": "8d7428c807866769708a88e12faf341db27257136321bd87049313f17e18399b",
+      "size": 44216,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/persistence.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/preflight.sh",
+      "sha256": "fb0e987af140d4caaae5b3800c80da8914322a11c6d7d15d86365df78fba2a9e",
+      "size": 20163,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/preflight.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof.sh",
+      "sha256": "7ed15f8749a6e0ef40185335416cd90b5d94c50cfd7dcfb5126728b1a6d8385e",
+      "size": 169270,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_events_recorder.sh",
+      "sha256": "1afdce8ca9baaca1bb8d7af840dba4cd2d90069aaa7689227831ac92df0e6480",
+      "size": 4124,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_events_recorder.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_fetch_sut_log.sh",
+      "sha256": "b1e6f02ddb0dc6c5390c22c1fe8d1d642d6d4feaf560bb09b2a9b340f6db6eb5",
+      "size": 27584,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_fetch_sut_log.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_helpers_check.py",
+      "sha256": "33c41744cb2ea68b9c2c547e2571efa52e6e66aa878cafcf7d15297c7981b20a",
+      "size": 4878,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_helpers_check.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_hook_drained.sh",
+      "sha256": "40a1e86e5bafbcfaf01a1bd97ff0b718361d68d92aa40158e7a3f85091722e94",
+      "size": 3718,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_hook_drained.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_hook_twins.sh",
+      "sha256": "c9bd84a4c16d0e158053cb97e0eca1ac82aba5108a6364c5151691dd865c3b16",
+      "size": 4994,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_hook_twins.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_plan.py",
+      "sha256": "d2e48b76e6dfe5d321f9c6f2059070651dc3cdedb4862691a540c59efaf0cedc",
+      "size": 8881,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_plan.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_restart_controller.sh",
+      "sha256": "53cbe9d43d60a6bbdc7ce4181a9add3bb171c73ad2336697f3ff27d2ff6ac62b",
+      "size": 10916,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_restart_controller.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/proof_session.py",
+      "sha256": "a8ce911890a01a1b84391ddec43efa26f421f50be45450844e9d7274a9559363",
+      "size": 10194,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/proof_session.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/regen_helpers.py",
+      "sha256": "b34d7d48a19ec38c32ff68ba4c6cf8febbf954ff5e0c9af6609d5ba2572cac6c",
+      "size": 1123,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/regen_helpers.py",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/drivers/slice.sh",
+      "sha256": "f7468a8ed9a8735f7974d4f32f58fc9a370199f07fc5ddc03cfc39c4fffe5c56",
+      "size": 7982,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/drivers/slice.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/gssh.sh",
+      "sha256": "39eb71fbebd6a07090248dd2cd7a38a8a864472981a4a6e5c1b11cf65b4a9fb9",
+      "size": 481,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/gssh.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/session_close.sh",
+      "sha256": "8b5ababfbe241abb2aeebf977708557037c7acd35c09a789e32dd433b8315b09",
+      "size": 3801,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/session_close.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/session_common.sh",
+      "sha256": "f4df9a7126ef6763ebe2004041570b6d6a9e191629b2176b3ff8287cec1c3e8c",
+      "size": 917,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/session_common.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/session_open.sh",
+      "sha256": "0cfaade0deb2c3dd1a31efdf51b839d7a392658b12de9109b269653ac01e362f",
+      "size": 1876,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/session_open.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "scripts/session_run.sh",
+      "sha256": "49632d11d141cae53bc2ef7ca131ad97b8b687ec6268cd5287af73532528b3fd",
+      "size": 728,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/scripts/session_run.sh",
+      "state": "verified"
+    },
+    {
+      "package_path": "source.s1.txt",
+      "sha256": "b8c95f7695e1c48bb94d7862ec3377b7df38f8c062488db0f78fef736fe32797",
+      "size": 158,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/source.s1.txt",
+      "state": "verified"
+    },
+    {
+      "package_path": "sources.json",
+      "sha256": "6c3b9f0390341dfd18635526c002291b374ba88078d4f87034c71c820e21474e",
+      "size": 20,
+      "source": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12/sources.json",
+      "state": "verified"
+    }
+  ],
+  "missing_sources": [],
+  "package_completeness": "complete",
+  "path_mapping": "sources are WSL paths; sealed files inside raw/ keep their original absolute paths",
+  "run_id": "20261007T120357Z_guest-session_attempt12",
+  "sanitized_derivatives": [],
+  "secret_scan": {
+    "note": "values of the listed variables (names only) and PEM private keys were searched in every file",
+    "private_keys": true,
+    "secret_values": [
+      "DITTO_DEVOPS_PASSWORD",
+      "EGW_MQTT_PASSWORD",
+      "MOSQUITTO_CONTROLLER_PASSWORD",
+      "MOSQUITTO_SIMULATOR_PASSWORD"
+    ]
+  },
+  "skipped_attempt_entries": [],
+  "skipped_registered_artefacts": [],
+  "skipped_source_roots": [],
+  "skipped_special": [],
+  "source_attempt_dir": "/home/ruisth/egw-exec/attempts/20261007T120357Z_guest-session_attempt12",
+  "tool": "egw_experiments.local_export",
+  "tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b",
+  "tool_version": "1"
+}

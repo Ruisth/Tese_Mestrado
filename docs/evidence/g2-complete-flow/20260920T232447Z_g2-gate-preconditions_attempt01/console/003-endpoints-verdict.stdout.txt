@@ -1,0 +1,4 @@
+http codes: {'health': '200', 'ready': '200', 'metrics': '200'}
+curl exit statuses: {'health': '0', 'ready': '0', 'metrics': '0'}
+/health body status: ok
+ENDPOINTS AT THE GATE: /health 200 with status ok, /ready 200

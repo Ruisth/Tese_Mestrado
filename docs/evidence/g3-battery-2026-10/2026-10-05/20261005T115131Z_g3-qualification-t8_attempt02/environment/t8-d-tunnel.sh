@@ -1,0 +1,1 @@
+[ "$T8" = returned ] && tunnel_down && tunnel_up && T8=reconnected || stop "test 8: tunnel NOT reopened (tunnel_down/tunnel_up of 5.7; only this project's control socket is touched), or the containers' return is not shown by the line above (T8='$T8')"

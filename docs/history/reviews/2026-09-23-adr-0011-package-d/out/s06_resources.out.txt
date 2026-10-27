@@ -1,0 +1,58 @@
+
+==============================================================================
+A. Coverage
+==============================================================================
+rows 4320, instants 720, services 6; window instants 600, after the window 1
+instant spacing: max 1.000 s, gaps > 2 s: 0
+
+==============================================================================
+B. Per service, measured window
+==============================================================================
+service                cpu mean     p50     p95     max  mem% max
+egw-controller-1          36.70   28.19  109.64  128.28     26.94
+egw-ditto-gateway-1       65.52   60.05  109.35  190.12     68.02
+egw-ditto-policies-1      19.95   12.77   60.01  116.85     70.89
+egw-ditto-things-1        70.63   62.06  126.47  177.62     76.13
+egw-mongodb-1             28.87    8.89  114.49  160.83     76.45
+egw-mosquitto-1            5.16    2.79   15.34   84.17      5.44
+summed six: mean 226.83  p50 220.49  p95 316.79  max 361.77  (of 400)
+instants with summed >= 300: 55 of 600
+instants with summed >= 350: 5 of 600
+instants with summed >= 380: 0 of 600
+highest in-window median: egw-ditto-things-1 62.06 %
+medians over all instants: {'egw-ditto-things-1': 65.98, 'egw-ditto-gateway-1': 63.12}
+egw-mosquitto-1 memory mean 4.27 MiB
+
+==============================================================================
+C. Controller CPU against the consumer's busy time
+==============================================================================
+controller CPU: mean 36.699 % of one vCPU over 600 instants -> 220.19 CPU-s in 600.107 s
+the 220.19 CPU-s are summed over the 600 one-second instants; divided by the 600.107 s window instead: 36.692 %
+the consumer was busy the whole window (s03 A); share of that time the whole controller container was on CPU <= 36.70 %, so >= 63.30 % was not
+per ack inside the window (all 3878 acks, 751 of them warm-up): controller 56.78 ms CPU; six services 350.94 ms CPU
+shares of the six: Ditto trio 68.82 %, MongoDB 12.73 %, controller 16.18 %
+
+==============================================================================
+D. Association between acknowledgements and summed CPU (two methods)
+==============================================================================
+marker offset, guest wall - harness wall: +0.126 s (applied to C)
+summed CPU band  instants  acks/s (E)  acks/s (C)
+ 150..200             221       7.937       7.904
+ 200..250             174       6.546       6.538
+ 250..300             149       5.168       5.174
+ 300..350              50       3.740       3.860
+ 350..                  5       3.600       3.791
+instants below 150: 1
+Pearson r (acks, summed CPU): E -0.6229; C -0.6337
+for contrast only, C without the offset (round two): 7.929, 6.527, 5.149, 3.853, 3.786; r -0.6589
+mean acks/s over window instants: E 6.4600, C 6.4589
+
+==============================================================================
+E. Guest state after the run (console/010-guest-state-after.stdout.txt)
+==============================================================================
+  egw-controller-1 OOMKilled=false restarts=0
+  egw-ditto-things-1 OOMKilled=false restarts=0
+  egw-ditto-gateway-1 OOMKilled=false restarts=0
+  egw-ditto-policies-1 OOMKilled=false restarts=0
+  egw-mongodb-1 OOMKilled=false restarts=0
+  egw-mosquitto-1 OOMKilled=false restarts=0

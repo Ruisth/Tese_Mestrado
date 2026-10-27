@@ -1,0 +1,399 @@
+## 2026-10-04T21:41:39Z script under test: <scratchpad>/g3/s3prep/g3_battery.sh sha256 142a5aad44045912d49fb61321e1724deff307f101bcacf71b374e5a93561745
+
+######## polltext: T8_POLL_SH against gx of the frozen guest_common.sh
+PASS: gx records  env E="$SESSION" bash -c '<T8_POLL_SH>' _ "$1"  - the poll's text is gx's, character for character
+guest_common.sh sha256: 6c9e7d5c9905025ce1d378dba18f3ac962d3bf92769cde7df9b9fc08f993d746; session_common.sh: f4df9a7126ef6763ebe2004041570b6d6a9e191629b2176b3ff8287cec1c3e8c
+
+######## ident: verify_candidate (point 3) - the drivers, the export tool, the runbook, the helper file, tunnel.sh and ca.crt are hashed for real
+--- ident/all-as-recorded: verify_candidate returned 0
+clone repo: HEAD=8e492613d36490a560ae56beabd6d5c2c01a8696 tree=2f0514837f267d8975f7071041aad14a5c18dcab
+clone: clean (0 porcelain lines)
+repo_identity: {"repo_commit": "8e492613d36490a560ae56beabd6d5c2c01a8696", "repo_dirty_lines": 0, "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b", "drivers_sha256": "4a6a572dc1e2b54754c3a8d
+runbook: 4acf8de679d26024dd463dd8c096a5c3e66b7ab5ec5a397f1a7bf08768f2a9db  repo/docs/setup/qemu_integrated_gateway.md
+helpers: e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb  home/egw-tcg/itest-helpers.sh
+helpers: 545 lines, bash -n clean
+tunnel.sh: 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  home/egw-tcg/tunnel.sh
+ca.crt: 556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  home/egw-tcg/ca.crt
+kernel: 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin
+qemuboot.conf: 7739c945f9b1400e216341d924d81642b807ae213cb685e34a5d3e51e6fc90e4  yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf
+qemu-system-aarch64: 5d389c653449d338397f56b3ffa24fb387ec4aab5cd205b2f1a735aa14391061  yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64
+Yocto checkout yocto/egw: HEAD=489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+Yocto checkout: clean (0 porcelain lines)
+guest-state command: identical to GUEST_STATE of repo/tools/session/nominal.sh (adcce8a49055345a1abb4dc55c367848ddd4658739b94d9bdc9bd0637f42da6e)
+--- ident/kernel-differs: verify_candidate returned 1; WHY: kernel (yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/Image-qemuarm64.bin) is 0000000000000000000000000000000000000000000000000000000000000000, the recorded identity is 4457ef38e4cb6b8c2f0061ec504a23666490781ca3b4facd15a588b7a9609037
+--- ident/qemuboot-differs: verify_candidate returned 1; WHY: qemuboot.conf (yocto/egw/src/yocto/build-integrated/tmp/deploy/images/qemuarm64/egw-gateway-image-qemuarm64.rootfs-20260918120819.qemuboot.conf) is 0000000000000000000000000000000000000000000000000000000000000000, the recorded identity is 7739c945f9b1400e21634
+--- ident/qemu-binary-differs: verify_candidate returned 1; WHY: qemu-system-aarch64 (yocto/egw/src/yocto/build-integrated/tmp/work/x86_64-linux/qemu-helper-native/1.0/recipe-sysroot-native/usr/bin/qemu-system-aarch64) is 0000000000000000000000000000000000000000000000000000000000000000, the recorded identity is 5d389c653449
+--- ident/yocto-commit-differs: verify_candidate returned 1; WHY: the Yocto checkout yocto/egw is at 80e833f44f647fe9cd8f5e99d3abf3c444de95aa, the recorded identity is 489bc9e5b5b0660026ea2630b8d1d124049ba2ce
+--- ident/yocto-not-clean: verify_candidate returned 1; WHY: the Yocto checkout yocto/egw is not clean (1 porcelain line(s))
+--- ident/clone-not-clean: verify_candidate returned 1; WHY: the clone repo is not clean (1 porcelain line(s))
+--- ident/all-as-recorded-again: verify_candidate returned 0
+
+######## gate: gate_images_check
+S2's record: sha256 60f7e99b604bc78a7e176cae7dcefef2ffb2ba549e33cdbf05ad1313bb7073d1; the constant's six lines equal its lines 1-6 cut before ' container_id=': yes
+--- gate/s2-as-sealed: returned 0; 6 line(s) read; gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared
+--- gate/s1-as-sealed: returned 0; 6 line(s) read; gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared
+--- gate/other-container-ids-and-instants: returned 0; 6 line(s) read; gate record: the image reference, the image id and the repo digest of the six containers equal S2's (container ids and start instants are not compared
+--- gate/controller-image-id-differs: returned 1; 6 line(s) read;   S2:  identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b
+    WHY: the gate package's record of the running images (gate/attempt/environment/container_identities.txt: 6 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form
+--- gate/mongo-digest-differs: returned 1; 6 line(s) read;   S2:  identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b
+    WHY: the gate package's record of the running images (gate/attempt/environment/container_identities.txt: 6 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form
+--- gate/mosquitto-reference-differs: returned 1; 6 line(s) read;   S2:  identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b
+    WHY: the gate package's record of the running images (gate/attempt/environment/container_identities.txt: 6 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form
+--- gate/five-identity-lines: returned 1; 5 line(s) read;   S2:  identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b
+    WHY: the gate package's record of the running images (gate/attempt/environment/container_identities.txt: 5 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form
+--- gate/seven-identity-lines: returned 1; 7 line(s) read;   S2:  identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b
+    WHY: the gate package's record of the running images (gate/attempt/environment/container_identities.txt: 7 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form
+--- gate/a-line-of-another-form: returned 1; 5 line(s) read;   S2:  identity egw-mosquitto-1 image=docker.io/library/eclipse-mosquitto:2.0.22@sha256:212f89e1eaeb2c322d6441b64396e3346026674db8fa9c27beac293405c32b
+    WHY: the gate package's record of the running images (gate/attempt/environment/container_identities.txt: 6 identity line(s)) differs from S2's in an image reference, an image id or a repo digest, or is not six lines of the recorded form
+--- gate/empty-file: returned 1; 0 line(s) read; 
+    WHY: the gate package's record of the running images could not be read (gate attempt 'gate/attempt', file environment/container_identities.txt)
+--- gate/no-file: returned 1; 0 line(s) read; 
+    WHY: the gate package's record of the running images could not be read (gate attempt 'gate/attempt', file environment/container_identities.txt)
+--- gate/attempt-not-recorded-at-open: returned 1; WHY: the gate package's record of the running images could not be read (gate attempt 'not recorded at open', file environment/container_identities.txt)
+
+######## fresh: fresh_row (point 9) on roots of the bench (ATTEMPTS and OUT set to /tmp/g3-s3-op-f2/fresh/...)
+--- fresh/nothing-anywhere: fresh_row t8 returned 0
+--- fresh/the-admitted-attempt-in-both-places: fresh_row t8 returned 0
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+--- fresh/t9-with-only-t8-attempts: fresh_row t9 returned 0
+--- fresh/another-t8-attempt-in-wsl: fresh_row t8 returned 1
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+    NOT FRESH: an earlier attempt of row t8 exists: fresh/attempts/20261004T101010Z_g3-qualification-t8_attempt02
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+--- fresh/the-admitted-name-under-another-date: fresh_row t8 returned 1
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+    NOT FRESH: an earlier attempt of row t8 exists: fresh/out/runs/2026-10-04/20261003T142310Z_g3-qualification-t8_attempt01
+--- fresh/the-admitted-name-under-incomplete: fresh_row t8 returned 1
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+    NOT FRESH: an earlier attempt of row t8 exists: fresh/out/incomplete/20261003T142310Z_g3-qualification-t8_attempt01
+--- fresh/another-stamp-attempt01-in-output: fresh_row t8 returned 1
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+    NOT FRESH: an earlier attempt of row t8 exists: fresh/out/runs/2026-10-03/20261003T150000Z_g3-qualification-t8_attempt01
+--- fresh/an-earlier-t9-attempt: fresh_row t9 returned 1
+    NOT FRESH: an earlier attempt of row t9 exists: fresh/out/runs/2026-10-04/20261004T101010Z_g3-qualification-t9_attempt01
+--- fresh/a-host-file-of-the-prefix: fresh_row t8 returned 1
+    NOT FRESH: home/egw-tcg/itest/itest-reboot-q2.boot_id.pre exists (itest-reboot-q2)
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/attempts/20261003T142310Z_g3-qualification-t8_attempt01
+    admitted: the one earlier attempt of row t8 (S2's halted one, kept as sealed): fresh/out/runs/2026-10-03/20261003T142310Z_g3-qualification-t8_attempt01
+--- fresh/a-host-file-of-a-t9-id: fresh_row t9 returned 1
+    NOT FRESH: home/egw-tcg/itest/itest-notls-q2.sut exists (itest-notls-q2)
+--- fresh/ids: row_fresh_ids t8 = itest-reboot-q2 itest-post-reboot-01-q2; row_fresh_ids t9 = itest-tls-wrongca-q2 itest-auth-wrongpw-q2 itest-notls-q2; row_workload_ids t8 = itest-post-reboot-01-q2
+--- fresh/attempt-name: the rule 'row' applies to the new attempt's name
+    row t8, attempt 20261005T100000Z_g3-qualification-t8_attempt02: accepted
+    row t8, attempt 20261005T100000Z_g3-qualification-t8_attempt01: HALT before any step
+    row t8, attempt 20261005T100000Z_g3-qualification-t8_attempt03: HALT before any step
+    row t9, attempt 20261005T110000Z_g3-qualification-t9_attempt01: accepted
+    row t9, attempt 20261005T110000Z_g3-qualification-t9_attempt02: HALT before any step
+    row t9, attempt 20261005T110000Z_g3-qualification-t8_attempt02: HALT before any step
+--- fresh/numbering: what the frozen export tool names a new t8 attempt when 20261003T142310Z_g3-qualification-t8_attempt01 exists in both roots
+    20261004T214140Z_g3-qualification-t8_attempt02
+
+######## qemu: T8_QEMU_IDENT 'before' (the command line read for -no-reboot)
+--- qemu/plain: fake process 81550, extra arguments: <none>
+81550 qemu-system-aarch64 bash -c while :; do sleep 5; done qemu-system-aarch64 -machine virt -drive id=disk0,file=/tmp/g3-s3-op-f2/rootfs.ext4,if=none,format=r
+QEMU PROCESS: pid=81550 start=268071 disks=file=/tmp/g3-s3-op-f2/rootfs.ext4;file=/tmp/g3-s3-op-f2/data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 14 arguments of pid 81550
+-> exit 0; the fake process is still running (not signalled)
+--- qemu/no-reboot: fake process 81583, extra arguments: -no-reboot
+81583 qemu-system-aarch64 bash -c while :; do sleep 5; done qemu-system-aarch64 -machine virt -drive id=disk0,file=/tmp/g3-s3-op-f2/rootfs.ext4,if=none,format=r
+QEMU PROCESS: pid=81583 start=268105 disks=file=/tmp/g3-s3-op-f2/rootfs.ext4;file=/tmp/g3-s3-op-f2/data.img
+STOP: -no-reboot (or its equivalent) is on the command line of the QEMU process 81583, as argument number:text 15:-no-reboot: this QEMU exits at a guest reboot instead of rebooting inside the same process - the reboot is NOT issued, and nothing was signalled
+-> exit 3; the fake process is still running (not signalled)
+--- qemu/double-dash: fake process 81616, extra arguments: --no-reboot
+81616 qemu-system-aarch64 bash -c while :; do sleep 5; done qemu-system-aarch64 -machine virt -drive id=disk0,file=/tmp/g3-s3-op-f2/rootfs.ext4,if=none,format=r
+QEMU PROCESS: pid=81616 start=268138 disks=file=/tmp/g3-s3-op-f2/rootfs.ext4;file=/tmp/g3-s3-op-f2/data.img
+STOP: -no-reboot (or its equivalent) is on the command line of the QEMU process 81616, as argument number:text 15:--no-reboot: this QEMU exits at a guest reboot instead of rebooting inside the same process - the reboot is NOT issued, and nothing was signalled
+-> exit 3; the fake process is still running (not signalled)
+--- qemu/action-reboot-shutdown: fake process 81649, extra arguments: -action reboot=shutdown
+81649 qemu-system-aarch64 bash -c while :; do sleep 5; done qemu-system-aarch64 -machine virt -drive id=disk0,file=/tmp/g3-s3-op-f2/rootfs.ext4,if=none,format=r
+QEMU PROCESS: pid=81649 start=268171 disks=file=/tmp/g3-s3-op-f2/rootfs.ext4;file=/tmp/g3-s3-op-f2/data.img
+STOP: -no-reboot (or its equivalent) is on the command line of the QEMU process 81649, as argument number:text 16:reboot=shutdown: this QEMU exits at a guest reboot instead of rebooting inside the same process - the reboot is NOT issued, and nothing was signalled
+-> exit 3; the fake process is still running (not signalled)
+--- qemu/action-list: fake process 81682, extra arguments: -action panic=none,reboot=shutdown
+81682 qemu-system-aarch64 bash -c while :; do sleep 5; done qemu-system-aarch64 -machine virt -drive id=disk0,file=/tmp/g3-s3-op-f2/rootfs.ext4,if=none,format=r
+QEMU PROCESS: pid=81682 start=268204 disks=file=/tmp/g3-s3-op-f2/rootfs.ext4;file=/tmp/g3-s3-op-f2/data.img
+STOP: -no-reboot (or its equivalent) is on the command line of the QEMU process 81682, as argument number:text 16:panic=none,reboot=shutdown: this QEMU exits at a guest reboot instead of rebooting inside the same process - the reboot is NOT issued, and nothing was signalled
+-> exit 3; the fake process is still running (not signalled)
+--- qemu/action-other: fake process 81715, extra arguments: -action panic=pause-on-panic -name guest=no-reboot-is-only-a-name
+81715 qemu-system-aarch64 bash -c while :; do sleep 5; done qemu-system-aarch64 -machine virt -drive id=disk0,file=/tmp/g3-s3-op-f2/rootfs.ext4,if=none,format=r
+QEMU PROCESS: pid=81715 start=268237 disks=file=/tmp/g3-s3-op-f2/rootfs.ext4;file=/tmp/g3-s3-op-f2/data.img
+QEMU COMMAND LINE: no -no-reboot, no --no-reboot and no reboot=shutdown among the 18 arguments of pid 81715
+-> exit 0; the fake process is still running (not signalled)
+--- qemu/none: no process
+
+STOP: no qemu-system-aarch64 process (pgrep exit 1): the guest is lost, or the first QEMU exited - nothing is re-launched by this script
+-> exit 1
+--- qemu/through-t8_qemu: the recorded step (real ex), with -no-reboot, then without, then 'after'
+-> t8_qemu before returned 3; row key: t8_qemu_before=exit=3: -no-reboot (or its equivalent) is on the command line of the QEMU process
+-> t8_qemu before returned 0; row key: t8_qemu_before=pid=81814 start=268317 disks=file=/tmp/g3-s3-op-f2/rootfs.ext4;file=/tmp/g3-s3-op-f2/data.img
+QEMU PROCESS UNCHANGED: the same process as before step a (pid 81814, started at tick 268317) with the same disks (file=
+-> t8_qemu after returned 0; row key: t8_qemu_after=exit=0 (0: the same process and disks as before step a)
+  step 001 t8-qemu-before exit=3       0.0 s  argv: bash ...
+  step 002 t8-qemu-before exit=0       0.0 s  argv: bash ...
+  step 003 t8-qemu-after  exit=0       0.0 s  argv: bash ...
+
+######## wait: t8_wait_ssh
+
+#### wait/printed-then-124: budget 60 s, a poll every 2 s, each read at most 4 s; saved id '11111111-1111-4111-8111-111111111111'; the guest's id 22222222-2222-4222-8222-222222222222; ssh: print-then-hang ok then ok
+## 2026-10-04T21:41:43Z up=2683 row t8: waiting at most 60 s from the end of step a (up=2683) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 2 s, each a recorded step bounded by 'timeout' to 4 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2683): 0 min of it are used
+22222222-2222-4222-8222-222222222222
+poll 1 at +4 s (bounded to 4 s): NOT counted - it printed the boot id 22222222-2222-4222-8222-222222222222, other than the saved one, and then ended with exit status 124: a read that does not end with exit status 0 is no answer whatever it printed (kept as a diagnostic: /tmp/g3-s3-op-f2/egw-exec/attempts/20261004T214143Z_g3-qualification-t8_attempt02/console/001-t8-wait-ssh.stdout.txt) - waiting on
+22222222-2222-4222-8222-222222222222
+poll 2 at +6 s (bounded to 4 s): exit status 0 and the answer is the boot id 22222222-2222-4222-8222-222222222222, not the saved pre-reboot id 11111111-1111-4111-8111-111111111111: the guest answers from another boot (step b judges and records the reboot)
+-> t8_wait_ssh returned 0 after 6 s; T8_WAIT_WHY: <empty>
+-> the row's state file: start_up=2683;ceiling_min=135;step=t8-wait-ssh;t8_wait=started up=2683, 0 s after step a ended (up=2683); budget 60 s from that instant; the row's start (up=2683) and its ceiling (135 min) are not reset;t8_ssh_answered=poll=2 at=+6s up=2689 boot_id=22222222-2222-4222-8222-222222222222;
+  step 001 t8-wait-ssh    exit=124     4.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 002 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+#### wait/printed-then-255: budget 60 s, a poll every 2 s, each read at most 4 s; saved id '11111111-1111-4111-8111-111111111111'; the guest's id 22222222-2222-4222-8222-222222222222; ssh: print-then-255 ok then ok
+## 2026-10-04T21:41:50Z up=2690 row t8: waiting at most 60 s from the end of step a (up=2689) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 2 s, each a recorded step bounded by 'timeout' to 4 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2689): 0 min of it are used
+22222222-2222-4222-8222-222222222222
+Connection to 127.0.0.1 closed by remote host.
+poll 1 at +1 s (bounded to 4 s): NOT counted - it printed the boot id 22222222-2222-4222-8222-222222222222, other than the saved one, and then ended with exit status 255: a read that does not end with exit status 0 is no answer whatever it printed (kept as a diagnostic: /tmp/g3-s3-op-f2/egw-exec/attempts/20261004T214150Z_g3-qualification-t8_attempt03/console/001-t8-wait-ssh.stdout.txt) - waiting on
+22222222-2222-4222-8222-222222222222
+poll 2 at +3 s (bounded to 4 s): exit status 0 and the answer is the boot id 22222222-2222-4222-8222-222222222222, not the saved pre-reboot id 11111111-1111-4111-8111-111111111111: the guest answers from another boot (step b judges and records the reboot)
+-> t8_wait_ssh returned 0 after 3 s; T8_WAIT_WHY: <empty>
+-> the row's state file: start_up=2689;ceiling_min=135;step=t8-wait-ssh;t8_wait=started up=2689, 0 s after step a ended (up=2689); budget 60 s from that instant; the row's start (up=2689) and its ceiling (135 min) are not reset;t8_ssh_answered=poll=2 at=+3s up=2692 boot_id=22222222-2222-4222-8222-222222222222;
+  step 001 t8-wait-ssh    exit=255     0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 002 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+#### wait/old-id-expiry: budget 15 s, a poll every 3 s, each read at most 4 s; saved id '11111111-1111-4111-8111-111111111111'; the guest's id 11111111-1111-4111-8111-111111111111; ssh:  then ok
+## 2026-10-04T21:41:52Z up=2692 row t8: waiting at most 15 s from the end of step a (up=2692) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 3 s, each a recorded step bounded by 'timeout' to 4 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2692): 0 min of it are used
+11111111-1111-4111-8111-111111111111
+poll 1 at +0 s (bounded to 4 s): the guest answers with the boot id 11111111-1111-4111-8111-111111111111, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+11111111-1111-4111-8111-111111111111
+poll 2 at +3 s (bounded to 4 s): the guest answers with the boot id 11111111-1111-4111-8111-111111111111, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+11111111-1111-4111-8111-111111111111
+poll 3 at +6 s (bounded to 4 s): the guest answers with the boot id 11111111-1111-4111-8111-111111111111, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+11111111-1111-4111-8111-111111111111
+poll 4 at +9 s (bounded to 4 s): the guest answers with the boot id 11111111-1111-4111-8111-111111111111, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+11111111-1111-4111-8111-111111111111
+poll 5 at +12 s (bounded to 3 s): the guest answers with the boot id 11111111-1111-4111-8111-111111111111, the saved pre-reboot id: it has not gone down yet, or did not reboot - waiting on
+-> t8_wait_ssh returned 1 after 15 s; T8_WAIT_WHY: reboot not shown within the wait: in the 15 s after step a ended, none of the 5 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id 11111111-1111-4111-8111-111111111111 (0 ended with another status - no answer, whatever they printed; 5 answered the saved id; 0 ended 0 without one boot id as the answer); the last poll: answered the saved id (reboot not shown). An operational cut-off: inconclusive / not demonstrated, not by itself a failure of the system (decision summary, choice 3; packet section 4, halt 5)
+-> the row's state file: start_up=2692;ceiling_min=135;step=t8-wait-ssh;t8_wait=started up=2692, 0 s after step a ended (up=2692); budget 15 s from that instant; the row's start (up=2692) and its ceiling (135 min) are not reset;
+  step 001 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 002 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 003 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 004 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 005 t8-wait-ssh    exit=0       0.0 s  argv: timeout 3 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+#### wait/refuse-expiry: budget 12 s, a poll every 5 s, each read at most 20 s; saved id '11111111-1111-4111-8111-111111111111'; the guest's id 22222222-2222-4222-8222-222222222222; ssh:  then refuse
+## 2026-10-04T21:42:07Z up=2707 row t8: waiting at most 12 s from the end of step a (up=2707) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 5 s, each a recorded step bounded by 'timeout' to 20 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2707): 0 min of it are used
+ssh: connect to host 127.0.0.1 port 2222: Connection refused
+poll 1 at +0 s (bounded to 12 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+ssh: connect to host 127.0.0.1 port 2222: Connection refused
+poll 2 at +5 s (bounded to 7 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+ssh: connect to host 127.0.0.1 port 2222: Connection refused
+poll 3 at +10 s (bounded to 2 s): no answer (exit status 255; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+-> t8_wait_ssh returned 1 after 12 s; T8_WAIT_WHY: reboot not shown within the wait: in the 12 s after step a ended, none of the 3 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id 11111111-1111-4111-8111-111111111111 (3 ended with another status - no answer, whatever they printed; 0 answered the saved id; 0 ended 0 without one boot id as the answer); the last poll: exit status 255 (124: ended by its timeout of 2 s; 255: ssh did not connect or lost its connection; 97: the session's ssh helpers were not loaded). An operational cut-off: inconclusive / not demonstrated, not by itself a failure of the system (decision summary, choice 3; packet section 4, halt 5)
+-> the row's state file: start_up=2707;ceiling_min=135;step=t8-wait-ssh;t8_wait=started up=2707, 0 s after step a ended (up=2707); budget 12 s from that instant; the row's start (up=2707) and its ceiling (135 min) are not reset;
+  step 001 t8-wait-ssh    exit=255     0.0 s  argv: timeout 12 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 002 t8-wait-ssh    exit=255     0.0 s  argv: timeout 7 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 003 t8-wait-ssh    exit=255     0.0 s  argv: timeout 2 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+#### wait/not-an-id: budget 60 s, a poll every 1 s, each read at most 4 s; saved id '11111111-1111-4111-8111-111111111111'; the guest's id 22222222-2222-4222-8222-222222222222; ssh: banner two-lines ok then ok
+## 2026-10-04T21:42:20Z up=2720 row t8: waiting at most 60 s from the end of step a (up=2720) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 1 s, each a recorded step bounded by 'timeout' to 4 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2720): 0 min of it are used
+Welcome to the bench (not a boot id)
+poll 1 at +0 s (bounded to 4 s): exit status 0, but the answer is not one boot id of the kernel's form (see the step's console: /tmp/g3-s3-op-f2/egw-exec/attempts/20261004T214220Z_g3-qualification-t8_attempt06/console/001-t8-wait-ssh.stdout.txt) - NOT counted, waiting on
+Welcome to the bench
+22222222-2222-4222-8222-222222222222
+poll 2 at +1 s (bounded to 4 s): exit status 0, but the answer is not one boot id of the kernel's form (see the step's console: /tmp/g3-s3-op-f2/egw-exec/attempts/20261004T214220Z_g3-qualification-t8_attempt06/console/002-t8-wait-ssh.stdout.txt) - NOT counted, waiting on
+22222222-2222-4222-8222-222222222222
+poll 3 at +2 s (bounded to 4 s): exit status 0 and the answer is the boot id 22222222-2222-4222-8222-222222222222, not the saved pre-reboot id 11111111-1111-4111-8111-111111111111: the guest answers from another boot (step b judges and records the reboot)
+-> t8_wait_ssh returned 0 after 2 s; T8_WAIT_WHY: <empty>
+-> the row's state file: start_up=2720;ceiling_min=135;step=t8-wait-ssh;t8_wait=started up=2720, 0 s after step a ended (up=2720); budget 60 s from that instant; the row's start (up=2720) and its ceiling (135 min) are not reset;t8_ssh_answered=poll=3 at=+2s up=2722 boot_id=22222222-2222-4222-8222-222222222222;
+  step 001 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 002 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 003 t8-wait-ssh    exit=0       0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+#### wait/saved-id-empty: budget 30 s, a poll every 2 s, each read at most 4 s; saved id ''; the guest's id 22222222-2222-4222-8222-222222222222; ssh:  then ok
+-> t8_wait_ssh returned 3 after 0 s; T8_WAIT_WHY: the boot id step a saved (/tmp/g3-s3-op-f2/home/egw-tcg/itest/itest-reboot-q2.boot_id.pre) is not a boot id of the kernel's form (''), although step a printed no STOP: - no answer of the guest can be compared with it, so no poll was made (invalid instrumentation; packet section 4, halt 2)
+-> the row's state file: start_up=2722;ceiling_min=135;step=t8-wait-ssh;
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+#### wait/helpers-missing: the session's ssh helpers cannot be loaded (97)
+
+#### wait/helpers-missing: budget 5 s, a poll every 2 s, each read at most 4 s; saved id '11111111-1111-4111-8111-111111111111'; the guest's id 22222222-2222-4222-8222-222222222222; ssh:  then ok
+## 2026-10-04T21:42:22Z up=2722 row t8: waiting at most 5 s from the end of step a (up=2722) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 2 s, each a recorded step bounded by 'timeout' to 4 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2722): 0 min of it are used
+_: line 1: /tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench/scripts/session_common.sh: No such file or directory
+STOP: the session ssh helpers (/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest
+poll 1 at +0 s (bounded to 4 s): no answer (exit status 97; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+_: line 1: /tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench/scripts/session_common.sh: No such file or directory
+STOP: the session ssh helpers (/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest
+poll 2 at +2 s (bounded to 3 s): no answer (exit status 97; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+_: line 1: /tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench/scripts/session_common.sh: No such file or directory
+STOP: the session ssh helpers (/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench/scripts/session_common.sh) could not be loaded: NOTHING was run on the guest
+poll 3 at +4 s (bounded to 1 s): no answer (exit status 97; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+-> t8_wait_ssh returned 1 after 5 s; T8_WAIT_WHY: reboot not shown within the wait: in the 5 s after step a ended, none of the 3 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id 11111111-1111-4111-8111-111111111111 (3 ended with another status - no answer, whatever they printed; 0 answered the saved id; 0 ended 0 without one boot id as the answer); the last poll: exit status 97 (124: ended by its timeout of 1 s; 255: ssh did not connect or lost its connection; 97: the session's ssh helpers were not loaded). An operational cut-off: inconclusive / not demonstrated, not by itself a failure of the system (decision summary, choice 3; packet section 4, halt 5)
+-> the row's state file: start_up=2722;ceiling_min=135;step=t8-wait-ssh;t8_wait=started up=2722, 0 s after step a ended (up=2722); budget 5 s from that instant; the row's start (up=2722) and its ceiling (135 min) are not reset;
+  step 001 t8-wait-ssh    exit=97      0.0 s  argv: timeout 4 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 002 t8-wait-ssh    exit=97      0.0 s  argv: timeout 3 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 003 t8-wait-ssh    exit=97      0.0 s  argv: timeout 1 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+#### wait/capture-lost: ex answers 74 (the frozen ex replaced by a function that returns 74)
+## 2026-10-04T21:42:27Z up=2727 row t8: waiting at most 30 s from the end of step a (up=2727) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 2 s, each a recorded step bounded by 'timeout' to 4 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2727): 0 min of it are used
+-> t8_wait_ssh returned 74 ; T8_WAIT_WHY: poll 1 of the wait answered 74: its console capture was lost, so what the guest answered is not on record (invalid instrumentation; packet section 4, halt 2)
+
+######## wait20: the script's own 20 s read bound and 10 s poll, budget 45 s, an ssh that stalls
+
+#### wait/stall-remainder: budget 45 s, a poll every 10 s, each read at most 20 s; saved id '11111111-1111-4111-8111-111111111111'; the guest's id 22222222-2222-4222-8222-222222222222; ssh:  then hang
+## 2026-10-04T21:42:28Z up=2727 row t8: waiting at most 45 s from the end of step a (up=2727) for the guest to answer over ssh with a boot id other than the saved one 11111111-1111-4111-8111-111111111111 (read-only polls every 10 s, each a recorded step bounded by 'timeout' to 20 s or to what is left; QEMU is never signalled; nothing is re-launched or started). The row's ceiling of 135 min keeps counting from the row's start (up=2727): 0 min of it are used
+poll 1 at +20 s (bounded to 20 s): no answer (exit status 124; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+poll 2 at +46 s (bounded to 15 s): no answer (exit status 124; 124: ended by its timeout; 255: ssh did not connect or lost its connection) - waiting on
+-> t8_wait_ssh returned 1 after 46 s; T8_WAIT_WHY: reboot not shown within the wait: in the 45 s after step a ended, none of the 2 poll(s) both ended with exit status 0 and answered a boot id of the kernel's form other than the saved pre-reboot id 11111111-1111-4111-8111-111111111111 (2 ended with another status - no answer, whatever they printed; 0 answered the saved id; 0 ended 0 without one boot id as the answer); the last poll: exit status 124 (124: ended by its timeout of 15 s; 255: ssh did not connect or lost its connection; 97: the session's ssh helpers were not loaded). An operational cut-off: inconclusive / not demonstrated, not by itself a failure of the system (decision summary, choice 3; packet section 4, halt 5)
+-> the row's state file: start_up=2727;ceiling_min=135;step=t8-wait-ssh;t8_wait=started up=2727, 0 s after step a ended (up=2727); budget 45 s from that instant; the row's start (up=2727) and its ceiling (135 min) are not reset;
+  step 001 t8-wait-ssh    exit=124    20.0 s  argv: timeout 20 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  step 002 t8-wait-ssh    exit=124    15.0 s  argv: timeout 15 env E=/tmp/g3-s3-op-f2/egw-exec/attempts/00000000T000000Z_guest-session_bench bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+######## markers: the rules after step c (point 7) and step f (point 8), real row files from <scratchpad>/g3/s3prep/rows
+row file t8-a-reboot.sh: sha256 00ff23db999e4ad5460c93010721e393d60c34fd4e596666cef9fd35fda8aa43; lines holding 'STOP:': 1
+row file t8-b-wait-boot-id.sh: sha256 f38f7fad40980359b6f3ea59142f8a2f0199a3d80a942e7b36826ddfdd9cade7; lines holding 'STOP:': 0
+row file t8-c-unaided.sh: sha256 df4ff611057b4f5a7df40b8b8f0fb2818eed43011c2c10109d7cc0881a7da39d; lines holding 'STOP:': 0
+row file t8-d-tunnel.sh: sha256 dbffd3defbdfbbadce3218bde6c4562d77b0e1813bd70a0562e6f921844809f5; lines holding 'STOP:': 0
+row file t8-e-state.sh: sha256 00d100f7232b93fe5e425f603b7915514b24e67258b692603fa335b99293f593; lines holding 'STOP:': 0
+row file t8-f-smoke.sh: sha256 874ef658228e30e19b561a6f5306b698e0665f3701c2fb28ab0d13feddb6dc76; lines holding 'STOP:': 0
+
+#### markers/c-both-f-complete: step c fixture 'both', step f fixture 'complete'
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+[fixture] step t8-d-tunnel ran with T8=returned
+[fixture] step t8-e-state ran with T8=reconnected
+[fixture] step t8-f-smoke ran with T8=ok
+row t8: step f shows 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' and no STOP: - this script records no halt for the smoke. That is NOT a verdict: lost and late_confirmations are read by the operator, and a value above 0 is a classified FAILURE of T8, not a halt (T9 may then start, with this row's gate passed)
+-> HALTED=0; t8 keys: t8_reached_smoke=yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classific;t8_smoke=procedure complete: 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' and no STOP: (not a verdict);
+
+#### markers/c-containers-then-stop: step c fixture 'containers-then-stop', step f fixture 'complete'
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+HALT: row t8: step c does not show both CONTAINERS RETURNED UNAIDED and PERSISTENCE SHOWN with no STOP: - a STOP: line was printed (or the step left no console); no line PERSISTENCE SHOWN (the six container objects running before the reboot are not all running again by themselves, an event directory or the mount source of /var/lib/docker is not as before the reboot, or a judged read did not end with exit status 0; pa
+-> HALTED=1; t8 keys: 
+
+#### markers/c-containers-only: step c fixture 'containers-only', step f fixture 'complete'
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+HALT: row t8: step c does not show both CONTAINERS RETURNED UNAIDED and PERSISTENCE SHOWN with no STOP: - no line PERSISTENCE SHOWN (the six container objects running before the reboot are not all running again by themselves, an event directory or the mount source of /var/lib/docker is not as before the reboot, or a judged read did not end with exit status 0; packet section 4, halt 5). This script runs no 'compose up
+-> HALTED=1; t8 keys: 
+
+#### markers/c-persistence-only: step c fixture 'persistence-only', step f fixture 'complete'
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+HALT: row t8: step c does not show both CONTAINERS RETURNED UNAIDED and PERSISTENCE SHOWN with no STOP: - no line CONTAINERS RETURNED UNAIDED (the six container objects running before the reboot are not all running again by themselves, an event directory or the mount source of /var/lib/docker is not as before the reboot, or a judged read did not end with exit status 0; packet section 4, halt 5). This script runs no '
+-> HALTED=1; t8 keys: 
+
+#### markers/c-echo-only: step c fixture 'echo-only', step f fixture 'complete'
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:13Z up=2773 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+HALT: row t8: step c does not show both CONTAINERS RETURNED UNAIDED and PERSISTENCE SHOWN with no STOP: - no line CONTAINERS RETURNED UNAIDED; no line PERSISTENCE SHOWN (the six container objects running before the reboot are not all running again by themselves, an event directory or the mount source of /var/lib/docker is not as before the reboot, or a judged read did not end with exit status 0; packet section 4, hal
+-> HALTED=1; t8 keys: 
+
+#### markers/f-complete-lost-late: step c fixture 'both', step f fixture 'complete-lost-late'
+## 2026-10-04T21:43:14Z up=2773 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:14Z up=2773 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+[fixture] step t8-d-tunnel ran with T8=returned
+[fixture] step t8-e-state ran with T8=reconnected
+[fixture] step t8-f-smoke ran with T8=ok
+row t8: step f shows 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' and no STOP: - this script records no halt for the smoke. That is NOT a verdict: lost and late_confirmations are read by the operator, and a value above 0 is a classified FAILURE of T8, not a halt (T9 may then start, with this row's gate passed)
+-> HALTED=0; t8 keys: t8_reached_smoke=yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classific;t8_smoke=procedure complete: 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' and no STOP: (not a verdict);
+
+#### markers/f-stop: step c fixture 'both', step f fixture 'stop'
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+[fixture] step t8-d-tunnel ran with T8=returned
+[fixture] step t8-e-state ran with T8=reconnected
+[fixture] step t8-f-smoke ran with T8=ok
+HALT: row t8: step f, the post-reboot smoke itest-post-reboot-01-q2, printed STOP: (or left no console): its procedure did not complete (request of 2026-10-04, section 5 item 5). T9 is not run; the row is classified by the cause its console shows
+-> HALTED=1; t8 keys: t8_reached_smoke=yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classific;t8_smoke=halt: a STOP: line in the smoke's console;
+
+#### markers/f-complete-and-stop: step c fixture 'both', step f fixture 'complete-and-stop'
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+[fixture] step t8-d-tunnel ran with T8=returned
+[fixture] step t8-e-state ran with T8=reconnected
+[fixture] step t8-f-smoke ran with T8=ok
+HALT: row t8: step f, the post-reboot smoke itest-post-reboot-01-q2, printed STOP: (or left no console): its procedure did not complete (request of 2026-10-04, section 5 item 5). T9 is not run; the row is classified by the cause its console shows
+-> HALTED=1; t8 keys: t8_reached_smoke=yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classific;t8_smoke=halt: a STOP: line in the smoke's console;
+
+#### markers/f-neither: step c fixture 'both', step f fixture 'neither'
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+[fixture] step t8-d-tunnel ran with T8=returned
+[fixture] step t8-e-state ran with T8=reconnected
+[fixture] step t8-f-smoke ran with T8=ok
+HALT: row t8: step f printed no STOP: but its console does not show the line 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE': the smoke is not shown to have completed its procedure (request of 2026-10-04, section 5 item 5). T9 is not run; the row is classified by the cause its console shows
+-> HALTED=1; t8 keys: t8_reached_smoke=yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classific;t8_smoke=halt: no 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' line in the smoke's console;
+
+#### markers/f-complete-other-id: step c fixture 'both', step f fixture 'complete-other-id'
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process before step a (recorded: pid, start instant, disks; its command line read for -no-reboot)
+[fixture] step t8-a-reboot ran
+## 2026-10-04T21:43:14Z up=2774 row t8: the QEMU process after the wait (recorded and compared with the reading before step a)
+[fixture] step t8-b-wait-boot-id ran with T8=rebooting
+[fixture] step t8-c-unaided ran with T8=rebooted
+[fixture] step t8-d-tunnel ran with T8=returned
+[fixture] step t8-e-state ran with T8=reconnected
+[fixture] step t8-f-smoke ran with T8=ok
+HALT: row t8: step f printed no STOP: but its console does not show the line 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE': the smoke is not shown to have completed its procedure (request of 2026-10-04, section 5 item 5). T9 is not run; the row is classified by the cause its console shows
+-> HALTED=1; t8 keys: t8_reached_smoke=yes (step f, the post-reboot smoke, was reached; whether T9 may start: the smoke's halt rule below, this row's gate and its classific;t8_smoke=halt: no 'TEST STATUS itest-post-reboot-01-q2: ... -> PROCEDURE COMPLETE' line in the smoke's console;
+
+######## steps: the real row files of lines b and c through the real run_step and hx (step shell: stdin closed, exec 2>&1, set -v), stub ssh, the host's timeout
+--- line b (the first read stalls after printing the new id; the second answers)
+console /tmp/g3-s3-op-f2/egw-exec/attempts/20261004T214314Z_g3-qualification-t8_attempt21/console/001-t8-b-wait-boot-id.stdout.txt: 4 lines
+1:carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/tmp/g3
+2:carrier set by the steps script from the record of the step before: T8=rebooting
+4:REBOOT SHOWN: boot id 11111111-1111-4111-8111-111111111111 -> 22222222-2222-4222-8222-222222222222 (read 2 of at most 90, 10 s apart, each bounded to 20 s)
+lines that hold 'REBOOT SHOWN' anywhere: 2; at the start of a line: 1
+-> t8_shown for step b: shown, no STOP:
+--- line c (three judged reads answer, then the observations)
+console /tmp/g3-s3-op-f2/egw-exec/attempts/20261004T214314Z_g3-qualification-t8_attempt21/console/002-t8-c-unaided.stdout.txt: 7 lines
+1:carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/tmp/g3
+2:carrier set by the steps script from the record of the step before: T8=rebooted
+4:CONTAINERS RETURNED UNAIDED: the 6 container ids saved before the reboot are listed running again (read 1 of at most 90, 10 s apart, each bounded to 20 s; these lines started nothing)
+5:PERSISTENCE SHOWN: 3 event directories intact; /var/lib/docker on /dev/vdb
+7:observations read, exit 0 (not a judgement: the set, the directories and the mount source above are)
+lines that hold 'PERSISTENCE SHOWN' anywhere: 2; at the start of a line: 1
+-> no_stop for step c: no STOP:
+--- line c again in a new attempt, the event-directory read ending 124 after printing (its own 'timeout 20')
+4:CONTAINERS RETURNED UNAIDED: the 6 container ids saved before the reboot are listed running again (read 1 of at most 90, 10 s apart, each bounded to 20 s; these lines started nothing)
+5:STOP: test 8: persistence NOT shown - a judged read did NOT end with exit status 0 (the event directories' read: exit 124; the mount source's read: exit 0; 124 is a read ended by its 20 s timeout, 255 an ssh that did not connect or lost its connection, and 1
+-> no_stop for step c: a STOP: was found (the halt names 'no line PERSISTENCE SHOWN')
+  step 001 t8-c-unaided   exit=1      20.0 s  argv: bash ...
+  stub ssh processes left: 0; 'sleep 300' left: 0
+
+## 2026-10-04T21:44:05Z ended; processes of the bench left: 0

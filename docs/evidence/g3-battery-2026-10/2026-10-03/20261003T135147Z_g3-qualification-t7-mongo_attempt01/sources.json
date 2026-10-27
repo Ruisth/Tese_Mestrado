@@ -1,0 +1,11 @@
+{
+  "sources": [
+    {
+      "added_utc": "2026-10-03T13:51:47.969660Z",
+      "kind": "simulator",
+      "path": "/home/ruisth/egw-tcg/itest/itest-mongo-fault-01-q1",
+      "role": "itest run itest-mongo-fault-01-q1: the simulator's directory with the fetched events.jsonl, and every itest-mongo-fault-01-q1.* sibling the helpers write (transcript, marker, metrics, twins, reconcile, copies, .sut/)",
+      "siblings_glob": "itest-mongo-fault-01-q1.*"
+    }
+  ]
+}

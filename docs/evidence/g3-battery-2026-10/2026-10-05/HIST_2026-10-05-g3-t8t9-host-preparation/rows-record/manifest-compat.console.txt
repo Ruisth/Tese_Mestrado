@@ -1,0 +1,21 @@
+## 2026-10-04T21:20:09Z manifest-compat.py (sha256 c8400f61aba781a1a1d2ca942c5a2819f8795ba4569b331452ca1d0e41d9292c); Python 3.12.3
+## paths abbreviated by the record's filter: <S> the session scratchpad, <OT> output_test, <WINREPO> the Windows repository
+## the steps script copies are READ (their MANIFEST_PY text is run on the row files), never executed; g3_battery.sh is another stream's file and may still change: its sha256 at this reading is printed
+manifest <S>/g3/s3prep/rows/rows.manifest.json: sha256 678b92031e09213780bc3790be1473358746693fc1d86088891ff2697f340c5d
+
+## <S>/g3/s3prep/base/g3_battery.sh (sha256 2221ff2f5e2c2671f22e3f5b13455457eb3516f46ea156fe8e55f2fab98d3f3b)
+MANIFEST_PY: 73 lines, sha256 4f795c9c703975afce925cf0b389aeab1730a4499587efab5d3787047c710032
+as expected  verify S3 t8 (6 names): exit 0 (0 expected); 6 line(s), last: row file t8-f-smoke.sh: sha256 874ef658228e30e19b561a6f5306b698e0665f3701c2fb28ab0d13feddb6dc76 = sha256_after of the manifest (row t8, step 6, 299 bytes)
+as expected  verify S3 t9 (5 names): exit 0 (0 expected); 5 line(s), last: row file t9-exposure.sh: sha256 ec18b22a643203a1c2d9bc9a9519b5b4a6f69de65df9944d832f09744428fe9c = sha256_after of the manifest (row t9, step 5, 2262 bytes)
+as expected  verify S2 t8 (6 names): exit 1 (1 expected); 1 line(s), last: STOP: row t8: the manifest names session 'S3' and steps ['t8-a-reboot.sh', 't8-b-wait-boot-id.sh', 't8-c-unaided.sh', 't8-d-tunnel.sh', 't8-e-state.sh', 't8-f-smoke.sh'], the steps script 'S2' and ['t8-a-reboot.sh', 't8-b-wait-boo
+as expected  verify S3 t8 (4 names): exit 1 (1 expected); 1 line(s), last: STOP: row t8: the manifest names session 'S3' and steps ['t8-a-reboot.sh', 't8-b-wait-boot-id.sh', 't8-c-unaided.sh', 't8-d-tunnel.sh', 't8-e-state.sh', 't8-f-smoke.sh'], the steps script 'S3' and ['t8-a-reboot.sh', 't8-b-return.s
+
+## <S>/g3/s3prep/g3_battery.sh (sha256 acbb5988f8173c138d054f2669c594851b8a2121643a315ffa01850a24f1b837)
+MANIFEST_PY: 74 lines, sha256 e6414be0b9139b475aca8d9eb42c459ed8ff9d9f179c4e1299aa81a9cb754789
+as expected  verify S3 t8 (6 names): exit 0 (0 expected); 6 line(s), last: row file t8-f-smoke.sh: sha256 874ef658228e30e19b561a6f5306b698e0665f3701c2fb28ab0d13feddb6dc76 = sha256_after of the manifest (row t8, step 6, 299 bytes)
+as expected  verify S3 t9 (5 names): exit 0 (0 expected); 5 line(s), last: row file t9-exposure.sh: sha256 ec18b22a643203a1c2d9bc9a9519b5b4a6f69de65df9944d832f09744428fe9c = sha256_after of the manifest (row t9, step 5, 2262 bytes)
+as expected  verify S2 t8 (6 names): exit 1 (1 expected); 1 line(s), last: STOP: row t8: the manifest names session 'S3' and steps ['t8-a-reboot.sh', 't8-b-wait-boot-id.sh', 't8-c-unaided.sh', 't8-d-tunnel.sh', 't8-e-state.sh', 't8-f-smoke.sh'], the steps script 'S2' and ['t8-a-reboot.sh', 't8-b-wait-boo
+as expected  verify S3 t8 (4 names): exit 1 (1 expected); 1 line(s), last: STOP: row t8: the manifest names session 'S3' and steps ['t8-a-reboot.sh', 't8-b-wait-boot-id.sh', 't8-c-unaided.sh', 't8-d-tunnel.sh', 't8-e-state.sh', 't8-f-smoke.sh'], the steps script 'S3' and ['t8-a-reboot.sh', 't8-b-return.s
+
+COMPATIBLE (every case as expected)
+compat exit=0

@@ -1,0 +1,24 @@
+
+##############################################################################
+# (a) measured messages that waited while warm-up messages were being served
+##############################################################################
+measured arrivals before the last warm-up ack (el 126.513): 1417 of 6720
+measured arrivals after it: 5303 -- their waits contain no warm-up service time; any warm-up effect on them is the propagated shift that section 9.2 declares not derivable
+
+##############################################################################
+# (b) the end-of-window count
+##############################################################################
+in controller at el 0: 750 ; arrivals in window: 6721 ; acks in window: 3878 ; end: 3593 = 750 + 6721 - 3878
+of the in-window acks, warm-up: 751 ; of the in-window arrivals, warm-up: 1
+
+##############################################################################
+# (c) passages vs the proposed +-3 refutation band at 2.24 msg/s
+##############################################################################
+threshold passage 3/2.24 = 1.339 s ; measured passages longer: 17 ; longest 2.542 s at el 253.6
+all passages (warm-up included) longer than 1.339 s: 22 ; longest 2.542 s
+
+##############################################################################
+# (d) restart runs: 'with an outcome at the fetch' split by the controller-clock deadline
+##############################################################################
+r01: with outcome 4538 = on time 4439 + late 99 ; deadline (harness wall) 2026-09-18T22:01:22.646Z ; fetch started 2026-09-18T22:01:30.951Z ; newest ack deadline+9.217 s
+r02: with outcome 3819 = on time 3795 + late 24 ; deadline (harness wall) 2026-09-19T00:24:15.492Z ; fetch started 2026-09-19T00:24:18.026Z ; newest ack deadline+3.760 s

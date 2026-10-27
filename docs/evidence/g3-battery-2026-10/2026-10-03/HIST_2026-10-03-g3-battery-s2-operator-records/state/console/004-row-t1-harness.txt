@@ -1,0 +1,196 @@
+## 2026-10-02T15:27:08Z up=1635 row t1-harness (session S1): steps script sha256 fd652ec928ce9e9570f03fa526b83473a6706a17d81b5ade9c2dbc6b42e44ac1
+keepalive: pid 305 'sleep 43201', parent 304 (Relay(305)), running for 1633 s, about 41568 s left
+keepalive: pid 930 'sleep 43200', parent 927 (Relay(930)), running for 1602 s, about 41598 s left
+keepalive: attached, about 41598 s left (needed: 3900 s). The Windows keep-awake stays the operator's own check.
+clone /home/ruisth/egw-exec/repo: HEAD=80e833f44f647fe9cd8f5e99d3abf3c444de95aa tree=dad725d0bebc25c91712af2aa2705d5eeb92044f
+clone: clean (0 porcelain lines)
+repo_identity: {"repo_commit": "80e833f44f647fe9cd8f5e99d3abf3c444de95aa", "repo_dirty_lines": 0, "export_tool_sha256": "544c9b3d451f0a6c3391102ac4031fe93bee79a0b0b9bcd6f41c893592d2422b", "drivers_sha256": "4a6a572dc1e2b54754c3a8dec38e6d2392227efc61ee710886ad9ad5729a39a5"}
+runbook: c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae  /home/ruisth/egw-exec/repo/docs/setup/qemu_integrated_gateway.md
+helpers: e5eba37e529a47885a8aea0e718d25ac71ce1e31a0c1a381b4520fe4c914b4fb  /home/ruisth/egw-tcg/itest-helpers.sh
+helpers: 545 lines, bash -n clean
+tunnel.sh: 38f5cae9f0a3632e1bf0590f6ac71a9dc46e843f367d8ef9aabe51bedd6fe1d1  /home/ruisth/egw-tcg/tunnel.sh
+ca.crt: 556e139f1db12be032f6e6877a73526457a96e1872a5f8ea7f7e4a554abcb8ff  /home/ruisth/egw-tcg/ca.crt
+guest-state command: identical to GUEST_STATE of /home/ruisth/egw-exec/repo/tools/session/nominal.sh (adcce8a49055345a1abb4dc55c367848ddd4658739b94d9bdc9bd0637f42da6e)
+row file t1-harness.sh: sha256 d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c = sha256_after of the manifest (row t1-harness, step 1, 1496 bytes)
+row file t1-harness-analyze.sh: sha256 d0fb59187c8fad3626c04c15b703911e599586a20231ba7c27849209b6e647c8 = sha256_after of the manifest (row t1-harness, step 2, 2094 bytes)
+session clock: NOW=1635 UP0=24 elapsed=1611 s (cutoff 10800 s)
+tunnel: the master answers
+plan entry nominal-r02: status=planned seed=246295039 condition=nominal duration_s=600 warmup_s=120
+fresh on the host: nominal-r02 (planned, no raw directory, no /home/ruisth/egw-tcg/itest/nominal-r02.*)
+## 2026-10-02T15:27:10Z up=1639 row t1-harness: attempt /home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01 (ceiling 35 min from now: the operator enforces it with 'term t1-harness')
+row file t1-harness.sh: sha256 d6194365dfac0f3eac539d198777452872c01f1a276c77b866ff1b267f09d39c = sha256_after of the manifest (row t1-harness, step 1, 1496 bytes)
+row file t1-harness-analyze.sh: sha256 d0fb59187c8fad3626c04c15b703911e599586a20231ba7c27849209b6e647c8 = sha256_after of the manifest (row t1-harness, step 2, 2094 bytes)
+## 2026-10-02T15:27:10Z up=1639 row t1-harness: the gate's read before the row
+egw-controller-1 Up 22 minutes (healthy)
+egw-ditto-things-1 Up 24 minutes (healthy)
+egw-ditto-gateway-1 Up 24 minutes (healthy)
+egw-ditto-policies-1 Up 24 minutes (healthy)
+egw-mongodb-1 Up 24 minutes (healthy)
+egw-mosquitto-1 Up 24 minutes (healthy)
+container egw-controller-1 oomkilled=false restarts=0 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-10-02T15:04:49.404261943Z
+container egw-ditto-things-1 oomkilled=false restarts=0 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-10-02T15:02:37.532062991Z
+container egw-ditto-gateway-1 oomkilled=false restarts=0 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-10-02T15:02:38.336463199Z
+container egw-ditto-policies-1 oomkilled=false restarts=0 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-10-02T15:02:32.203905711Z
+container egw-mongodb-1 oomkilled=false restarts=0 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-10-02T15:02:28.995023167Z
+container egw-mosquitto-1 oomkilled=false restarts=0 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-10-02T15:02:29.005808159Z
+memory-cgroup OOM lines: 0
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1846        5320           5         846        6086
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    447.8M      1.6G  21% /
+/dev/vdb                 31.2G      2.4G     27.2G   8% /var/lib/docker
+tmpfs                     3.9G     92.0K      3.9G   0% /tmp
+5d902a429b9fd4e25f2c4586341f94be2853104fe12a76b88852a1ed30203e23  /home/ruisth/egw-tcg/pilot/campaign_plan.json
+5d902a429b9fd4e25f2c4586341f94be2853104fe12a76b88852a1ed30203e23  /home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/campaign_plan.before.json
+0625155a8e02b66181e8fe0bbe822285f101b1f6818c2acecd6976e2bec88877  ./acceptance_by_condition.csv
+04894825d2eaf665b8c6259512c71c1315aba638807b94940aedd5747757df2d  ./external_runs.csv
+7b66cea97d08add06b104581bcc81bc45459e519d83f2cf0cd401cd1c10e28d8  ./per_run.csv
+2ae388453e6c1523b1275b282b341c2437202fdaa73dbe9747de815968b9ce29  ./resources_by_run.csv
+801b11e9c7d378372927a8a4f40b1b8e631cbcb6222ecfecfbf8916db2a2fd8d  ./saturation.json
+641aab04fcee52897363de05760b7f4d02846188e8636beea77c441544f828a4  ./summary_by_condition.csv
+## 2026-10-02T15:27:24Z up=1653 row t1-harness: step t1-harness (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+python -m egw_experiments plan --master-seed 42 --output ~/egw-tcg/pilot/campaign_plan.json
+error: /home/ruisth/egw-tcg/pilot/campaign_plan.json already exists; it contains run statuses. Use --force to overwrite deliberately.
+python3 -c "import json;p=json.load(open('$HOME/egw-tcg/pilot/campaign_plan.json'));print([r['run_id'] for r in p['runs'] if r.get('condition_id')=='nominal'][:3])"   # plan entries carry condition_id (plan_gen.py _run_entry); expected ['nominal-r01', 'nominal-r02', 'nominal-r03']
+['nominal-r01', 'nominal-r02', 'nominal-r03']
+RID=nominal-r02; T1H=stop; if [ -e ~/egw-tcg/pilot/results/raw/$RID ] || [ -e $P/$RID.sut ]; then stop "test 1 (harness): $RID was already used (~/egw-tcg/pilot/results/raw/$RID or $P/$RID.sut exists) - an entry already used is never reused and the harness was NOT started: take the next nominal entry of the pilot plan never used on the guest and record the choice"; else T1H=ok; fi     # the first nominal entry never used on the guest on the evidence held (nominal-r01 ran on 2026-09-19); run ids are deterministic: '{condition_id}-rNN' (plan_gen.py line 93), so the literal is safe; the plan's 600 s and 120 s warm-up are not changed (about 13 minutes of guest time (warm-up, measured run and confirmation window), plus a drain of at least 130 s before it); harness_cmd refuses the raw directory too
+[ "$T1H" = ok ] && wait_ready && drained && harness_run $RID || stop "test 1 (harness): $RID refused as already used (T1H='$T1H'), not ready, not drained, or harness_run ended non-zero (its STOP above says which: the harness exited non-zero, or the recorder's cleanup after it failed and the procedure is incomplete)"
+drained: queue_depth 0 and identical counters on 27 consecutive readings over 131 s (0 0 0 true 2026-10-02T15:05:04.500Z 1 1008 1008 0 0 0 0 0) - also in_progress 0, unacked 0, mqtt_subscribed true, the identity held and started_at, mqtt_connection, received and the counters unchanged; an observation, not proof that processing has finished; quiet timer: basis /proc/uptime (CLOCK_BOOTTIME, monotonic), window start 1655.16 s, end 1786.24 s, elapsed 131.08 s (required 130 s; start after the reading that opened the window, end before the reading that closed it); wall clock UTC 2026-10-02T15:27:26Z -> 2026-10-02T15:29:30Z and bash SECONDS elapsed 124 s, recorded only
+recorder_sha256=1afdce8ca9baaca1bb8d7af840dba4cd2d90069aaa7689227831ac92df0e6480
+start_fact_boot_id=b35d0fa2-7979-4e8c-ad2e-4223327528f3
+start_fact_MainPID=298
+start_fact_ExecMainStartTimestampMonotonic=12669859
+recorder_since_guest_epoch=1790954850
+Running as unit: egw-events-nominal-r02.service; invocation ID: 39796431b5334698a47f2e648ebc2ad4
+start epoch=1790954971 pid=11114 since=1790954850
+cli-start epoch=1790954971 cli_pid=11126
+ready epoch=1790954972 events_bytes=134511 unit=active
+run_guest_t0=1790954972
+[harness] run nominal-r02: created /home/ruisth/egw-tcg/pilot/results/raw/nominal-r02
+[harness] collector hook --collector-start-cmd
+[harness] warm-up: 120 s
+[harness] measured run: 600 s at 11.2 msg/s
+[harness] collector hook --collector-stop-cmd
+[harness] waiting 60 s confirmation window
+[harness] collector hook --collector-fetch-cmd
+[harness] --fetch-broker-log-cmd
+[harness] --fetch-controller-log-cmd
+[harness] --fetch-docker-events-cmd
+[harness] run nominal-r02 completed
+unit_state_before_cleanup=inactive
+--- the recorder's lifecycle record (/tmp/egw-events-nominal-r02/lifecycle.txt; its capture stays in /tmp/egw-events-nominal-r02)
+start epoch=1790954971 pid=11114 since=1790954850
+cli-start epoch=1790954971 cli_pid=11126
+ready epoch=1790954972 events_bytes=134511 unit=active
+cli-exit epoch=1790955749 rc=143 stop_requested=yes
+events_lines=519
+cli_stderr_bytes=0
+## 2026-10-02T15:42:33Z up=2614 row t1-harness: step t1-harness ended; hx status 0 (the status of its last line; never a verdict)
+c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b  /home/ruisth/egw-tcg/pilot/campaign_plan.json
+c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b  /home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/campaign_plan.after-harness.json
+## 2026-10-02T15:42:33Z up=2614 row t1-harness: step t1-harness-analyze (hx: one shell, the row file is sourced)
+carriers after the unset: DEVICES=<unset> ACCEPT_UNACCOUNTED=<unset> EVENTS_EXPECTED=<unset> DRAIN_QUIET_S=<unset> DRAIN_STEP_S=<unset> DRAIN_LIMIT_S=<unset> READY_LIMIT_S=<unset>; EGW_CLONE=/home/ruisth/egw-exec/repo CTRL=http://127.0.0.1:8000 DITTO=http://127.0.0.1:8080 MQTT_PORT=8883
+# G3 battery, row t1-harness, step 2 of 2: PROSE-ONLY step. No fenced runbook line exists for it.
+# Written by g3_extract_rows.py from a constant of that script; nothing is extracted and no id is substituted.
+# It derives from docs/setup/qemu_integrated_gateway.md at 80e833f (sha256 c55a2d3b68fe7bc463d99fb2c4456e1d6462ceb7eae8e16495aaf1d1fecd74ae), line 1320, which says:
+#   "The harness applies the confirmation deadline itself (manifest `confirmation_deadline_clock_domain: "controller"`), so no `pre`/`post` is used here; read the result with `python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json` and the columns `confirmation_deadline_source`, `sent_valid`, `delivered_unique`, `lost`, `late_confirmations`, `double_accepted` of `~/egw-tcg/pilot/results/processed/per_run.csv`"
+# Decision packet of 2026-10-01 (revision 2), execution choice "Prose-only steps": T1's analyze read (line 1320)
+# is run and recorded. The plan entry is nominal-r02 (decision 1b; packet section 2, row 2). The analyze command
+# is, character for character, the runbook's own fenced line 1427 (test 6). The second command prints the six
+# columns line 1320 names from this run's row of per_run.csv. Both print; neither judges.
+python -m egw_experiments analyze --base-dir ~/egw-tcg/pilot/results --plan ~/egw-tcg/pilot/campaign_plan.json; echo "analyze exit=$?"
+[analyze] 4 run(s) with validity != 'valid' removed from summaries, saturation, acceptance and figures; they remain listed in per_run.csv: smoke_sequence-r01, smoke_sequence-r02, controller_restart-r01, controller_restart-r02
+[analyze] EVIDENCE INTEGRITY UNVERIFIABLE in 4 timed run(s): smoke_sequence-r01, smoke_sequence-r02, controller_restart-r01, controller_restart-r02. No SHA256SUMS in the run directory, so nothing can be verified; these runs are removed from summaries, saturation, acceptance and figures (report 5.4).
+notice: no load_sweep runs in results/raw yet; figures skipped
+[analyze] 6 message run(s) processed (2 included, 0 excluded, 4 invalid, 0 integrity failure(s), 4 unsealed timed run(s)); 0 external run(s); 0 figure(s) written to /home/ruisth/egw-tcg/pilot/results/figures
+[recovery] restart_recovery_observed_every_run: FAILED - 0/3 controller_restart run(s) recovery_observed (3 planned); not qualified: controller_restart-r01 (not_evidenced: validity 'invalid'; integrity 'unsealed': the run is not evidence), controller_restart-r02 (not_evidenced: validity 'invalid'; integrity 'unsealed': the run is not evidence), controller_restart-r03 (not_evidenced: validity 'absent'; integrity 'absent': the run is not evidence); written to processed/recovery_qualification.json and processed/recovery_qualification.csv; no count of lost, late or N1 changed
+analyze exit=0
+python3 - ~/egw-tcg/pilot/results/processed/per_run.csv nominal-r02 <<'EOF'
+import csv, sys
+path, rid = sys.argv[1], sys.argv[2]
+cols = ("confirmation_deadline_source", "sent_valid", "delivered_unique", "lost", "late_confirmations", "double_accepted")
+with open(path, newline="", encoding="utf-8") as fh:
+    rows = [r for r in csv.DictReader(fh) if r.get("run_id") == rid]
+print("per_run.csv:", path, "- rows of", rid + ":", len(rows))
+for r in rows:
+    print(rid, " ".join("%s=%s" % (c, r.get(c)) for c in cols))
+sys.exit(0 if len(rows) == 1 else 1)
+EOF
+per_run.csv: /home/ruisth/egw-tcg/pilot/results/processed/per_run.csv - rows of nominal-r02: 1
+nominal-r02 confirmation_deadline_source=controller-marker sent_valid=6720 delivered_unique=4584 lost=2136 late_confirmations=111 double_accepted=0
+echo "per_run read exit=$? (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)"
+per_run read exit=0 (0: exactly one row of nominal-r02 was printed; anything else: none, several, or the file was not read)
+## 2026-10-02T15:42:34Z up=2615 row t1-harness: step t1-harness-analyze ended; hx status 0 (the status of its last line; never a verdict)
+c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b  /home/ruisth/egw-tcg/pilot/campaign_plan.json
+c9b7af48456531ed7dfe638def25af72f580562e393a12f6fb471b82cebd983b  /home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/other/campaign_plan.after.json
+aa5cb32a66270147058836741cdfd2faf3e09eb927eab4de5637d8848e7964bf  ./acceptance_by_condition.csv
+04894825d2eaf665b8c6259512c71c1315aba638807b94940aedd5747757df2d  ./external_runs.csv
+40c019cb497dfe7da2dd7c3dc840a2092757e3ad4a16235ad8db6f63410b4559  ./per_run.csv
+76b09c6f91c3797eb5227c7a058d0ef056bd6593be2af1a773969f63e6d11cc8  ./recovery_qualification.csv
+07f0bc9a67cc07b00726211eff0fba40617aee23c25db0d5a46d9791e4a31e20  ./recovery_qualification.json
+4d0f6959138fde807a76f370c45276d1d83876eb59da76e0331ae1a3f05cad54  ./resources_by_run.csv
+801b11e9c7d378372927a8a4f40b1b8e631cbcb6222ecfecfbf8916db2a2fd8d  ./saturation.json
+4a145a792d4c4b4dcb7e626d4edd72a78a652843cd9e906e6799411490ccd949  ./summary_by_condition.csv
+## 2026-10-02T15:42:34Z up=2615 row t1-harness: the gate after the row
+egw-controller-1 Up 37 minutes (healthy)
+egw-ditto-things-1 Up 39 minutes (healthy)
+egw-ditto-gateway-1 Up 39 minutes (healthy)
+egw-ditto-policies-1 Up 40 minutes (healthy)
+egw-mongodb-1 Up 40 minutes (healthy)
+egw-mosquitto-1 Up 40 minutes (healthy)
+container egw-controller-1 oomkilled=false restarts=0 id=a7428fc55b5398475a3acc100231ff67acb36a7177f6c6966363299c513ff787 started=2026-10-02T15:04:49.404261943Z
+container egw-ditto-things-1 oomkilled=false restarts=0 id=69b2281e54127bc1385c364bfb38ee3cf5498f9fb7b0b45a7d3d3ba30dd0032f started=2026-10-02T15:02:37.532062991Z
+container egw-ditto-gateway-1 oomkilled=false restarts=0 id=9e1b6d0bd09f4f179274a97c972b4a5af8002176b4af8e46c68efb35d7d746b8 started=2026-10-02T15:02:38.336463199Z
+container egw-ditto-policies-1 oomkilled=false restarts=0 id=8ec639e98dc5cf75f7e03c53d3eb224ef72699d5257bbf000d7566e928641849 started=2026-10-02T15:02:32.203905711Z
+container egw-mongodb-1 oomkilled=false restarts=0 id=946354a51791cc292044484726377d14d88e744390da29921180911e6d296c0c started=2026-10-02T15:02:28.995023167Z
+container egw-mosquitto-1 oomkilled=false restarts=0 id=5a263246881e8316660000fad43812b653ae70849b855b43c511c024e16c7461 started=2026-10-02T15:02:29.005808159Z
+memory-cgroup OOM lines: 0
+              total        used        free      shared  buff/cache   available
+Mem:           8012        1868        5257           6         887        6062
+Swap:             0           0           0
+Filesystem                Size      Used Available Use% Mounted on
+/dev/root                 2.2G    453.4M      1.6G  21% /
+/dev/vdb                 31.2G      2.4G     27.2G   8% /var/lib/docker
+tmpfs                     3.9G      1.4M      3.9G   0% /tmp
+## faults: what the system did during the measured run
+none
+## problems: what the two records do not let anyone say
+none
+guest state before/after: 0 fault(s), 0 problem(s)
+guest-state-delta: faults=0 problems=0
+2026-10-02T15:42:52Z sample 1: egw-mosquitto-1=running/healthy egw-mongodb-1=running/healthy egw-ditto-policies-1=running/healthy egw-ditto-things-1=running/healthy egw-ditto-gateway-1=running/healthy egw-controller-1=running/healthy
+2026-10-02T15:42:57Z completed (sample 1)
+ALL HEALTHY: the 6 expected services are running and healthy (sample 1)
+no egw-events-* and no egw-resources-* unit is active
+TUNNEL CHECK: the master answers on /home/ruisth/egw-tcg/tunnel.ctl
+## 2026-10-02T15:42:58Z up=2641 GATE t1-harness: pass (guest state compared, six services healthy, no recorder or collector unit active, tunnel up)
+## 2026-10-02T15:42:58Z up=2641 row t1-harness ended after 1006 s; the attempt is OPEN for the operator's classification
+attempt:  /home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01
+consoles: /home/ruisth/egw-exec/attempts/20261002T152710Z_g3-qualification-t1-harness_attempt01/console/ (commands.jsonl beside it)
+  001-guest-state-before.stderr.txt
+  001-guest-state-before.stdout.txt
+  002-snapshot-before.stderr.txt
+  002-snapshot-before.stdout.txt
+  003-t1-harness.stderr.txt
+  003-t1-harness.stdout.txt
+  004-snapshot-after-harness.stderr.txt
+  004-snapshot-after-harness.stdout.txt
+  005-t1-harness-analyze.stderr.txt
+  005-t1-harness-analyze.stdout.txt
+  006-snapshot-after.stderr.txt
+  006-snapshot-after.stdout.txt
+  007-guest-state-after.stderr.txt
+  007-guest-state-after.stdout.txt
+  008-guest-state-delta.stderr.txt
+  008-guest-state-delta.stdout.txt
+  009-gate-healthy.stderr.txt
+  009-gate-healthy.stdout.txt
+  010-gate-units.stderr.txt
+  010-gate-units.stdout.txt
+  011-gate-tunnel-check.stderr.txt
+  011-gate-tunnel-check.stdout.txt
+STOP lines printed by the row (the line 'set -v' echoes is not one):
+host files of the row: /home/ruisth/egw-tcg/itest/<id>* (registered sources; copied by the export)
+Next: read the console and the files, then 'classify t1-harness <status> <validity> <outcome> <reason> <next-action>'.

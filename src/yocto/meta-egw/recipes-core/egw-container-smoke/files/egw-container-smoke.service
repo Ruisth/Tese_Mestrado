@@ -1,0 +1,15 @@
+[Unit]
+Description=EGW container runtime smoke test (gate G1 evidence)
+Documentation=file:///usr/bin/egw-container-smoke.sh
+Wants=docker.service
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/egw-container-smoke.sh
+RemainAfterExit=yes
+StandardOutput=journal+console
+StandardError=journal+console
+
+[Install]
+WantedBy=multi-user.target

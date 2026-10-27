@@ -1,0 +1,14 @@
+# acl — Mosquitto access control list (CONTRACTS.md §1).
+#
+# Mounted read-only at /mosquitto/config/acl. With allow_anonymous false and
+# no default (userless) section, any user or topic not listed here is denied.
+#
+# "write" = publish only; "read" = subscribe/receive only.
+
+# Simulator: publish-only on the telemetry namespace.
+user egw-simulator
+topic write c2dt/#
+
+# Controller: subscribe/read-only on the telemetry namespace.
+user egw-controller
+topic read c2dt/#
