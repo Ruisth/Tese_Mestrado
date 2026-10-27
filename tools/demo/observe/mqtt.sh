@@ -7,14 +7,31 @@
 # never typed and never reaches the host. While this observer runs, the value is visible in process
 # arguments INSIDE the guest and the broker container (docker compose exec -e, mosquitto_sub -P).
 # This shows the PUBLICATION observed at the broker, not the twin update (see ditto.sh). Ctrl+C ends
-# only this observer.
+# only this observer: Docker does not end a process started by 'docker compose exec' when its client
+# goes away, so on exit the observer also ends its own subscriber in the broker container (SIGTERM,
+# matched by a client id unique to this run); other clients are not touched.
 set -u
 . "$(dirname "$0")/../lib.sh"
 scenario_check "${1:-}" || exit 2
 s=$(scenario_canon "$1")
 guest_running "$s" || { echo "STOP: the $s guest is not running"; exit 2; }
 say "MQTT observer on $s: broker-side view of c2dt/# (topic c2dt/<egw-id>/<device-uuid>/telemetry; payload JSON). Ctrl+C to stop."
-REMOTE='cd /opt/egw/deployment && set -a && . ./.env && set +a && exec docker compose --env-file .env --env-file images.lock.env exec -T -e MQTT_PW="$MOSQUITTO_CONTROLLER_PASSWORD" mosquitto sh -c "exec mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -V mqttv311 -i demo-observer-$$ -u egw-controller -P \"\$MQTT_PW\" -t c2dt/# -q 1 -v"'
-exec ssh -i "$(demo_key "$s")" -p "$DEMO_SSH_PORT" -o IdentitiesOnly=yes -o BatchMode=yes \
-    -o StrictHostKeyChecking=accept-new -o UserKnownHostsFile="$DEMO_COMPARE_ROOT/scenarios/$s/state/known_hosts" \
-    -o ConnectTimeout=10 -o ServerAliveInterval=30 -o LogLevel=ERROR egw@127.0.0.1 "$REMOTE"
+ID=demo-observer-$(date -u +%Y%m%dT%H%M%SZ)-$$
+COMPOSE='cd /opt/egw/deployment && docker compose --env-file .env --env-file images.lock.env'
+REMOTE='cd /opt/egw/deployment && set -a && . ./.env && set +a && exec docker compose --env-file .env --env-file images.lock.env exec -T -e MQTT_PW="$MOSQUITTO_CONTROLLER_PASSWORD" mosquitto sh -c "exec mosquitto_sub -h localhost -p 8883 --cafile /mosquitto/config/certs/ca.crt -V mqttv311 -i '"$ID"' -u egw-controller -P \"\$MQTT_PW\" -t c2dt/# -q 1 -v"'
+SSH=
+end_subscriber() {
+    trap - EXIT INT TERM HUP
+    # the job is a subshell running dssh: its ssh child first, then the subshell
+    [ -z "$SSH" ] || kill -TERM $(ps -o pid= --ppid "$SSH" 2> /dev/null) "$SSH" 2> /dev/null
+    dssh "$s" "$COMPOSE exec -T mosquitto pkill -f $ID" > /dev/null 2>&1 < /dev/null
+}
+trap end_subscriber EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+# The stream runs as a job, so that a signal to this script (Ctrl+C, or 'kill <pid>' from another
+# terminal) is handled at once instead of after the ssh session ends.
+dssh "$s" "$REMOTE" &
+SSH=$!
+wait "$SSH"

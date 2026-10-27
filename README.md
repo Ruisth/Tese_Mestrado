@@ -56,6 +56,18 @@ and some settings are created once and kept outside the repository.
 - the SSH key of the gateway user and a local configuration file with the passwords (never stored in Git);
 - the controller's container image.
 
+**On another PC**, one script does all of this from the *demonstration kit*, a ZIP with the gateway image
+and the controller's container image that the author provides. In an Ubuntu (WSL) terminal, from the root
+of the repository clone:
+
+```bash
+bash tools/setup/prepare_demo_host.sh --kit <path to egw-demo-kit-<date>.zip>
+```
+
+It installs what is missing, creates new passwords and prepares Debian 13. It took about 10 minutes on the
+PC where it was tested, and it can be run again safely. What the PC needs, and what the script does:
+[tools/setup/README.md](tools/setup/README.md).
+
 **Every time:**
 
 - open a WSL terminal (`bash -l`) and go to the root of the repository clone;
@@ -220,6 +232,7 @@ Every result, with its data and the code that analysed it: [docs/results.md](doc
 | [`src/CONTRACTS.md`](src/CONTRACTS.md) | Message formats, topics and interfaces |
 | [`tools/compare/`](tools/compare/README.md) | Start, check and power off the gateway; the comparison measurements |
 | [`tools/demo/`](tools/demo/README.md) | The menu, the device simulation and the observers |
+| [`tools/setup/`](tools/setup/README.md) | Preparing another PC for the demonstration from the kit |
 | [`docs/architecture.md`](docs/architecture.md) | How the parts fit together, and a map of the code |
 | [`docs/demo.md`](docs/demo.md) | The full demonstration guide, including the one-time preparation |
 | [`docs/results.md`](docs/results.md) | The results, their data and their analysis code |

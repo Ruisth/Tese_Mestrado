@@ -16,6 +16,13 @@ Done once per PC; none of it is stored in the repository. The variable in bracke
 each item is. Settings and defaults: [tools/compare](../tools/compare/README.md) and
 [tools/demo](../tools/demo/README.md). Runbook: [setup/qemu_integrated_gateway.md](setup/qemu_integrated_gateway.md).
 
+**On another PC, with the demonstration kit,** one command does the host packages of item 1 and items 2
+to 8, once WSL2 and Ubuntu 24.04 are installed:
+`bash tools/setup/prepare_demo_host.sh --kit <egw-demo-kit-<date>.zip>`. The kit holds the image and the
+controller archive; the script creates new passwords and a settings file read by login shells. It uses
+Ubuntu's QEMU (8.2.x) instead of the 8.2.7 of item 2, which runs the demonstration but is not the version
+of the recorded measurements. Item 9 is not in the kit. See [tools/setup](../tools/setup/README.md).
+
 1. **WSL2 with Ubuntu 24.04** and the host packages listed in `tools/compare/README.md` (Yocto build host:
    [setup/wsl2_ubuntu_yocto.md](setup/wsl2_ubuntu_yocto.md)).
 2. **The Yocto gateway image** (`egw-gateway-image`, Yocto Project 5.0 Scarthgap): kernel `Image` and
@@ -90,7 +97,7 @@ bash tools/demo/observe/mqtt.sh yocto
 
 It runs `mosquitto_sub -v` on `c2dt/#` inside the broker container, as the controller's read-only client.
 One line per message, `topic payload`. This is what the broker received; it does not yet prove that the
-twin changed.
+twin changed. On Ctrl+C it also ends that subscriber inside the container, found by its own client id.
 
 ```text
 c2dt/egw-01/<device-uuid>/telemetry {<JSON: schema_version, run_id, message_id, seq, ts, egw_id, device_uuid, device_type, measurements>}
