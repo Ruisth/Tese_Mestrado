@@ -19,7 +19,7 @@ sections 4.3, 5.1, 8 and 9.1 "Plataforma").
 > native-ARM64 instance, the third tier of the platform model, is withdrawn from
 > mandatory scope and deferred with the native route (adopted plan, sections 3.5
 > and 8); the provisioning checklist at
-> [`docs/setup/vm_arm64_hetzner.md`](../../docs/setup/vm_arm64_hetzner.md) is
+> [`docs/setup/vm_arm64_hetzner.md`](../../docs/history/setup/vm_arm64_hetzner.md) is
 > retained only for that future work, and the rule that a burstable ARM64
 > instance is admitted for functional integration only and never for numbers
 > applies to it as well. Timing and resource figures produced in the emulated
@@ -266,7 +266,7 @@ x86-64 host: whatever it produces is functional and integration evidence, never
 native ARM64 performance evidence. Procedure:
 [`docs/setup/qemu_integrated_gateway.md`](../../docs/setup/qemu_integrated_gateway.md);
 rationale and package audit:
-[`docs/reviews/2026-09-17-egw-image-audit.md`](../../docs/reviews/2026-09-17-egw-image-audit.md).
+[`docs/reviews/2026-09-17-egw-image-audit.md`](../../docs/history/reviews/2026-09-17-egw-image-audit.md).
 
 ## Raspberry Pi 5 overlay (documented-only)
 

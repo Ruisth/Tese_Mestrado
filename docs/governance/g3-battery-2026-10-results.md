@@ -8,7 +8,7 @@ was, and whether its **timed delivery** was met where the family is timed. It
 changes no criterion, threshold, deadline, load or rule; it re-labels no
 attempt; it accepts no family, no gate and no claim. G3 stays `Not decided` in
 the [gate decision log](gate_decision_log.md), and the pause on qualifying
-runs stays in force ([PROGRESS](../../PROGRESS.md), G3 bullet). The authority,
+runs stays in force ([PROGRESS](../history/PROGRESS.md), G3 bullet). The authority,
 sessions and packages are the two result notes held locally
 (`output_test/decisions/2026-10-02_g3-battery-s1-results.md`,
 `2026-10-03_g3-battery-s2-results.md`) and the Project Manager's register

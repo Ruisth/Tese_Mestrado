@@ -21,7 +21,7 @@ other three still hold.*
   [ADR 0011](../../adr/0011-controller-restart-recovery.md), decision of 2026-09-29).
 
 **Implementing any of these in validators, `analyze.py`, `delta`, the evaluator or gate criteria needs Rui's
-dated decision.** That decision is recorded in [LOG](../../../LOG.md). The implementation then comes as a change
+dated decision.** That decision is recorded in [LOG](../../history/LOG.md). The implementation then comes as a change
 of its own, with its own regression tests. *(2026-09-30: the decision was taken on that date. It is recorded in
 LOG #C049, and the change that records it implements it offline, with its own regression tests.)*
 

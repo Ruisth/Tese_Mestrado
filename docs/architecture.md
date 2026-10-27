@@ -204,7 +204,7 @@ the results:
 - `.github/workflows/manual-arm64-integration.yml`: needs a native ARM64 runner that never existed;
 - the `genericarm64` option of `src/yocto/scripts/build-profile.sh`: its kas file is not in the
   repository, so it fails;
-- [`docs/setup/vm_arm64_hetzner.md`](setup/vm_arm64_hetzner.md): setup of a native ARM64 server
+- [`docs/setup/vm_arm64_hetzner.md`](history/setup/vm_arm64_hetzner.md): setup of a native ARM64 server
   that was never used;
 - `diagrams/two_layer_experimental_deployment.*`: an earlier deployment drawing;
 - `src/egw_experiments/campaign.py`: a larger planned experiment that was never run.

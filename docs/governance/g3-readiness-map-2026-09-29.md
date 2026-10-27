@@ -6,7 +6,7 @@ candidate, and what remains before a qualifying run. It changes no criterion,
 threshold, load or scope, runs nothing, and makes none of the decisions it
 names. G3 stays `Not decided` in the
 [gate decision log](gate_decision_log.md) and the pause on qualifying runs
-stays in force ([PROGRESS](../../PROGRESS.md), G3 bullet). The proof's own
+stays in force ([PROGRESS](../history/PROGRESS.md), G3 bullet). The proof's own
 exceptions — E-12's admission of the restart sampling gap and the N1 naming of
 [ADR 0011](../adr/0011-controller-restart-recovery.md) — apply to the finite
 proof only and are assumed nowhere below.

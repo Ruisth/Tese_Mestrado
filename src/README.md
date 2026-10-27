@@ -49,7 +49,7 @@ results. See [`../docs/results.md`](../docs/results.md#functional-tests) (Functi
 [`../docs/evidence/tests/2026-08-11-head-4e67717/`](../docs/evidence/tests/2026-08-11-head-4e67717/):
 701 passed at `4e67717`. A later full run, on 2026-10-08, is held locally only
 ([`../docs/results.md`](../docs/results.md#other-records), Other records). Unit tests close no gate and validate no claim
-of the [claim matrix](../docs/claim_evidence_matrix.md).
+of the [claim matrix](../docs/history/claim_evidence_matrix.md).
 
 ## Run the simulator (reference invocation, CONTRACTS §7)
 

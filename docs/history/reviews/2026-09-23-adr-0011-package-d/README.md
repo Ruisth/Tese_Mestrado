@@ -1,7 +1,7 @@
 # Review record of ADR 0011 — package D (2026-09-20 to 2026-09-24)
 
 This directory is the review record that
-[ADR 0011](../../adr/0011-controller-restart-recovery.md) cites: the analyses
+[ADR 0011](../../../adr/0011-controller-restart-recovery.md) cites: the analyses
 its figures depend on, the four gate notes that answer its gate items, the
 refutation check applied to the folded record, the verification reports, the
 review annex and the decision request the student answered. It is a record,

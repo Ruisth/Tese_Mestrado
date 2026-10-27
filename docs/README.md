@@ -48,9 +48,9 @@ capsule and states which data are held outside the repository.
 |---|---|
 | [`setup/wsl2_ubuntu_yocto.md`](setup/wsl2_ubuntu_yocto.md) | WSL2, Ubuntu 24.04, Yocto Scarthgap, kas and QEMU on the build host |
 | [`setup/local_test_outputs.md`](setup/local_test_outputs.md) | The local `output_test` folder: one verified package per attempt, failures included |
-| [`setup/git_backup_remote.md`](setup/git_backup_remote.md) | Git backup and the private remote |
+| [`setup/git_backup_remote.md`](history/setup/git_backup_remote.md) | Git backup and the private remote |
 | [`setup/qemu_integrated_gateway.md`](setup/qemu_integrated_gateway.md) | The manual runbook of 2026-09-18/19. Its §1–2 and §4 remain the preparation steps used by [demo.md](demo.md) and [reproduce.md](reproduce.md); §5.1–5.6 are automated by `tools/compare/provision_stack.sh`; §6.1 is the source of the measurement's helper file. Its status notes are historical |
-| [`setup/vm_arm64_hetzner.md`](setup/vm_arm64_hetzner.md) | Record: native ARM64 VM checklist, deferred on 2026-09-18 and never used |
+| [`setup/vm_arm64_hetzner.md`](history/setup/vm_arm64_hetzner.md) | Record: native ARM64 VM checklist, deferred on 2026-09-18 and never used |
 
 ## Governance
 
@@ -79,16 +79,16 @@ Supervisor-request logs, readiness maps and memos are listed in [history/README.
 
 | File | Content |
 |---|---|
-| [`claim_evidence_matrix.md`](claim_evidence_matrix.md) ([CSV](claim_evidence_matrix.csv)) | Claims of a larger planned measurement series that was not run; the Yocto–Debian comparison is outside it |
+| [`claim_evidence_matrix.md`](history/claim_evidence_matrix.md) ([CSV](history/claim_evidence_matrix.csv)) | Claims of a larger planned measurement series that was not run; the Yocto–Debian comparison is outside it |
 
 ## Scope and start-up (records)
 
 | File | Content |
 |---|---|
-| [`g0/scope_and_rqs.md`](g0/scope_and_rqs.md) | Scope and RQ1–RQ3, version 2.0 (2026-09-18); the dissertation holds the current wording |
-| [`g0/backlog.md`](g0/backlog.md) | Backlog of the planned work |
-| [`g0/risks.md`](g0/risks.md) | Risk register |
-| [`g0/supervisor_email_g0.md`](g0/supervisor_email_g0.md) | Draft scope email to the supervisors, in Portuguese; not sent |
-| [`g0/two_layer_thesis_proposal.md`](g0/two_layer_thesis_proposal.md) | Two-layer thesis proposal; not adopted |
-| [`g0/supervisor_decision_matrix.csv`](g0/supervisor_decision_matrix.csv) | Questions for the supervisors, with recommended positions |
-| [`g0/supervisor_seven_questions_matrix.md`](g0/supervisor_seven_questions_matrix.md) | Response matrix for the seven supervisor questions |
+| [`g0/scope_and_rqs.md`](history/g0/scope_and_rqs.md) | Scope and RQ1–RQ3, version 2.0 (2026-09-18); the dissertation holds the current wording |
+| [`g0/backlog.md`](history/g0/backlog.md) | Backlog of the planned work |
+| [`g0/risks.md`](history/g0/risks.md) | Risk register |
+| [`g0/supervisor_email_g0.md`](history/g0/supervisor_email_g0.md) | Draft scope email to the supervisors, in Portuguese; not sent |
+| [`g0/two_layer_thesis_proposal.md`](history/g0/two_layer_thesis_proposal.md) | Two-layer thesis proposal; not adopted |
+| [`g0/supervisor_decision_matrix.csv`](history/g0/supervisor_decision_matrix.csv) | Questions for the supervisors, with recommended positions |
+| [`g0/supervisor_seven_questions_matrix.md`](history/g0/supervisor_seven_questions_matrix.md) | Response matrix for the seven supervisor questions |

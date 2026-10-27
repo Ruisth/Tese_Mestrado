@@ -16,9 +16,9 @@ Formal gate outcomes are recorded only in the
 
 ## Work log and state record
 
-- [LOG.md](../../LOG.md) — work diary, entries #C001–#C061 (#C001–#C010 in Portuguese); among them
+- [LOG.md](LOG.md) — work diary, entries #C001–#C061 (#C001–#C010 in Portuguese); among them
   #C055 G3 accepted, #C059 comparison tooling, #C060 series a02, #C061 the `yoctowrynose` scenario.
-- [PROGRESS.md](../../PROGRESS.md) — deliverable state record; each block carries its own date; its
+- [PROGRESS.md](PROGRESS.md) — deliverable state record; each block carries its own date; its
   top block of 2026-09-21 and its planned dates are that version's planning targets.
 
 ## Plans
@@ -47,7 +47,7 @@ Formal gate outcomes are recorded only in the
   interpretation and T6's amended criterion.
 - [Supervisor decision log](../governance/supervisor_decision_log.csv) — requests D001–D014 and their
   recorded status.
-- [Claim–evidence matrix](../claim_evidence_matrix.md) — claims C01–C15 of the planned campaign; the a02
+- [Claim–evidence matrix](claim_evidence_matrix.md) — claims C01–C15 of the planned campaign; the a02
   comparison lies outside it.
 
 ## Proposals
@@ -66,13 +66,13 @@ Formal gate outcomes are recorded only in the
 
 ## Reviews
 
-- [Yocto image audit, 2026-09-17](../reviews/2026-09-17-egw-image-audit.md) — the integrated-gateway
+- [Yocto image audit, 2026-09-17](reviews/2026-09-17-egw-image-audit.md) — the integrated-gateway
   change set; section 13 records the first build and boot of 2026-09-18.
-- [Test procedure corrections, 2026-09-18](../reviews/2026-09-18-test-procedure-corrections.md) — the
+- [Test procedure corrections, 2026-09-18](reviews/2026-09-18-test-procedure-corrections.md) — the
   integration test procedures as corrected that day.
-- [ADR 0011 package D](../reviews/2026-09-23-adr-0011-package-d/README.md) — review record of ADR 0011,
+- [ADR 0011 package D](reviews/2026-09-23-adr-0011-package-d/README.md) — review record of ADR 0011,
   2026-09-20 to 2026-09-24.
-- [reviews/historical/](../reviews/historical/) — synthesis of the 2026-08-08 reviews and the lineage of
+- [reviews/historical/](reviews/historical/) — synthesis of the 2026-08-08 reviews and the lineage of
   the supervisor memo.
 
 ## Past runbooks
@@ -80,14 +80,14 @@ Formal gate outcomes are recorded only in the
 - [Integrated gateway runbook](../setup/qemu_integrated_gateway.md) — the manual procedure of
   2026-09-18/19 (build, boot, six containers, tests 1–9). `tools/compare/provision_stack.sh` automates
   its sections 5.1–5.6, and its section 6.1 is still the source of the helper file the measurement uses.
-- [Native ARM64 VM checklist](../setup/vm_arm64_hetzner.md) — deferred on 2026-09-18; never used for any
+- [Native ARM64 VM checklist](setup/vm_arm64_hetzner.md) — deferred on 2026-09-18; never used for any
   result.
 - The other setup guides (WSL2 and Yocto, local test outputs, Git backup) are current and listed in
   [docs/README.md](../README.md).
 
 ## G0 package and academic records
 
-- [docs/g0/](../g0/scope_and_rqs.md) — scope and RQs v2.0 (2026-09-18), backlog, risk register, the
+- [docs/g0/](g0/scope_and_rqs.md) — scope and RQs v2.0 (2026-09-18), backlog, risk register, the
   supervisor email draft (not sent), the two-layer thesis proposal (not adopted), the decision matrix and
   the seven-questions matrix.
 - [C2DTA P0 traceability](../academic/c2dta_p0_traceability.md) — paper function to P0 matrix, v1.2 of
@@ -112,5 +112,5 @@ Formal gate outcomes are recorded only in the
 - [thesis/](../../thesis/README.md) — the historical LaTeX conversion of 2026-09-17 and the
   research-protocol records; the current manuscript is kept outside the repository.
 - [paper/](../../paper/) — IEEE article, deferred.
-- [Two-layer deployment diagram](../../diagrams/two_layer_experimental_deployment.puml) — the
+- [Two-layer deployment diagram](diagrams/two_layer_experimental_deployment.puml) — the
   experimental deployment proposal superseded on 2026-09-18.

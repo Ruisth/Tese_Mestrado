@@ -10,7 +10,7 @@
 
 **Second governance note (2026-09-18, later the same day):** the student adopted plan v2.0 with the QEMU-only execution amendment and published it at `../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md`, where it supersedes v1.2; the proposal text of 2026-09-16 is kept as history under `../governance/proposals/`. The publication statement in the note above is therefore superseded, and citations of "plan v2.0" in Sections 1 to 13 are read against the adopted text where the two differ. Nothing else in this report changes: adoption is a decision of the student, it records no supervisor approval, and this report still accepts no gate and no claim. Sections 1 to 13 are untouched.
 
-**Companion runbook:** [`../setup/qemu_integrated_gateway.md`](../setup/qemu_integrated_gateway.md).
+**Companion runbook:** [`../setup/qemu_integrated_gateway.md`](../../setup/qemu_integrated_gateway.md).
 
 ## 1. Verdict
 
@@ -639,7 +639,7 @@ Nothing in runbook Sections 4-9 has run on the real host, guest or broker; every
 
 Scope: build and boot only, in WSL2, from identified commits of the branch of this change set. The six-container stack was **not** deployed, no image was loaded, no container was started and no campaign was run. No gate is accepted and no claim is supported. The environment is ARM64 **emulated** under QEMU/TCG on the x86-64 host. The candidate evidence (logs, checksums, guest transcripts, with `SHA256SUMS`) is held outside the repository under `~/yocto/evidence-candidates/2026-09-18-integrated-{68f9ae7,03e333e,3209b17}/` in the WSL2 home and is **not sealed**; sealing it under `docs/evidence/` is a separate decision.
 
-**Sealed afterwards (2026-09-18):** the candidate evidence named above is archived byte for byte in [`docs/evidence/integrated-qemu/`](../evidence/integrated-qemu/README.md), together with the record of the MongoDB test of 13.5. Sealing is not acceptance: no gate is accepted and no claim is supported.
+**Sealed afterwards (2026-09-18):** the candidate evidence named above is archived byte for byte in [`docs/evidence/integrated-qemu/`](../../evidence/integrated-qemu/README.md), together with the record of the MongoDB test of 13.5. Sealing is not acceptance: no gate is accepted and no claim is supported.
 
 ### 13.1 Attempts (every attempt is preserved)
 

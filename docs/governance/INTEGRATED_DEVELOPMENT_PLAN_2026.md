@@ -21,7 +21,7 @@ remain targets. Integration into dev follows the repository review workflow.
 > prerequisite, native-performance promise or obsolete status statement
 > elsewhere in this document, in the proposal text it supersedes or in any
 > document that cites them.
-> [`PROGRESS.md`](../../PROGRESS.md) is the only source of current operational
+> [`PROGRESS.md`](../history/PROGRESS.md) is the only source of current operational
 > state.
 > **The supervisor position, stated precisely.** The alignment package covering
 > what remains open — the experimental thresholds (D007), the protocol and claim
@@ -88,7 +88,7 @@ on 2026-09-18.
 The `archive/` directory holds plan versions only, because the plan is the
 document this project cites by version number. Subordinate documents that are
 republished with the plan — the scope document
-[`../g0/scope_and_rqs.md`](../g0/scope_and_rqs.md), republished as version 2.0
+[`../g0/scope_and_rqs.md`](../history/g0/scope_and_rqs.md), republished as version 2.0
 on 2026-09-18 — are not copied into `archive/`: their superseded text is
 preserved in the repository history at the revision each document names, and
 each carries a **Supersedes** line pointing at it. Neither route permits
@@ -99,13 +99,13 @@ rewriting a superseded text.
 | Subject | Authoritative record | Rule |
 |---|---|---|
 | Scope, schedule, gates and cuts | This plan | A change requires a dated new version; history is never rewritten. |
-| Current deliverable and gate state | [`PROGRESS.md`](../../PROGRESS.md) | Only `Pending`, `In progress`, `Blocked`, `Complete` and `Cut` are permitted. |
+| Current deliverable and gate state | [`PROGRESS.md`](../history/PROGRESS.md) | Only `Pending`, `In progress`, `Blocked`, `Complete` and `Cut` are permitted. |
 | Formal gate outcomes | [`gate_decision_log.md`](gate_decision_log.md) | Evidence or a merged change never implies acceptance; every outcome needs a dated decision record. Adopting a plan version accepts no gate. |
 | Public implementation interfaces | [`src/CONTRACTS.md`](../../src/CONTRACTS.md) | Version 1.1 is frozen for this restructuring; material changes require an ADR and regression tests. |
-| Claims and admissible evidence | [`claim_evidence_matrix.md`](../claim_evidence_matrix.md) | No claim is accepted without the evidence named in the matrix and a recorded gate decision. |
+| Claims and admissible evidence | [`claim_evidence_matrix.md`](../history/claim_evidence_matrix.md) | No claim is accepted without the evidence named in the matrix and a recorded gate decision. |
 | Supervisor decisions | [`supervisor_decision_log.csv`](supervisor_decision_log.csv) | A draft, a sent request, silence or a recommendation is not approval. The `status` column takes exactly three values: `proposed_not_sent`, `confirmed_reported_by_student` and `partly_confirmed_reported_by_student`. The two `…_reported_by_student` values record what the student reports a supervisor confirmed; they are never a documented supervisor decision. `sent_at` and `response_at` stay empty unless an actual date is held. |
 | Raw experimental records | `experiments/results/raw/` plus checksums | Write once. A correction or repeat receives a new identity. |
-| Work diary | [`LOG.md`](../../LOG.md) | Records actions and links to evidence; it does not override state or scope. |
+| Work diary | [`LOG.md`](../history/LOG.md) | Records actions and links to evidence; it does not override state or scope. |
 
 Update `PROGRESS.md` and the applicable evidence records in the same work block
 that changes them. An artefact existing in the repository means only
@@ -155,7 +155,7 @@ means a claim or gate is accepted.
 - **The state-of-the-art material is reported sent.** The student reports that
   it was sent to the supervisors. No date and no copy is held, so none is
   recorded; the August G0 email draft at
-  [`../g0/supervisor_email_g0.md`](../g0/supervisor_email_g0.md) is a different
+  [`../g0/supervisor_email_g0.md`](../history/g0/supervisor_email_g0.md) is a different
   document and is genuinely unsent.
 - **Adoption and these confirmations admit nothing.** They close no gate, admit
   no claim, seal no evidence and make no emulated result native evidence. Formal
@@ -309,8 +309,8 @@ deleted. In section 3.3 above the sentence was removed and is quoted here
 instead, because that bullet list carries no dated annotations; everywhere else
 the superseded wording is marked where it stands — sections 4.3 (G4, G5) and 9
 of this plan, sections 3 and 7 of
-[`../g0/scope_and_rqs.md`](../g0/scope_and_rqs.md), the G3 row, the G5 cutting
-rule and the campaign row of [`../g0/backlog.md`](../g0/backlog.md), the G5 note
+[`../g0/scope_and_rqs.md`](../history/g0/scope_and_rqs.md), the G3 row, the G5 cutting
+rule and the campaign row of [`../g0/backlog.md`](../history/g0/backlog.md), the G5 note
 of [`gate_decision_log.md`](gate_decision_log.md), rule 1 of section 8 of
 [`../setup/qemu_integrated_gateway.md`](../setup/qemu_integrated_gateway.md),
 `PROGRESS.md`, `README.md` and both forms of the claim matrix.
@@ -1019,7 +1019,7 @@ establish candidate mechanisms, not this project's successful execution.
   are registered in
   [`provenance-history-rewrite.md`](provenance-history-rewrite.md).
 - The 8 August reviews are condensed as non-normative historical input at
-  [`../reviews/historical/2026-08-08-legacy-review-synthesis.md`](../reviews/historical/2026-08-08-legacy-review-synthesis.md).
+  [`../reviews/historical/2026-08-08-legacy-review-synthesis.md`](../history/reviews/historical/2026-08-08-legacy-review-synthesis.md).
 - Version 1.1 removes ACA-Py from conditional delivery, makes the two-layer
   evidence boundary explicit, rebases gates on 13 August, and separates state,
   decision and scope authorities. It does not retrospectively alter any raw

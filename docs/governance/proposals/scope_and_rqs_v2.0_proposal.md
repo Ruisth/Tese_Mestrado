@@ -15,7 +15,7 @@ supersedes this proposal's request for those items; the proposal text itself,
 including the wording below, is **history and is not rewritten**. The current
 position is in
 [section 3.2 of the adopted plan](../INTEGRATED_DEVELOPMENT_PLAN_2026.md) and in
-[`docs/g0/scope_and_rqs.md`](../../g0/scope_and_rqs.md).
+[`docs/g0/scope_and_rqs.md`](../../history/g0/scope_and_rqs.md).
 
 **Status — superseded proposal text (2026-09-18).** This scope belongs to the
 [plan v2.0 proposal](INTEGRATED_DEVELOPMENT_PLAN_2026_v2.0_proposal.md) and is
@@ -35,7 +35,7 @@ possibility of measuring a native ARM64 guest with verified hardware
 virtualisation is documented, unverified future work rather than a live option.
 The distinction between verified hardware virtualisation and CPU emulation
 remains a standing rule. The canonical scope document
-[`docs/g0/scope_and_rqs.md`](../../g0/scope_and_rqs.md) is now version 2.0 of
+[`docs/g0/scope_and_rqs.md`](../../history/g0/scope_and_rqs.md) is now version 2.0 of
 2026-09-18; the August scope v1.1 is preserved in the repository history at
 `dev` revision `9179612`. **Nothing here has been
 sent to or approved by the supervisors.** The

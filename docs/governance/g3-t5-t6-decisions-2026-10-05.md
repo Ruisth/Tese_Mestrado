@@ -39,7 +39,7 @@ earlier runs), and the G3 paragraph of plan section 4.3
 - C12 cannot claim timely delivery at the nominal rate under TCG; the shortfall (`controller_restart-r03`: 2,002 of
   6,720 beyond the deadline; `nominal-r02`, without a restart: 2,136) is a sizing finding. The campaign's C12
   condition and its gate in `analyze.py` are unchanged; C12 stays pending in the
-  [claim matrix](../claim_evidence_matrix.md).
+  [claim matrix](../history/claim_evidence_matrix.md).
 - `controller_restart-r03` stays invalid and is not re-judged.
 
 **Not decided:** a lower load, a longer deadline, C12 as pilot-only.

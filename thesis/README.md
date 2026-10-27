@@ -153,7 +153,7 @@ verification counts.
 discipline:
 
 1. No quantitative project result without admitted raw data, a manifest, reproducible analysis
-   and a corresponding [claim-evidence record](../docs/claim_evidence_matrix.md).
+   and a corresponding [claim-evidence record](../docs/history/claim_evidence_matrix.md).
 2. No invented implementation, physical-hardware, SSI, blockchain or security achievement.
    Word-source wording is not proof of an achievement.
 3. Keep unprovided sections empty until separately authorised content exists. Do not restore

@@ -20,7 +20,7 @@ guidance, not a recorded replacement of the previously reported wording.
 The original email's sending timestamp and mailbox metadata were not supplied.
 
 The [integrated plan](../governance/INTEGRATED_DEVELOPMENT_PLAN_2026.md) owns
-scope and dates; [PROGRESS](../../PROGRESS.md) owns current deliverable state.
+scope and dates; [PROGRESS](../history/PROGRESS.md) owns current deliverable state.
 This document defines criteria and decisions, not gate acceptance. No hardware
 purchase, cloud allocation, native port or change to public contracts follows
 from this selection. Any such execution would require a separate scope and
@@ -219,9 +219,9 @@ belong to the plan; operational completion belongs to PROGRESS.
   [selection register](../../thesis/research/study_selection.csv): preserve real
   search/reading history. Technical web checks supporting this matrix do not
   constitute an executed academic selection search.
-- [Scope and RQs](../g0/scope_and_rqs.md),
+- [Scope and RQs](../history/g0/scope_and_rqs.md),
   [decisions](../governance/supervisor_decision_log.csv) and
-  [claim matrix](../claim_evidence_matrix.md): existing wording and admission
+  [claim matrix](../history/claim_evidence_matrix.md): existing wording and admission
   rules remain in force.
 
 ## 7. Primary external sources checked on 2026-09-21
