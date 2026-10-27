@@ -13,7 +13,7 @@ output, is [docs/demo.md](../../docs/demo.md).
 ## Scripts
 
 `<s>` is the scenario: `yocto`, `debian13` or `yoctowrynose` (any letter case, for example
-`yoctoWrynose`). A script that needs it prints its usage when it is missing. Defaults are shown after `=`.
+`yoctoWrynose`; not available on a PC prepared with the kit). A script that needs it prints its usage when it is missing. Defaults are shown after `=`.
 
 | Script | Usage | What it does |
 |---|---|---|
@@ -31,7 +31,10 @@ output, is [docs/demo.md](../../docs/demo.md).
 
 The scripts read the same variables as `tools/compare`, so one shell profile serves both. On a PC
 prepared with [`tools/setup/prepare_demo_host.sh`](../setup/README.md), that profile is written by the
-script (`~/.config/egw-demo/env.sh`) and nothing below needs setting by hand.
+script (`~/.config/egw-demo/env.sh`) and nothing below needs setting by hand. The defaults in the
+table are the paths of the author's measurement PC (`~/egw-exec`, `~/egw-tcg`, `~/.ssh/egw_campaign`).
+On a prepared PC the settings file sets `EGW_COMPARE_SSH_KEY`, `EGW_COMPARE_SECRETS_ENV` and
+`EGW_EXEC_VENV`, so `DEMO_SECRETS` and `DEMO_VENV` follow them.
 
 | Variable | Default | Used for |
 |---|---|---|

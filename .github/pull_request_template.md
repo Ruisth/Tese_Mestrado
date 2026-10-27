@@ -127,7 +127,8 @@ Files needing particular attention:
 - [ ] Evidence is persisted and reproducible.
 - [ ] Invalid runs are not presented as successful.
 - [ ] No gate or claim has been accepted without evidence.
-- [ ] PROGRESS, LOG, backlog, risks and the claim matrix are synchronised.
+- [ ] `docs/history/PROGRESS.md`, `docs/history/LOG.md`, backlog, risks and the claim matrix are
+      synchronised.
 - [ ] No secrets, private certificates or passwords are tracked.
 - [ ] No large binaries or bulk data were added to Git.
 - [ ] The rollback is documented.

@@ -10,9 +10,10 @@ data are and which code analysed them. It adds no result and changes no outcome.
   one x86-64 PC with Windows 11 and WSL2 (Ubuntu 24.04). The simulated devices ran on the same PC. The
   gateway's 4 virtual CPUs and 8 GiB are emulator settings (`-cpu cortex-a76 -smp 4 -m 8192`), not a
   physical board.
-- **The load is a test setting.** Most tests sent 11.2 messages per second in total. The long runs
-  lasted 600 s, after 120 s of warm-up. These values come from the test tools; they are not
-  requirements or targets. No figure is a maximum capacity.
+- **The load is an experimental parameter.** Most tests offered 11.2 messages per second in total. The
+  long runs lasted 600 s, after 120 s of warm-up. These values are settings of the test tools; they are
+  not requirements or targets, and 11.2 msg/s is not a demonstrated maximum capacity. No figure is a
+  maximum capacity.
 - **The time limit.** A message counts as confirmed in time if its twin was updated within 60 s of the
   end of the load. The data files call a message that missed this limit `lost`. That alone does not
   mean lost for good: where a later record exists, most were confirmed afterwards. Only the messages
@@ -20,9 +21,9 @@ data are and which code analysed them. It adds no result and changes no outcome.
 
 ## Data and section numbers
 
-- **Dissertation numbers** (sections, tables, figures) follow a draft made shortly before
-  submission. Check them against the submitted version. The manuscript is kept outside this repository
-  ([thesis/README.md](../thesis/README.md)). Its Table B.1 lists the same data.
+- **Dissertation numbers** (sections, tables, figures) refer to the dissertation version of October
+  2026. The manuscript is kept outside this repository ([thesis/README.md](../thesis/README.md)). Its
+  Table B.1 lists the same data.
 - **Data in the repository** are folders under [`evidence/`](evidence/), copied byte for byte and never
   edited. Their `SHA256SUMS` files are checked by `python tools/ci/verify_evidence.py`.
 - **Data kept locally** stay on the student's computer, not in the repository. They are listed at the
@@ -61,8 +62,8 @@ data are and which code analysed them. It adds no result and changes no outcome.
     model. MongoDB 7 alone passed 35 checks on that model, with none failed.
 - **Also kept:** the first start of the base image (a false failure of the checking tool), the first
   gateway build (a file-permission conflict) and the first gateway start (it failed before QEMU ran).
-- **Data:** [`evidence/g1-yocto-qemu/`](evidence/g1-yocto-qemu/README.md) (base image),
-  [`evidence/integrated-qemu/`](evidence/integrated-qemu/README.md) (gateway image and MongoDB 7).
+- **Data:** [base image records](evidence/g1-yocto-qemu/README.md),
+  [gateway image and MongoDB 7 records](evidence/integrated-qemu/README.md).
 - **Code:** `src/yocto/kas/` (`egw-qemuarm64.yml`, `egw-qemuarm64-integrated.yml`, their lock files);
   `src/yocto/scripts/` (`build.sh`, `build-profile.sh`, `run-qemu.sh`, `run-qemu-integrated.sh`,
   `boot_check.py`); steps in [setup/qemu_integrated_gateway.md](setup/qemu_integrated_gateway.md) §2–3.
@@ -74,7 +75,7 @@ data are and which code analysed them. It adds no result and changes no outcome.
 - **Outcome:** 60 of 60 messages confirmed in time; none lost, late or accepted twice. After the
   restart the twin was read back unchanged.
 - **Also kept:** a failed pre-check before the run.
-- **Data:** [`evidence/g2-complete-flow/`](evidence/g2-complete-flow/README.md).
+- **Data:** [one-device end-to-end records](evidence/g2-complete-flow/README.md).
 - **Code:** the test scripts in `tools/session/`; `src/egw_experiments/itest_reconcile.py`; steps in
   [setup/qemu_integrated_gateway.md](setup/qemu_integrated_gateway.md) §6.
 
@@ -85,9 +86,10 @@ throughout. So did the 10-minute run without faults (see
 [Delivery time under sustained load](#delivery-time-under-sustained-load)). Each test folder holds its
 records and a `SHA256SUMS` seal.
 
-- **Data:** [`evidence/g3-battery-2026-10/`](evidence/g3-battery-2026-10/README.md), one folder per
-  test (linked below). The full record of every run, failed and incomplete attempts included:
-  [test record](governance/g3-battery-2026-10-results.md).
+- **Data:** [functional test records](evidence/g3-battery-2026-10/README.md), one folder per test
+  (linked below). The run-by-run log of every run, failed and incomplete attempts included, is one of
+  the project's internal records ([history](history/README.md)) and uses internal test codes:
+  [run-by-run log](governance/g3-battery-2026-10-results.md).
 - **Code:** `src/egw_experiments/` (`run.py`, `analyze.py`, `itest_reconcile.py`, `proved_down.py`,
   `recovery_qualification.py`); the test scripts in `tools/session/`; steps in
   [setup/qemu_integrated_gateway.md](setup/qemu_integrated_gateway.md) §7.
@@ -244,7 +246,7 @@ records and a `SHA256SUMS` seal.
   fetched, so the counts after the backlog have two Yocto runs and three Debian runs.
 - **Also kept, not in the figures:** a first attempt, invalid because of a measurement fault, and two
   stops of the series for the same kind of reason. Nothing was repeated to replace them.
-- **Data:** [`evidence/compare-a02/`](evidence/compare-a02/README.md): the table, one row per run
+- **Data:** [Yocto–Debian comparison records](evidence/compare-a02/README.md): the table, one row per run
   (`summary.csv`, `summary.json`) and the plan (`plan-a02.json`). The raw records (583 files, about
   69 MB) are kept locally.
 - **Code:** in `tools/compare/`: `measure_base.sh`, `measure_plan.py`, `measure_run.sh`,
@@ -270,15 +272,15 @@ records and a `SHA256SUMS` seal.
 
 - **Requirements** (Section 5.6, Tables 5.4 and A.2). The dissertation reads the results above against
   its list of requirements. This adds no data. The repository holds an earlier version of that list:
-  [academic/gateway_requirements_and_platform_selection.md](academic/gateway_requirements_and_platform_selection.md).
+  [earlier requirements list](academic/gateway_requirements_and_platform_selection.md).
 - **Unit tests** (Table B.1). They use stand-ins for MQTT and Ditto. In the repository: 701 passed
-  ([`evidence/tests/2026-08-11-head-4e67717/`](evidence/tests/2026-08-11-head-4e67717/)). A later run,
+  ([unit-test record of 2026-08-11](evidence/tests/2026-08-11-head-4e67717/)). A later run,
   kept locally: 4,044 passed, 12 skipped. Code: `src/tests/`; the command is in
   [src/README.md](../src/README.md).
 - **A pilot of longer, repeated runs** (Section 5.7). It was started but not finished, and the
   dissertation cites no figure from it. One session stopped at its start, and one run was recorded as
   failed: 33 messages failed while its backlog cleared. Plan:
-  [experiments/g4-pilot/](../experiments/g4-pilot/README.md); records kept locally.
+  [plan of the pilot](../experiments/g4-pilot/README.md); records kept locally.
 - **Demonstration checks are not results.** The checks of the two comparison environments
   ([tools/compare/README.md](../tools/compare/README.md) §9) and of the demonstration scenarios
   ([demo.md](demo.md)) only show that the demonstration works. The additional Yocto demonstration
@@ -287,6 +289,11 @@ records and a `SHA256SUMS` seal.
 ## Limitations
 
 - **Emulation on one PC.** Nothing here describes speed, capacity or energy on real ARM hardware.
+- **Only the gateway's local services.** The repository implements the local services of one edge
+  gateway: the MQTT broker, the controller, the Ditto twins and MongoDB storage. The rest of the C2DTA
+  architecture was not implemented: consumer agents, decentralised identities, verifiable credentials
+  and the ledgers. No result covers those parts
+  ([what is not implemented](architecture.md#7-what-is-not-implemented)).
 - **Timing under load.** No 600 s run, on either system, confirmed every message in time at 11.2 msg/s.
 - **A small comparison.** Three runs per system; kernel, container runtime and system software all
   differ, so no effect of the distribution alone can be isolated.
@@ -299,8 +306,8 @@ records and a `SHA256SUMS` seal.
 
 ## Data kept locally
 
-These stay in the student's local `output_test` folder ([setup/local_test_outputs.md](setup/local_test_outputs.md)),
-each with its own `SHA256SUMS`:
+These stay in the student's local `output_test` folder
+([description of the local folder](setup/local_test_outputs.md)), each with its own `SHA256SUMS`:
 
 | Data | Local folder |
 |---|---|

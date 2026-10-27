@@ -82,7 +82,8 @@ request.
 
 **Merging a pull request demonstrates implementation and verification; it does
 not close a gate.** Accepting a gate still requires the evidence defined in the
-plan, and is recorded in `PROGRESS.md` and in Annex C of the plan.
+plan, and is recorded in [`docs/history/PROGRESS.md`](docs/history/PROGRESS.md)
+and in Annex C of the plan.
 
 ## Merging
 

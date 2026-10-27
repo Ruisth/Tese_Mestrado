@@ -1,3 +1,10 @@
+# HISTORICAL RECORD. This manifest describes the LaTeX conversion of 17 September 2026 only.
+# It is not the current dissertation. The current manuscript is the student's Word file,
+# kept outside this repository and not published here (see README.md in this folder).
+status: historical
+snapshot_date: "2026-09-17"
+current_manuscript: "The student's Word file, outside this repository; not published here"
+
 title: "Blockchain-powered Personal AI -- Digital Twin Edge Gateway"
 authors: ["Rui Miguel Franco Duarte"]
 student_number: "94494"
@@ -7,8 +14,9 @@ style: "Supplied Template_LaTeX; official 2026 status unconfirmed (D004)"
 figs_dir: latex/imagens
 bibfile: refs/references.bib
 
-# LaTeX is the canonical editable manuscript. Markdown is a generated mirror.
-# The supplied Word content is imported without scientific or metadata revision.
+# Within this historical conversion only, latex/main.tex is the edited source and the
+# Markdown under sections/ is a mirror generated from it. Neither is the current manuscript.
+# The supplied Word content was imported without scientific or metadata revision.
 source_of_truth: latex/main.tex
 generated_by: tools/generate_sections.py
 generated_are_read_only: true

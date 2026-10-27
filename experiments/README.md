@@ -1,20 +1,28 @@
 # Experiments — campaign evidence tree
 
 > **Status.** This is the manual of the experiment harness (`src/egw_experiments/`), written for
-> the 95-run campaign protocol of the integrated plan. **That campaign was never executed.**
+> the 95-run campaign protocol of the integrated plan. **That campaign was never executed.** It was
+> replaced by the Yocto–Debian 13 comparison.
 >
-> - Gates G4 (pilot and the `exp-v1` protocol freeze) and G5 (campaign) are `Not decided` in the
->   [gate log](../docs/governance/gate_decision_log.md).
-> - `results/` holds no campaign data.
-> - The soak and the data freeze `data-v1` never took place.
+> - The decisions on the pilot of longer runs (with the `exp-v1` protocol freeze) and on the
+>   campaign were never taken. Their recorded status is `Not decided` in the
+>   [decision log](../docs/governance/gate_decision_log.md), kept as a record. The pilot was
+>   started but not finished.
+> - `results/` holds no campaign data, and [`results.md`](results.md) is the record of the planned
+>   campaign, not a list of results.
+> - The 24-hour soak and the data freeze `data-v1` never took place.
 >
 > **The harness itself was used**, through its `run` and `analyze` paths:
 >
-> - by the G3 functional battery of 2026-10-02 to 2026-10-07, driven by `tools/session/`;
-> - by the Yocto vs Debian 13 comparison of 2026-10-18/19, driven by `tools/compare/measure_*`.
+> - by the test battery of 2026-10-02 to 2026-10-07, driven by `tools/session/`;
+> - by the Yocto–Debian 13 comparison of 2026-10-18/19, driven by `tools/compare/measure_*`.
 >
 > Those results, their data and their code are indexed in [`../docs/results.md`](../docs/results.md).
 > How to repeat them is in [`../docs/reproduce.md`](../docs/reproduce.md).
+>
+> **Reading the rest of this manual.** The sections below keep the wording of the plan of that
+> time, with its internal labels for decision points, work orders, audit findings and plan
+> sections. They describe how the harness works. They report no result.
 >
 > **The system under test** is the ARM64 guest emulated by QEMU/TCG on the x86-64 host,
 > including its kernel, root file system and containers. The harness reaches it on `127.0.0.1`
@@ -86,7 +94,8 @@ experiments/
 ## Condition → claim map (audit 9.5)
 
 Protocol source of truth: `src/egw_experiments/protocol.py`
-(`CONDITION_CLAIMS`); claims live in `docs/claim_evidence_matrix.csv`. This
+(`CONDITION_CLAIMS`); claims live in `docs/history/claim_evidence_matrix.csv`,
+now kept as a record. This
 is the campaign's protocol as frozen in the code. It was never executed, and
 no claim of the matrix is validated.
 

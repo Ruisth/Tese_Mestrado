@@ -100,6 +100,7 @@ thesis/
 │  ├─ word-import-manifest.json # source identity and inventory
 │  ├─ imagens/                 # supplied logos and extracted research figure
 │  ├─ ch2_supervisor_draft.tex  # derivative of the imported Chapter 2
+│  ├─ ch2_supervisor_draft.pdf  # that Chapter 2 extract as built on 2026-09-17 (10 pages); not current
 │  └─ chapters/
 │     ├─ 01_introduction.tex    # Word Introduction (2026-09-17)
 │     ├─ 02_background.tex      # Word Theoretical Framework (2026-09-17)
@@ -111,12 +112,22 @@ thesis/
 │  └─ references.bib           # 33 reference strings preserved from Word
 ├─ research/                  # research records (see below)
 ├─ sections/                  # generated Markdown mirror
-└─ manifest.yaml
+├─ figs/                      # placeholder; no figure was ever exported here
+├─ tools/                     # mirror generator, its tests and the import verifier
+└─ manifest.yaml              # metadata and mirror mapping of this historical conversion
 ```
+
+The committed `ch2_supervisor_draft.pdf` matches the sealed verification record of the import
+([`../docs/evidence/word-import-2026-09-17/`](../docs/evidence/word-import-2026-09-17/README.md)).
+It carries no date or "historical" mark inside it. Read it as the 2026-09-17 extract, not as a
+chapter of the current dissertation.
 
 ## How to compile
 
-The CI workflow still builds both documents of this historical version.
+The CI job `thesis build` still builds both documents of this historical version. It keeps the two
+PDFs as the workflow artifact `thesis-latex-historical-2026-09-17`. Neither PDF is the current
+dissertation. Their content is the 2026-09-17 text described above, even though `main.pdf` carries
+the manuscript title on its cover.
 
 **Toolchain.** Use TeX Live with `latexmk`, Biber and the supplied template's packages, including:
 

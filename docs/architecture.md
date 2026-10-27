@@ -40,7 +40,12 @@ flowchart LR
     LC -- "start, SSH :2222, stop" --> GUEST
     OBS -. "read only" .-> CT
     OBS -. "read only" .-> GW
+    OBS -. "read only: subscriber<br/>inside the broker container" .-> MQ
 ```
+
+The observers reach the gateway over SSH. The MQTT observer (`tools/demo/observe/mqtt.sh`) runs a
+read-only subscriber inside the broker container; the Ditto observer reads the twins through the Ditto
+gateway.
 
 ## 2. The PC and the emulated gateway
 
@@ -167,7 +172,7 @@ storage. Not implemented:
   device's first valid message);
 - Ditto's search, connectivity and web UI.
 
-Function by function: [`academic/c2dta_p0_traceability.md`](academic/c2dta_p0_traceability.md).
+Function by function: [C2DTA function traceability](academic/c2dta_p0_traceability.md).
 Reference drawing (not normative):
 [`diagrams/c2dta_five_layer_reference.svg`](../diagrams/c2dta_five_layer_reference.svg).
 
@@ -204,7 +209,8 @@ the results:
 - `.github/workflows/manual-arm64-integration.yml`: needs a native ARM64 runner that never existed;
 - the `genericarm64` option of `src/yocto/scripts/build-profile.sh`: its kas file is not in the
   repository, so it fails;
-- [`docs/setup/vm_arm64_hetzner.md`](history/setup/vm_arm64_hetzner.md): setup of a native ARM64 server
-  that was never used;
-- `diagrams/two_layer_experimental_deployment.*`: an earlier deployment drawing;
+- the [set-up guide of a native ARM64 server](history/setup/vm_arm64_hetzner.md) that was never used
+  (in the history folder);
+- an [earlier deployment drawing](history/diagrams/two_layer_experimental_deployment.svg) (in the
+  history folder);
 - `src/egw_experiments/campaign.py`: a larger planned experiment that was never run.
